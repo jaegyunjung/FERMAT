@@ -1,4 +1,4 @@
-# FERMAT
+# FERMAT v0.1
 
 **Foundation model for Exploring Real-world Multimodal health data using Autoregressive Trajectory modeling**
 
