@@ -111,7 +111,7 @@ cp -r path/to/Delphi/data/ukb_simulated_data data/
 python train.py config/train_fermat_demo.py --device=cpu
 ```
 
-### Train on Korean claims data
+### Train on claims data from South Korea
 ```bash
 # After data preprocessing
 python train.py config/train_fermat_kr.py --device=cuda
@@ -143,7 +143,7 @@ FERMAT/
 
 ## Citation
 
-This work builds on Delphi:
+For prior work on generative modeling of disease trajectories, see:
 ```bibtex
 @article{shmatko2025delphi,
   title={Learning the natural history of human disease with generative transformers},
