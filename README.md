@@ -118,13 +118,21 @@ python train.py config/train_fermat_demo.py --device=cpu --max_iters=50
 
 This verifies that the code runs without errors. It does not validate model performance — the synthetic data contains only diagnosis tokens (no RX/PX/LAB), so the token type embedding receives no meaningful signal.
 
-## References
+## Related Work
 
-FERMAT's autoregressive trajectory modeling approach and the continuous age encoding / exponential time-to-event loss are adapted from:
+FERMAT is a transformer-based model for longitudinal clinical event modeling.
 
-> Shmatko, A., Jung, A.W., Gaurav, K. et al. Learning the natural history of human disease with generative transformers. *Nature* 647, 248–256 (2025).
+Related work on generative modeling of disease trajectories includes:
 
-The multimodal token vocabulary and token type embedding are original to FERMAT.
+```bibtex
+@article{shmatko2025delphi,
+  title={Learning the natural history of human disease with generative transformers},
+  author={Shmatko, Artem and Jung, Alexander Wolfgang and Gaurav, Kumar and others},
+  journal={Nature},
+  volume={647},
+  pages={248--256},
+  year={2025}
+}
 
 ## License
 
