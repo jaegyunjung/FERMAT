@@ -40,3 +40,10 @@ Thumbs.db
 
 # wandb
 wandb/
+
+# Local raw/synthetic data
+data/*.duckdb
+data/*raw*
+data/synthetic_snuh_raw.duckdb
+data/synthetic_snuh/*.bin
+*.duckdb
