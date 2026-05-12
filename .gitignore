@@ -47,3 +47,6 @@ data/*raw*
 data/synthetic_snuh_raw.duckdb
 data/synthetic_snuh/*.bin
 *.duckdb
+data/synthetic_snuh/*.csv
+logs/
+FERMAT-synthetic-snuh-v0_1/
