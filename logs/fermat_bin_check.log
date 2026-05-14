@@ -1,0 +1,28 @@
+# FERMAT bin check
+data_dir: data/synthetic_snuh
+vocab size: 422
+
+## train.bin
+  rows: 541154
+  OK: patient_id non-decreasing
+  OK: patient_id dense (9000 patients)
+  OK: age_in_days >= 0 (min=0, max=34987)
+  OK: all token_ids in vocab
+  OK: token_type in 0..8 (counts: {1: 160161, 2: 185466, 3: 1338, 4: 184578, 6: 611, 7: 9000})
+  OK: ages monotonic within each patient
+
+## val.bin
+  rows: 59713
+  OK: patient_id non-decreasing
+  OK: patient_id dense (1000 patients)
+  OK: age_in_days >= 0 (min=0, max=34924)
+  OK: all token_ids in vocab
+  OK: token_type in 0..8 (counts: {1: 17568, 2: 20451, 3: 119, 4: 20516, 6: 59, 7: 1000})
+  OK: ages monotonic within each patient
+
+## train/val patient overlap
+  WARN: 1000 patient_ids overlap (they are redensed independently per split; this is expected if both splits start at 0 — but person_id-level overlap should be 0 in patient_split.csv).
+  OK: person_id-level train/val are disjoint (train=9000, val=1000)
+
+## Summary
+  total ERROR-level issues: 0

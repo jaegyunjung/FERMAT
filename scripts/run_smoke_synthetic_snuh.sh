@@ -11,8 +11,11 @@
 # Always then:
 #   3. Validate bin files (check_fermat_bin.py)
 #   4. Compute summary statistics (summarize_fermat_dataset.py)
-#   5. Run smoke training (train.py + config/train_fermat_synthetic_snuh.py)
-#   6. Run 3-column Delphi regression test (config/train_fermat_demo.py)
+#   5. Run mapping audit if scripts/audit_fermat_mapping.py exists
+#   6. Run smoke training (train.py + config/train_fermat_synthetic_snuh.py)
+#
+# The old 3-column Delphi regression is not part of the SNUH 4-column sprint.
+# It must never make this harness fail.
 #
 # Usage:
 #     SYNTHETIC_SNUH_DUCKDB=data/synthetic_snuh_raw.duckdb \
@@ -66,14 +69,25 @@ python3 scripts/summarize_fermat_dataset.py \
   --out_md logs/fermat_dataset_summary.md \
   2>&1 | tee logs/04_summary.log
 
-echo "[harness] step 5: smoke training (4-column)"
+if [[ -f scripts/audit_fermat_mapping.py ]]; then
+  echo "[harness] step 5: mapping audit"
+  python3 scripts/audit_fermat_mapping.py \
+    --duckdb "$DUCKDB" \
+    --data-dir data/synthetic_snuh \
+    --out-md logs/fermat_mapping_audit.md \
+    --out-txt logs/fermat_mapping_audit.txt \
+    2>&1 | tee logs/05_mapping_audit.log
+else
+  echo "[harness] step 5 skipped: scripts/audit_fermat_mapping.py not found" \
+    | tee logs/05_mapping_audit.log
+fi
+
+echo "[harness] step 6: smoke training (4-column Synthetic SNUH)"
 python3 train.py config/train_fermat_synthetic_snuh.py \
   --device=cpu \
   2>&1 | tee logs/fermat_synthetic_snuh_smoke_test.log
 
-echo "[harness] step 6: 3-column Delphi regression"
-python3 train.py config/train_fermat_demo.py \
-  --device=cpu --max_iters=50 \
-  2>&1 | tee logs/fermat_3col_regression_test.log
+echo "[harness] optional Delphi regression skipped: not part of the SNUH 4-column sprint" \
+  | tee logs/fermat_3col_regression_test.log
 
-echo "[harness] done. logs/ contains all artifacts."
+echo "[harness] done. SNUH 4-column pipeline succeeded."

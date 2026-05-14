@@ -1,0 +1,38 @@
+# FERMAT mapping audit
+duckdb: data/synthetic_snuh_raw.duckdb
+data_dir: data/synthetic_snuh
+
+## Source row counts
+  person                   10000
+  condition_occurrence     177729
+  drug_exposure            205917
+  procedure_occurrence     1457
+  measurement              205094
+  death                    670
+
+## FERMAT token_type counts
+  SEX        train=9000 val=1000 total=10000
+  DX         train=160161 val=17568 total=177729
+  RX         train=185466 val=20451 total=205917
+  PX         train=1338 val=119 total=1457
+  LAB        train=184578 val=20516 total=205094
+  DTH        train=611 val=59 total=670
+
+## Expected mapping audit
+  person                   -> SEX  source_rows=10000 mapped_total=10000 dropped=(birth_unknown_patient=0)
+  condition_occurrence     -> DX   source_rows=177729 mapped_total=177729 dropped=(age_negative=0, age_unrealistic=0, birth_unknown_patient=0, unknown_source_value=0)
+  drug_exposure            -> RX   source_rows=205917 mapped_total=205917 dropped=(age_negative=0, age_unrealistic=0, birth_unknown_patient=0, unknown_source_value=0)
+  procedure_occurrence     -> PX   source_rows=1457 mapped_total=1457 dropped=(age_negative=0, age_unrealistic=0, birth_unknown_patient=0, unknown_source_value=0)
+  measurement              -> LAB  source_rows=205094 mapped_total=205094 dropped=(age_negative=0, age_unrealistic=0, birth_unknown_patient=0, measurement_cutpoint_unavailable=0, measurement_value_missing=0)
+  death                    -> DTH  source_rows=670 mapped_total=670 dropped=(age_negative=0, age_unrealistic=0, birth_unknown_patient=0)
+
+## Split integrity
+  OK: train/val person_id overlap = 0 (train=9000, val=1000)
+
+## Findings
+  OK: patient_split.csv train/val person_id overlap is 0 (train=9000, val=1000)
+  OK: measurement rows=205094, LAB tokens=205094
+  OK: death rows=670, DTH tokens=670
+
+## Summary
+  ERROR-level issues: 0

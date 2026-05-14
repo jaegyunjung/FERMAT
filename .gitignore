@@ -6,6 +6,7 @@ data/fermat_demo/
 
 # Checkpoints
 *.pt
+*.ckpt
 out/
 FERMAT-demo/
 FERMAT-v1/
@@ -45,8 +46,20 @@ wandb/
 data/*.duckdb
 data/*raw*
 data/synthetic_snuh_raw.duckdb
+data/**/*.bin
 data/synthetic_snuh/*.bin
 *.duckdb
 data/synthetic_snuh/*.csv
-logs/
+data/real_snuh/
+out/real_snuh/
+logs/*
+!logs/.gitkeep
+!logs/synthetic_snuh_schema_summary.txt
+!logs/fermat_dataset_summary.md
+!logs/fermat_bin_check.log
+!logs/fermat_mapping_audit.md
+!logs/fermat_mapping_audit.txt
+!logs/fermat_synthetic_snuh_smoke_test.log
+logs/real_snuh/
 FERMAT-synthetic-snuh-v0_1/
+FERMAT-real-snuh*/

@@ -1,0 +1,207 @@
+# Synthetic SNUH Schema Summary
+Source: data/synthetic_snuh_raw.duckdb
+Tables found: 15
+
+## Tables present
+         care_site
+  [OMOP] condition_occurrence
+  [OMOP] death
+  [OMOP] drug_exposure
+         hospital_resource_event
+         location
+  [OMOP] measurement
+         note
+         note_llm_log
+         note_text_template
+  [OMOP] observation
+  [OMOP] observation_period
+  [OMOP] person
+  [OMOP] procedure_occurrence
+  [OMOP] visit_occurrence
+
+## Required OMOP tables
+  YES  person                     rows=10000
+  YES  visit_occurrence           rows=178079
+  YES  condition_occurrence       rows=177729
+  YES  drug_exposure              rows=205917
+  YES  procedure_occurrence       rows=1457
+  YES  measurement                rows=205094
+  YES  death                      rows=670
+  YES  observation                rows=270725
+  YES  observation_period         rows=10000
+
+## Schema and fill rates
+
+### person (10000 rows)
+  Columns:
+    - person_id: BIGINT
+    - gender_concept_id: INTEGER
+    - year_of_birth: INTEGER
+    - month_of_birth: INTEGER
+    - day_of_birth: INTEGER
+    - birth_datetime: TIMESTAMP
+    - race_concept_id: INTEGER
+    - ethnicity_concept_id: INTEGER
+    - location_id: BIGINT
+    - provider_id: BIGINT
+    - care_site_id: BIGINT
+    - person_source_value: VARCHAR
+    - gender_source_value: VARCHAR
+    - race_source_value: VARCHAR
+    - ethnicity_source_value: VARCHAR
+  Fill rates for key columns:
+    person_id                         10000/10000 (100.0%)
+    gender_concept_id                 10000/10000 (100.0%)
+    gender_source_value               10000/10000 (100.0%)
+    year_of_birth                     10000/10000 (100.0%)
+    month_of_birth                    10000/10000 (100.0%)
+    day_of_birth                      10000/10000 (100.0%)
+    birth_datetime                    10000/10000 (100.0%)
+
+### visit_occurrence (178079 rows)
+  Columns:
+    - visit_occurrence_id: BIGINT
+    - person_id: BIGINT
+    - visit_concept_id: INTEGER
+    - visit_start_date: DATE
+    - visit_start_datetime: TIMESTAMP
+    - visit_end_date: DATE
+    - visit_end_datetime: TIMESTAMP
+    - visit_type_concept_id: INTEGER
+    - provider_id: BIGINT
+    - care_site_id: BIGINT
+    - visit_source_value: VARCHAR
+  Fill rates for key columns:
+    person_id                         178079/178079 (100.0%)
+    visit_concept_id                  178079/178079 (100.0%)
+    visit_source_value                178079/178079 (100.0%)
+    visit_start_date                  178079/178079 (100.0%)
+    visit_end_date                    178079/178079 (100.0%)
+
+### condition_occurrence (177729 rows)
+  Columns:
+    - condition_occurrence_id: BIGINT
+    - person_id: BIGINT
+    - condition_concept_id: INTEGER
+    - condition_start_date: DATE
+    - condition_start_datetime: TIMESTAMP
+    - condition_end_date: DATE
+    - condition_type_concept_id: INTEGER
+    - stop_reason: VARCHAR
+    - provider_id: BIGINT
+    - visit_occurrence_id: BIGINT
+    - condition_source_value: VARCHAR
+  Fill rates for key columns:
+    person_id                         177729/177729 (100.0%)
+    condition_concept_id              177729/177729 (100.0%)
+    condition_source_value            177729/177729 (100.0%)
+    condition_start_date              177729/177729 (100.0%)
+    condition_start_datetime          177729/177729 (100.0%)
+
+### drug_exposure (205917 rows)
+  Columns:
+    - drug_exposure_id: BIGINT
+    - person_id: BIGINT
+    - drug_concept_id: INTEGER
+    - drug_exposure_start_date: DATE
+    - drug_exposure_start_datetime: TIMESTAMP
+    - drug_exposure_end_date: DATE
+    - drug_type_concept_id: INTEGER
+    - quantity: DOUBLE
+    - days_supply: INTEGER
+    - provider_id: BIGINT
+    - visit_occurrence_id: BIGINT
+    - drug_source_value: VARCHAR
+  Fill rates for key columns:
+    person_id                         205917/205917 (100.0%)
+    drug_concept_id                   205917/205917 (100.0%)
+    drug_source_value                 205917/205917 (100.0%)
+    drug_exposure_start_date          205917/205917 (100.0%)
+    drug_exposure_start_datetime      205917/205917 (100.0%)
+
+### procedure_occurrence (1457 rows)
+  Columns:
+    - procedure_occurrence_id: BIGINT
+    - person_id: BIGINT
+    - procedure_concept_id: INTEGER
+    - procedure_date: DATE
+    - procedure_datetime: TIMESTAMP
+    - procedure_type_concept_id: INTEGER
+    - provider_id: BIGINT
+    - visit_occurrence_id: BIGINT
+    - procedure_source_value: VARCHAR
+  Fill rates for key columns:
+    person_id                         1457/1457 (100.0%)
+    procedure_concept_id              1457/1457 (100.0%)
+    procedure_source_value            1457/1457 (100.0%)
+    procedure_date                    1457/1457 (100.0%)
+    procedure_datetime                1457/1457 (100.0%)
+
+### measurement (205094 rows)
+  Columns:
+    - measurement_id: BIGINT
+    - person_id: BIGINT
+    - measurement_concept_id: INTEGER
+    - measurement_date: DATE
+    - measurement_datetime: TIMESTAMP
+    - measurement_type_concept_id: INTEGER
+    - value_as_number: DOUBLE
+    - unit_source_value: VARCHAR
+    - provider_id: BIGINT
+    - visit_occurrence_id: BIGINT
+    - measurement_source_value: VARCHAR
+  Fill rates for key columns:
+    person_id                         205094/205094 (100.0%)
+    measurement_concept_id            205094/205094 (100.0%)
+    measurement_source_value          205094/205094 (100.0%)
+    measurement_date                  205094/205094 (100.0%)
+    measurement_datetime              205094/205094 (100.0%)
+    value_as_number                   205094/205094 (100.0%)
+    value_as_concept_id               MISSING
+    unit_concept_id                   MISSING
+    unit_source_value                 205094/205094 (100.0%)
+
+### death (670 rows)
+  Columns:
+    - person_id: BIGINT
+    - death_date: DATE
+    - death_type_concept_id: INTEGER
+    - cause_concept_id: INTEGER
+  Fill rates for key columns:
+    person_id                         670/670 (100.0%)
+    death_date                        670/670 (100.0%)
+    death_datetime                    MISSING
+    cause_concept_id                  670/670 (100.0%)
+    cause_source_value                MISSING
+
+### observation (270725 rows)
+  Columns:
+    - observation_id: BIGINT
+    - person_id: BIGINT
+    - observation_concept_id: INTEGER
+    - observation_date: DATE
+    - observation_datetime: TIMESTAMP
+    - observation_type_concept_id: INTEGER
+    - value_as_number: DOUBLE
+    - value_as_string: VARCHAR
+    - unit_source_value: VARCHAR
+    - provider_id: BIGINT
+    - visit_occurrence_id: BIGINT
+    - observation_source_value: VARCHAR
+  Fill rates for key columns:
+
+### observation_period (10000 rows)
+  Columns:
+    - observation_period_id: BIGINT
+    - person_id: BIGINT
+    - observation_period_start_date: DATE
+    - observation_period_end_date: DATE
+    - period_type_concept_id: INTEGER
+  Fill rates for key columns:
+
+## Death table accessibility
+  death table present, 670 rows
+
+## Patient sample size suggestions
+  Total persons: 10000
+  For smoke test: use all 10000 persons

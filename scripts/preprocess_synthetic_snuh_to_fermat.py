@@ -54,6 +54,11 @@ def query_persons(con):
     """).df()
 
 
+def get_table_columns(con, table):
+    rows = con.execute(f"PRAGMA table_info('{table}')").fetchall()
+    return {r[1] for r in rows}
+
+
 def query_events_table(con, table, src_col, fallback_col, date_col):
     """Generic event extractor; returns DataFrame with person_id, event_date, source_value."""
     fallback_sql = f"CAST({fallback_col} AS VARCHAR)" if fallback_col else "NULL"
@@ -69,16 +74,32 @@ def query_events_table(con, table, src_col, fallback_col, date_col):
 
 
 def query_measurements(con):
-    return con.execute("""
+    cols = get_table_columns(con, "measurement")
+    value_as_concept_sql = (
+        "value_as_concept_id"
+        if "value_as_concept_id" in cols else
+        "NULL::BIGINT AS value_as_concept_id"
+    )
+    unit_concept_sql = (
+        "unit_concept_id"
+        if "unit_concept_id" in cols else
+        "NULL::BIGINT AS unit_concept_id"
+    )
+    unit_source_sql = (
+        "unit_source_value"
+        if "unit_source_value" in cols else
+        "NULL::VARCHAR AS unit_source_value"
+    )
+    return con.execute(f"""
         SELECT
             person_id,
             CAST(measurement_date AS DATE) AS event_date,
             COALESCE(NULLIF(measurement_source_value, ''),
                      CAST(measurement_concept_id AS VARCHAR)) AS source_value,
             value_as_number,
-            value_as_concept_id,
-            unit_concept_id,
-            unit_source_value
+            {value_as_concept_sql},
+            {unit_concept_sql},
+            {unit_source_sql}
         FROM measurement
         WHERE measurement_date IS NOT NULL
           AND person_id IS NOT NULL
@@ -86,12 +107,17 @@ def query_measurements(con):
 
 
 def query_death(con):
-    return con.execute("""
+    cols = get_table_columns(con, "death")
+    source_expr = (
+        "NULLIF(cause_source_value, '')"
+        if "cause_source_value" in cols else
+        "NULL"
+    )
+    return con.execute(f"""
         SELECT
             person_id,
             CAST(death_date AS DATE) AS event_date,
-            COALESCE(NULLIF(cause_source_value, ''),
-                     CAST(cause_concept_id AS VARCHAR), 'UNK') AS source_value
+            COALESCE({source_expr}, CAST(cause_concept_id AS VARCHAR), 'UNK') AS source_value
         FROM death
         WHERE death_date IS NOT NULL
           AND person_id IS NOT NULL
@@ -163,33 +189,22 @@ def add_age_in_days(df, birth_map, drop_log, table_name):
 # Measurement → quantile binning (train-split only)
 # ---------------------------------------------------------------------------
 
-def measurement_to_lab_labels(meas_df, train_person_set, drop_log, min_count=30):
+def measurement_to_lab_labels(meas_df, train_person_set, drop_log):
     """
     Turn measurement rows into LAB:<key>:<bin> labels.
     Quantile cutpoints are computed on training persons only.
     """
-    has_concept = meas_df["value_as_concept_id"].notna() & \
-        (meas_df["value_as_concept_id"] != 0)
     has_number = meas_df["value_as_number"].notna()
     drop_log.append({
         "reason": "measurement_value_missing", "table": "measurement",
-        "source_value": "", "count": int((~has_concept & ~has_number).sum()),
+        "source_value": "", "count": int((~has_number).sum()),
     })
-    meas_df = meas_df.loc[has_concept | has_number].copy()
+    meas_df = meas_df.loc[has_number].copy()
 
     labels = pd.Series(index=meas_df.index, dtype=object)
 
-    # Categorical path
-    cat_mask = has_concept.loc[meas_df.index]
-    if cat_mask.any():
-        cat_df = meas_df.loc[cat_mask]
-        labels.loc[cat_mask] = (
-            "LAB:" + cat_df["source_value"].astype(str)
-            + ":C" + cat_df["value_as_concept_id"].astype(int).astype(str)
-        )
-
     # Numeric path: compute quantiles on training persons
-    num_mask = (~cat_mask) & has_number.loc[meas_df.index]
+    num_mask = has_number.loc[meas_df.index]
     num_df = meas_df.loc[num_mask]
     if len(num_df):
         train_mask_num = num_df["person_id"].isin(train_person_set)
@@ -198,7 +213,7 @@ def measurement_to_lab_labels(meas_df, train_person_set, drop_log, min_count=30)
         cutpoints = {}
         for key, grp in train_num.groupby("source_value"):
             vals = grp["value_as_number"].dropna().values
-            if len(vals) < min_count:
+            if len(vals) == 0:
                 continue
             q1 = np.quantile(vals, 1 / 3.0)
             q2 = np.quantile(vals, 2 / 3.0)
@@ -221,7 +236,7 @@ def measurement_to_lab_labels(meas_df, train_person_set, drop_log, min_count=30)
         applied = num_df.apply(to_bin, axis=1)
         below = applied.isna()
         drop_log.append({
-            "reason": "measurement_below_threshold", "table": "measurement",
+            "reason": "measurement_cutpoint_unavailable", "table": "measurement",
             "source_value": "", "count": int(below.sum()),
         })
         labels.loc[num_df.index] = applied
@@ -444,7 +459,7 @@ def main():
         dth_raw = query_death(con)
         dth_raw = dth_raw.loc[dth_raw["person_id"].isin(birth_map.keys())]
         dth_raw = add_age_in_days(dth_raw, birth_map, drop_log, "death")
-        dth_raw["label"] = "DTH:" + dth_raw["source_value"].astype(str)
+        dth_raw["label"] = "DTH:DEATH"
         dth_df = dth_raw[["person_id", "age_in_days", "label"]]
     except duckdb.Error as e:
         print(f"WARN: death: {e}", file=sys.stderr)
