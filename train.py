@@ -75,6 +75,9 @@ ignore_tokens = [0]
 ignore_types = [TokenType.PAD, TokenType.SEX, TokenType.NO_EVENT]
 data_fraction = 1.0
 no_event_token_rate = 5
+train_select = 'left'
+eval_select = 'left'
+loss_dt_weight = 1.0
 
 # =============================================================================
 # Config overrides
@@ -188,7 +191,7 @@ def estimate_loss():
         for k in range(eval_iters):
             ix = torch.randint(len(p2i), (batch_size,))
             batch = get_batch(ix, data, p2i, block_size=block_size,
-                              device=device, select='left',
+                              device=device, select=eval_select,
                               no_event_token_rate=no_event_token_rate,
                               cut_batch=True)
             X, A, Y, B, XT = _unpack_batch(batch, device)
@@ -220,7 +223,7 @@ if wandb_log:
 # Initial batch
 ix = torch.randint(len(train_p2i), (batch_size,))
 batch = get_batch(ix, train_data, train_p2i, block_size=block_size, device=device,
-                  padding='random', lifestyle_augmentations=True, select='left',
+                  padding='random', lifestyle_augmentations=True, select=train_select,
                   no_event_token_rate=no_event_token_rate)
 X, A, Y, B, XT = _unpack_batch(batch, device)
 
@@ -285,11 +288,11 @@ while True:
         # Prefetch next batch
         ix = torch.randint(len(train_p2i), (batch_size,))
         batch = get_batch(ix, train_data, train_p2i, block_size=block_size, device=device,
-                          padding='random', lifestyle_augmentations=True, select='left',
+                          padding='random', lifestyle_augmentations=True, select=train_select,
                           no_event_token_rate=no_event_token_rate, cut_batch=True)
         X, A, Y, B, XT = _unpack_batch(batch, device)
 
-        combined_loss = loss['loss_ce'] + loss['loss_dt']
+        combined_loss = loss['loss_ce'] + loss_dt_weight * loss['loss_dt']
         scaler.scale(combined_loss).backward()
 
     if grad_clip != 0.0:

@@ -41,8 +41,14 @@ min_lr = 3e-5
 beta2 = 0.99
 
 warmup_iters = 100
-ignore_tokens = [0]
+# Shifted token ids used during training:
+#   PAD=0, NO_EVENT=2, SEX:F=3, SEX:M=4 for the current Synthetic SNUH vocab.
+# We exclude non-predictive targets from the token-prediction demo objective.
+ignore_tokens = [0, 2, 3, 4]
 t_min = 0.1
 token_dropout = 0.0
-no_event_token_rate = 5
-mask_ties = True
+no_event_token_rate = 0
+mask_ties = False
+train_select = 'random'
+eval_select = 'random'
+loss_dt_weight = 0.0
