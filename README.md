@@ -93,30 +93,78 @@ The comparison between steps 4 and 5 is the key experiment: it isolates whether 
 
 ## Current Implementation Status
 
-See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for detailed evidence.
-
 | Component | Status |
 |-----------|--------|
-| Model architecture (`model.py`) | Prototype complete. Smoke-tested on synthetic 3-column data. |
-| Data loader (`utils.py`) | Prototype complete. 4-column format defined but not tested with real data. |
-| Training loop (`train.py`) | Prototype complete. Runs on synthetic data with checkpoint save/load. |
-| Ablation configs | Defined. Not executable until real data is available. |
-| Data preprocessing (NHIS/HIRA → tokens) | **Not implemented.** |
-| Token vocabulary mapping tables | **Not implemented.** |
-| Evaluation and generation | **Not implemented.** |
+| Model architecture (`model.py`) | Implemented and trained on 4-column Synthetic SNUH trajectories. |
+| Data loader (`utils.py`) | Implemented for 3-column Delphi compatibility and 4-column FERMAT data. |
+| Training loop (`train.py`) | Implemented with checkpoint save/load and token-prediction training on full Synthetic SNUH data. |
+| Synthetic SNUH preprocessing (`scripts/preprocess_synthetic_snuh_to_fermat.py`) | Implemented for OMOP-style Synthetic SNUH DuckDB → 4-column FERMAT bins. |
+| Synthetic SNUH mapping audit (`scripts/audit_fermat_mapping.py`) | Implemented with source-table/token-type consistency checks and split validation. |
+| Token vocabulary mapping tables | Implemented for the Synthetic SNUH pipeline (`vocab.csv` generated during preprocessing). |
+| Evaluation and generation | Implemented via `scripts/evaluate_token_prediction.py` and `scripts/demo_next_token_prediction.py`. |
+| Ablation / experiment configs | Executable for Synthetic SNUH (`train_fermat_synthetic_snuh*.py`). |
+| NHIS/HIRA production preprocessing | **Not implemented yet.** |
+| Real SNUH training / external validation | **Not implemented yet in this public repo.** |
 
-## Reproducing the Smoke Test
+Current best public synthetic result on full `data/synthetic_snuh`:
+
+- Next-token prediction checkpoint: `FERMAT-synthetic-snuh-token-prediction-longer/ckpt_top1_best.pt`
+- Validation CE: `1.7232`
+- Perplexity: `5.6022`
+- Top-1 accuracy: `40.83%`
+- Top-5 accuracy: `86.57%`
+- Top-10 accuracy: `93.25%`
+
+See:
+- `logs/fermat_token_prediction_eval.md`
+- `logs/fermat_next_token_examples.md`
+- `logs/fermat_mapping_audit.md`
+- `logs/fermat_dataset_summary.md`
+
+## Reproducing the Synthetic SNUH Pipeline
+
+### 1. Build / validate the 4-column Synthetic SNUH dataset
+
+If `data/synthetic_snuh_raw.duckdb` is available:
 
 ```bash
-# Clone Delphi's public synthetic data for code verification
-git clone https://github.com/gerstung-lab/Delphi.git
-cp -r Delphi/data/ukb_simulated_data data/
-
-# Run smoke test (CPU, ~1 minute)
-python train.py config/train_fermat_demo.py --device=cpu --max_iters=50
+SYNTHETIC_SNUH_DUCKDB=data/synthetic_snuh_raw.duckdb \
+  bash scripts/run_smoke_synthetic_snuh.sh
 ```
 
-This verifies that the code runs without errors. It does not validate model performance — the synthetic data contains only diagnosis tokens (no RX/PX/LAB), so the token type embedding receives no meaningful signal.
+This runs:
+- schema inspection
+- preprocessing to 4-column FERMAT bins
+- bin validation
+- dataset summary
+- mapping audit
+- CPU smoke training
+
+If the DuckDB file is missing, the harness falls back to a self-synthetic 4-column dataset for code verification.
+
+### 2. Run next-token prediction training on full Synthetic SNUH
+
+```bash
+python train.py config/train_fermat_synthetic_snuh_token_prediction_longer.py --device=cpu
+```
+
+### 3. Evaluate the trained checkpoint
+
+```bash
+python scripts/evaluate_token_prediction.py \
+  --ckpt FERMAT-synthetic-snuh-token-prediction-longer/ckpt_top1_best.pt \
+  --data-dir data/synthetic_snuh \
+  --device cpu
+```
+
+### 4. Generate qualitative next-token examples
+
+```bash
+python scripts/demo_next_token_prediction.py \
+  --ckpt FERMAT-synthetic-snuh-token-prediction-longer/ckpt_top1_best.pt \
+  --data-dir data/synthetic_snuh \
+  --device cpu
+```
 
 ## Related Work
 
