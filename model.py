@@ -195,7 +195,7 @@ class Fermat(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, idx, age, token_type, targets=None, targets_age=None,
-                validation_loss_mode=False):
+                target_token_type=None, validation_loss_mode=False):
         device = idx.device
         b, t = idx.size()
 
@@ -231,6 +231,10 @@ class Fermat(nn.Module):
             pass_tokens = targets_flat != -1
             for k in ignored_tokens:
                 pass_tokens = pass_tokens & (targets_flat != k)
+            if target_token_type is not None:
+                target_types_flat = target_token_type.reshape(-1)
+                for tt in self.config.ignore_types:
+                    pass_tokens = pass_tokens & (target_types_flat != int(tt))
 
             loss_ce = F.cross_entropy(logits.reshape(-1, logits.size(-1))[pass_tokens], targets_flat[pass_tokens], ignore_index=-1)
 

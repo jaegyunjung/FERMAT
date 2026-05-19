@@ -78,6 +78,9 @@ no_event_token_rate = 5
 train_select = 'left'
 eval_select = 'left'
 loss_dt_weight = 1.0
+train_lifestyle_augmentations = True
+checkpoint_metric = 'objective'
+save_latest_checkpoint = False
 
 # =============================================================================
 # Config overrides
@@ -171,13 +174,23 @@ if compile:
 # =============================================================================
 def _unpack_batch(batch_result, device):
     """Unpack get_batch result, creating default token_type if not present."""
-    x, a, y, b, xt = batch_result
+    if len(batch_result) == 6:
+        x, a, y, b, xt, yt = batch_result
+    else:
+        x, a, y, b, xt = batch_result
+        yt = None
     if xt is None:
         # Delphi compatibility: default all to DX type
         xt = torch.full_like(x, TokenType.DX)
+        yt = torch.full_like(y, TokenType.DX)
         if device == 'cuda':
             xt = xt.to(device)
-    return x, a, y, b, xt
+            yt = yt.to(device)
+    elif yt is None:
+        yt = torch.full_like(y, TokenType.DX)
+        if device == 'cuda':
+            yt = yt.to(device)
+    return x, a, y, b, xt, yt
 
 
 @torch.no_grad()
@@ -193,10 +206,10 @@ def estimate_loss():
             batch = get_batch(ix, data, p2i, block_size=block_size,
                               device=device, select=eval_select,
                               no_event_token_rate=no_event_token_rate,
-                              cut_batch=True)
-            X, A, Y, B, XT = _unpack_batch(batch, device)
+                              cut_batch=True, return_target_types=True)
+            X, A, Y, B, XT, YT = _unpack_batch(batch, device)
             with ctx:
-                logits, loss, _ = model(X, A, XT, Y, B, validation_loss_mode=True)
+                logits, loss, _ = model(X, A, XT, Y, B, target_token_type=YT, validation_loss_mode=True)
             losses[k] = torch.stack([loss['loss_ce'], loss['loss_dt']])
         out[split] = losses.mean(0)
     model.train()
@@ -223,9 +236,9 @@ if wandb_log:
 # Initial batch
 ix = torch.randint(len(train_p2i), (batch_size,))
 batch = get_batch(ix, train_data, train_p2i, block_size=block_size, device=device,
-                  padding='random', lifestyle_augmentations=True, select=train_select,
-                  no_event_token_rate=no_event_token_rate)
-X, A, Y, B, XT = _unpack_batch(batch, device)
+                  padding='random', lifestyle_augmentations=train_lifestyle_augmentations, select=train_select,
+                  no_event_token_rate=no_event_token_rate, return_target_types=True)
+X, A, Y, B, XT, YT = _unpack_batch(batch, device)
 
 t0 = time.time()
 local_iter_num = 0
@@ -240,30 +253,38 @@ while True:
     # Evaluate
     if iter_num % eval_interval == 0 and iter_num > 0:
         losses = estimate_loss()
-        val_loss = losses['val'].sum().item()
-        print(f"step {iter_num}: train loss {losses['train'].sum().item():.4f}, val loss {val_loss:.4f}")
+        train_objective = losses['train'][0].item() + loss_dt_weight * losses['train'][1].item()
+        val_objective = losses['val'][0].item() + loss_dt_weight * losses['val'][1].item()
+        val_loss = losses['val'][0].item() if checkpoint_metric == 'ce' else val_objective
+        print(f"step {iter_num}: train loss {train_objective:.4f}, val loss {val_loss:.4f}, val ce {losses['val'][0].item():.4f}")
 
         metrics.update({
-            "train/agg_loss": losses['train'].sum().item(),
+            "train/agg_loss": train_objective,
             "val/loss": val_loss,
             "val/loss_ce": losses['val'][0].item(),
             "val/loss_dt": losses['val'][1].item(),
+            "val/objective_loss": val_objective,
         })
 
-        if always_save_checkpoint or best_val_loss > val_loss:
-            if iter_num > 0:
-                checkpoint = {
-                    'model': model.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                    'model_args': model_args,
-                    'iter_num': iter_num,
-                    'best_val_loss': val_loss,
-                    'config': config,
-                }
-                print(f"Saving checkpoint to {out_dir}")
-                torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
+        improved = best_val_loss > val_loss
+        checkpoint = {
+            'model': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'model_args': model_args,
+            'iter_num': iter_num,
+            'best_val_loss': min(best_val_loss, val_loss),
+            'config': config,
+        }
 
-        if best_val_loss > val_loss:
+        if improved and iter_num > 0:
+            print(f"Saving best checkpoint to {out_dir}/ckpt.pt")
+            torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
+
+        if always_save_checkpoint and save_latest_checkpoint and iter_num > 0:
+            print(f"Saving latest checkpoint to {out_dir}/ckpt_latest.pt")
+            torch.save(checkpoint, os.path.join(out_dir, 'ckpt_latest.pt'))
+
+        if improved:
             best_val_loss = val_loss
 
         if iter_num % 10_000 == 0:
@@ -283,14 +304,14 @@ while True:
     # Forward / backward
     for micro_step in range(gradient_accumulation_steps):
         with ctx:
-            logits, loss, att = model(X, A, XT, Y, B)
+            logits, loss, att = model(X, A, XT, Y, B, target_token_type=YT)
 
         # Prefetch next batch
         ix = torch.randint(len(train_p2i), (batch_size,))
         batch = get_batch(ix, train_data, train_p2i, block_size=block_size, device=device,
-                          padding='random', lifestyle_augmentations=True, select=train_select,
-                          no_event_token_rate=no_event_token_rate, cut_batch=True)
-        X, A, Y, B, XT = _unpack_batch(batch, device)
+                          padding='random', lifestyle_augmentations=train_lifestyle_augmentations, select=train_select,
+                          no_event_token_rate=no_event_token_rate, cut_batch=True, return_target_types=True)
+        X, A, Y, B, XT, YT = _unpack_batch(batch, device)
 
         combined_loss = loss['loss_ce'] + loss_dt_weight * loss['loss_dt']
         scaler.scale(combined_loss).backward()

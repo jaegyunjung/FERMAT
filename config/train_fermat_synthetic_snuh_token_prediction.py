@@ -52,3 +52,5 @@ mask_ties = False
 train_select = 'random'
 eval_select = 'random'
 loss_dt_weight = 0.0
+train_lifestyle_augmentations = False
+checkpoint_metric = 'ce'

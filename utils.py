@@ -63,7 +63,7 @@ def get_p2i(data):
 
 def get_batch(ix, data, p2i, select='left', index='patient', padding='regular',
               block_size=48, device='cpu', lifestyle_augmentations=False,
-              no_event_token_rate=5, cut_batch=False):
+              no_event_token_rate=5, cut_batch=False, return_target_types=False):
     """
     Get a batch of data. Extends Delphi's get_batch to handle 4-column data.
 
@@ -73,6 +73,7 @@ def get_batch(ix, data, p2i, select='left', index='patient', padding='regular',
         y: (B, T) target token IDs
         b: (B, T) target ages
         xt: (B, T) input token type IDs  [NEW — None if 3-column data]
+        yt: (B, T) target token type IDs [OPTIONAL — only if return_target_types=True]
     """
     has_types = data.shape[1] == 4
     mask_time = -10000.
@@ -186,8 +187,10 @@ def get_batch(ix, data, p2i, select='left', index='patient', padding='regular',
     b = ages[:, 1:]
     if has_types:
         xt = types[:, :-1]
+        yt = types[:, 1:]
     else:
         xt = None
+        yt = None
 
     # Mask leading no-event tokens
     x_tok = x_tok.masked_fill((x_tok == 0) * (y_tok == 1), 0)
@@ -198,8 +201,12 @@ def get_batch(ix, data, p2i, select='left', index='patient', padding='regular',
         tensors = [x_tok, a, y_tok, b]
         if xt is not None:
             tensors.append(xt)
+        if yt is not None:
+            tensors.append(yt)
         tensors = [t.pin_memory().to(device, non_blocking=True) for t in tensors]
-        if xt is not None:
+        if xt is not None and yt is not None:
+            x_tok, a, y_tok, b, xt, yt = tensors
+        elif xt is not None:
             x_tok, a, y_tok, b, xt = tensors
         else:
             x_tok, a, y_tok, b = tensors
@@ -207,7 +214,11 @@ def get_batch(ix, data, p2i, select='left', index='patient', padding='regular',
         x_tok, a, y_tok, b = x_tok.to(device), a.to(device), y_tok.to(device), b.to(device)
         if xt is not None:
             xt = xt.to(device)
+        if yt is not None:
+            yt = yt.to(device)
 
+    if return_target_types:
+        return x_tok, a, y_tok, b, xt, yt
     return x_tok, a, y_tok, b, xt
 
 
