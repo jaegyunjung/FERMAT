@@ -1,0 +1,96 @@
+research_pod_gpu_instances:
+  - gpu: L4
+    price: "3,551 KRW / hr"
+    vram: "24 GB"
+    gpu_slots: "1 GPUs"
+    vcpu: "4 core"
+    memory: "48 GB"
+    block_storage: "100 GB"
+
+  - gpu: L4
+    price: "3,788 KRW / hr"
+    vram: "24 GB"
+    gpu_slots: "1 GPUs"
+    vcpu: "8 core"
+    memory: "48 GB"
+    block_storage: "100 GB"
+
+  - gpu: L4
+    price: "7,102 KRW / hr"
+    vram: "24 GB"
+    gpu_slots: "2 GPUs"
+    vcpu: "8 core"
+    memory: "96 GB"
+    block_storage: "100 GB"
+
+  - gpu: L4
+    price: "7,564 KRW / hr"
+    vram: "24 GB"
+    gpu_slots: "2 GPUs"
+    vcpu: "16 core"
+    memory: "96 GB"
+    block_storage: "100 GB"
+
+  - gpu: L4
+    price: "11,128 KRW / hr"
+    vram: "24 GB"
+    gpu_slots: "4 GPUs"
+    vcpu: "16 core"
+    memory: "192 GB"
+    block_storage: "100 GB"
+
+  - gpu: L4
+    price: "12,844 KRW / hr"
+    vram: "24 GB"
+    gpu_slots: "4 GPUs"
+    vcpu: "32 core"
+    memory: "192 GB"
+    block_storage: "100 GB"
+
+  - gpu: L40S
+    price: "10,217 KRW / hr"
+    vram: "48 GB"
+    gpu_slots: "1 GPUs"
+    vcpu: "16 core"
+    memory: "96 GB"
+    block_storage: "100 GB"
+
+  - gpu: L40S
+    price: "12,844 KRW / hr"
+    vram: "48 GB"
+    gpu_slots: "1 GPUs"
+    vcpu: "32 core"
+    memory: "96 GB"
+    block_storage: "100 GB"
+
+  - gpu: L40S
+    price: "19,694 KRW / hr"
+    vram: "48 GB"
+    gpu_slots: "2 GPUs"
+    vcpu: "32 core"
+    memory: "192 GB"
+    block_storage: "100 GB"
+
+  - gpu: L40S
+    price: "24,948 KRW / hr"
+    vram: "48 GB"
+    gpu_slots: "2 GPUs"
+    vcpu: "64 core"
+    memory: "192 GB"
+    block_storage: "100 GB"
+
+  - gpu: L40S
+    price: "36,815 KRW / hr"
+    vram: "48 GB"
+    gpu_slots: "4 GPUs"
+    vcpu: "64 core"
+    memory: "384 GB"
+    block_storage: "100 GB"
+
+  - gpu: L40S
+    price: "46,464 KRW / hr"
+    vram: "48 GB"
+    gpu_slots: "4 GPUs"
+    vcpu: "120 core"
+    memory: "384 GB"
+    block_storage: "100 GB"

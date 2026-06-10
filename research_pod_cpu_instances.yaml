@@ -1,0 +1,120 @@
+research_pod_cpu_instances:
+  - type: Standard
+    price: "290 KRW / hr"
+    vcpu: "2 core"
+    memory: "8 GB"
+    block_storage: "100 GB"
+
+  - type: Standard
+    price: "620 KRW / hr"
+    vcpu: "4 core"
+    memory: "16 GB"
+    block_storage: "100 GB"
+
+  - type: Standard
+    price: "1,162 KRW / hr"
+    vcpu: "8 core"
+    memory: "32 GB"
+    block_storage: "100 GB"
+
+  - type: Standard
+    price: "2,508 KRW / hr"
+    vcpu: "16 core"
+    memory: "64 GB"
+    block_storage: "100 GB"
+
+  - type: Standard
+    price: "5,029 KRW / hr"
+    vcpu: "32 core"
+    memory: "128 GB"
+    block_storage: "100 GB"
+
+  - type: Standard
+    price: "7,181 KRW / hr"
+    vcpu: "48 core"
+    memory: "192 GB"
+    block_storage: "100 GB"
+
+  - type: Standard
+    price: "9,332 KRW / hr"
+    vcpu: "64 core"
+    memory: "256 GB"
+    block_storage: "100 GB"
+
+  - type: High-Memory
+    price: "449 KRW / hr"
+    vcpu: "2 core"
+    memory: "16 GB"
+    block_storage: "100 GB"
+
+  - type: High-Memory
+    price: "818 KRW / hr"
+    vcpu: "4 core"
+    memory: "32 GB"
+    block_storage: "100 GB"
+
+  - type: High-Memory
+    price: "1,822 KRW / hr"
+    vcpu: "8 core"
+    memory: "64 GB"
+    block_storage: "100 GB"
+
+  - type: High-Memory
+    price: "3,656 KRW / hr"
+    vcpu: "16 core"
+    memory: "128 GB"
+    block_storage: "100 GB"
+
+  - type: High-Memory
+    price: "6,587 KRW / hr"
+    vcpu: "32 core"
+    memory: "256 GB"
+    block_storage: "100 GB"
+
+  - type: High-Memory
+    price: "9,517 KRW / hr"
+    vcpu: "48 core"
+    memory: "384 GB"
+    block_storage: "100 GB"
+
+  - type: High-CPU
+    price: "251 KRW / hr"
+    vcpu: "2 core"
+    memory: "4 GB"
+    block_storage: "100 GB"
+
+  - type: High-CPU
+    price: "462 KRW / hr"
+    vcpu: "4 core"
+    memory: "8 GB"
+    block_storage: "100 GB"
+
+  - type: High-CPU
+    price: "964 KRW / hr"
+    vcpu: "8 core"
+    memory: "16 GB"
+    block_storage: "100 GB"
+
+  - type: High-CPU
+    price: "1,835 KRW / hr"
+    vcpu: "16 core"
+    memory: "32 GB"
+    block_storage: "100 GB"
+
+  - type: High-CPU
+    price: "3,881 KRW / hr"
+    vcpu: "32 core"
+    memory: "64 GB"
+    block_storage: "100 GB"
+
+  - type: High-CPU
+    price: "5,636 KRW / hr"
+    vcpu: "48 core"
+    memory: "96 GB"
+    block_storage: "100 GB"
+
+  - type: High-CPU
+    price: "7,392 KRW / hr"
+    vcpu: "64 core"
+    memory: "128 GB"
+    block_storage: "100 GB"
