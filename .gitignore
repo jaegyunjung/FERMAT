@@ -63,3 +63,4 @@ logs/*
 logs/real_snuh/
 FERMAT-synthetic-snuh-v0_1/
 FERMAT-real-snuh*/
+outputs/snuh_tokenization_etl/
