@@ -12,7 +12,7 @@ from psycopg import sql
 
 HOST = os.environ.get(
     "SNUH_CDM_HOST",
-    "pg-2vge6o.vpc-pub-cdb-kr.gov-ntruss.com",
+    "pg-2vge6u.vpc-cdb-kr.gov-ntruss.com",
 )
 PORT = int(os.environ.get("SNUH_CDM_PORT", "5432"))
 DATABASE = os.environ.get("SNUH_CDM_DATABASE", "cdm")
