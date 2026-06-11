@@ -87,6 +87,11 @@ def get_batch(ix, data, p2i, select='left', index='patient', padding='regular',
     if index == 'patient':
         if select == 'left':
             traj_start_idx = x[:, 0]
+        elif select == 'middle':
+            traj_start_idx = x[:, 0] + torch.clamp(
+                (x[:, 1] - block_size - 1) // 2,
+                min=0,
+            )
         elif select == 'right':
             traj_start_idx = torch.clamp(x[:, 0] + x[:, 1] - block_size - 1, 0, data.shape[0])
         elif select == 'random':
@@ -130,7 +135,7 @@ def get_batch(ix, data, p2i, select='left', index='patient', padding='regular',
         types = types.masked_fill(~mask, TokenType.PAD)
 
     # Insert "no event" padding tokens
-    if (padding.lower() == 'none' or padding is None or
+    if (padding is None or str(padding).lower() == 'none' or
             no_event_token_rate == 0 or no_event_token_rate is None):
         pad = torch.ones(len(ix), 0)
     elif padding == 'regular':

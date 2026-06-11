@@ -35,6 +35,7 @@ wandb_run_name = 'run' + str(time.time())
 
 # data
 dataset = 'fermat_demo'
+dataset_dir = ''
 gradient_accumulation_steps = 1
 batch_size = 128
 block_size = 48
@@ -77,6 +78,7 @@ data_fraction = 1.0
 no_event_token_rate = 5
 train_select = 'left'
 eval_select = 'left'
+eval_selects = []
 loss_dt_weight = 1.0
 train_lifestyle_augmentations = True
 checkpoint_metric = 'objective'
@@ -107,7 +109,7 @@ torch.set_default_dtype(ptdtype)
 # =============================================================================
 # Data loading
 # =============================================================================
-data_dir = os.path.join('data', dataset)
+data_dir = dataset_dir or os.path.join('data', dataset)
 train_data, has_types = load_data(os.path.join(data_dir, 'train.bin'))
 val_data, _ = load_data(os.path.join(data_dir, 'val.bin'))
 
@@ -201,10 +203,15 @@ def estimate_loss():
         losses = torch.zeros(eval_iters, 2)
         data = train_data if split == 'train' else val_data
         p2i = train_p2i if split == 'train' else val_p2i
+        selectors = (
+            eval_selects
+            if split == 'val' and eval_selects
+            else [eval_select]
+        )
         for k in range(eval_iters):
             ix = torch.randint(len(p2i), (batch_size,))
             batch = get_batch(ix, data, p2i, block_size=block_size,
-                              device=device, select=eval_select,
+                              device=device, select=selectors[k % len(selectors)],
                               no_event_token_rate=no_event_token_rate,
                               cut_batch=True, return_target_types=True)
             X, A, Y, B, XT, YT = _unpack_batch(batch, device)
@@ -256,7 +263,13 @@ while True:
         train_objective = losses['train'][0].item() + loss_dt_weight * losses['train'][1].item()
         val_objective = losses['val'][0].item() + loss_dt_weight * losses['val'][1].item()
         val_loss = losses['val'][0].item() if checkpoint_metric == 'ce' else val_objective
-        print(f"step {iter_num}: train loss {train_objective:.4f}, val loss {val_loss:.4f}, val ce {losses['val'][0].item():.4f}")
+        print(
+            f"step {iter_num}: "
+            f"train objective {train_objective:.4f} "
+            f"(ce {losses['train'][0].item():.4f}, dt {losses['train'][1].item():.4f}); "
+            f"val objective {val_objective:.4f} "
+            f"(ce {losses['val'][0].item():.4f}, dt {losses['val'][1].item():.4f})"
+        )
 
         metrics.update({
             "train/agg_loss": train_objective,

@@ -40,6 +40,56 @@ class TokenType(IntEnum):
 N_TOKEN_TYPES = len(TokenType)
 
 
+def build_attention_mask(idx, age, targets_age=None, mask_ties=False):
+    """Build the causal mask, optionally hiding events at the target date."""
+    batch_size, sequence_length = idx.shape
+    causal = torch.tril(
+        torch.ones(sequence_length, sequence_length, device=idx.device, dtype=torch.bool)
+    )[None, None, :, :]
+    valid = idx > 0
+    attention_mask = (
+        valid.view(batch_size, 1, 1, sequence_length)
+        & valid.view(batch_size, 1, sequence_length, 1)
+        & causal
+    )
+
+    if mask_ties:
+        if targets_age is None:
+            raise ValueError("targets_age is required when mask_ties=True")
+        attention_mask &= (
+            age.view(batch_size, 1, 1, sequence_length)
+            != targets_age.view(batch_size, 1, sequence_length, 1)
+        )
+        empty_rows = attention_mask.sum(-1, keepdim=True) == 0
+        attention_mask |= empty_rows & torch.eye(
+            sequence_length, device=idx.device, dtype=torch.bool
+        )[None, None, :, :]
+
+    pad_diagonal = (
+        (idx == 0).view(batch_size, 1, 1, sequence_length)
+        & torch.eye(sequence_length, device=idx.device, dtype=torch.bool)[None, None, :, :]
+    )
+    return (attention_mask | pad_diagonal) & causal
+
+
+def align_time_deltas(age, targets_age, attention_mask, mask_ties):
+    """Return waiting times aligned to the latest visible non-tied event."""
+    dt = torch.clamp(targets_age - age, min=1.0)
+    if not mask_ties:
+        return dt
+
+    sequence_length = age.shape[1]
+    visible_index = (
+        attention_mask
+        * torch.arange(
+            sequence_length,
+            device=age.device,
+            dtype=torch.float32,
+        ).view(1, 1, 1, -1)
+    ).max(-1).indices.squeeze((1, 2))
+    return torch.gather(dt, -1, visible_index)
+
+
 # =============================================================================
 # Modules
 # =============================================================================
@@ -196,9 +246,6 @@ class Fermat(nn.Module):
 
     def forward(self, idx, age, token_type, targets=None, targets_age=None,
                 target_token_type=None, validation_loss_mode=False):
-        device = idx.device
-        b, t = idx.size()
-
         tok_emb = self.transformer.wte(idx)
         age_emb = self.transformer.wae(age.unsqueeze(-1))
         type_emb = self.transformer.wtype(token_type)
@@ -206,13 +253,12 @@ class Fermat(nn.Module):
         x = x + age_emb + type_emb
         x = self.transformer.drop(x)
 
-        attn_mask = ((idx > 0).view(b, 1, 1, t) * (idx > 0).view(b, 1, t, 1))
-        attn_mask = attn_mask * (torch.tril(torch.ones(t, t, device=device))[None, None, :, :] > 0)
-        if targets is not None and self.config.mask_ties:
-            attn_mask = attn_mask * (age.view(b, 1, 1, t) != targets_age.view(b, 1, t, 1))
-            attn_mask = attn_mask + (attn_mask.sum(-1, keepdim=True) == 0) * torch.diag(torch.ones(t, device=device)) > 0
-        attn_mask = attn_mask + (idx == 0).view(b, 1, 1, t) * torch.diag(torch.ones(t, device=device)) > 0
-        attn_mask = attn_mask * (torch.tril(torch.ones(t, t, device=device))[None, None, :, :] > 0)
+        attn_mask = build_attention_mask(
+            idx,
+            age,
+            targets_age=targets_age,
+            mask_ties=targets is not None and self.config.mask_ties,
+        )
 
         att = []
         for block in self.transformer.h:
@@ -240,9 +286,12 @@ class Fermat(nn.Module):
 
             lse = torch.logsumexp(logits, -1)
             lse = -torch.log(torch.exp(-lse) + self.config.t_min)
-            dt = torch.clamp(targets_age - age, min=1.0)
-            if self.config.mask_ties:
-                dt = torch.gather(dt, -1, (attn_mask * torch.arange(0, t, device=device, dtype=torch.float32).view(1, 1, 1, -1)).max(-1).indices.squeeze((1, 2)))
+            dt = align_time_deltas(
+                age,
+                targets_age,
+                attn_mask,
+                self.config.mask_ties,
+            )
             ldt = -torch.log(dt + self.config.t_min).view(-1)
             loss_dt = -(lse.reshape(-1) - torch.exp(lse.reshape(-1) - ldt.reshape(-1)))
             loss_dt = torch.mean(loss_dt[pass_tokens])
