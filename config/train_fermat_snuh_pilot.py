@@ -36,6 +36,7 @@ min_lr = 3e-5
 beta2 = 0.99
 
 ignore_tokens = [0]
+output_ignore_tokens = [0, 1]
 ignore_types = [TokenType.PAD, TokenType.SEX, TokenType.NO_EVENT]
 mask_ties = True
 train_select = "random"

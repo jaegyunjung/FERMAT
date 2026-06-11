@@ -2,6 +2,17 @@
 
 Run these checks against the existing 1% ETL artifacts before full ETL.
 
+## One-command run
+
+```bash
+python scripts/run_snuh_task10.py \
+  --data-dir outputs/snuh_tokenization_etl/patient_001pct_seed_42 \
+  --output-dir out/snuh-task10
+```
+
+This runs all steps below and writes the final comparison to
+`out/snuh-task10/reports/comparison.md`.
+
 ## 1. Audit sampled windows
 
 ```bash
@@ -55,6 +66,9 @@ Both arms must:
 Compare the arms using convergence, throughput, GPU memory, and validation
 loss trends. Their CE values are not directly interchangeable because the
 target sets differ.
+
+The checkpoint evaluator therefore also reports clinical-only softmax metrics
+over the same DX/RX/PX/DTH target and output set for both arms.
 
 Use the window audit to decide whether the next experiment should use LAB
 event dropout/downsampling, longer context, or next-non-LAB target relinking.

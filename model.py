@@ -90,6 +90,25 @@ def align_time_deltas(age, targets_age, attention_mask, mask_ties):
     return torch.gather(dt, -1, visible_index)
 
 
+def build_target_mask(targets, target_token_type, ignore_tokens, ignore_types):
+    """Select target positions that contribute to token and time losses."""
+    mask = targets != -1
+    for token_id in ignore_tokens:
+        mask &= targets != int(token_id)
+    if target_token_type is not None:
+        for token_type in ignore_types:
+            mask &= target_token_type != int(token_type)
+    return mask
+
+
+def safe_masked_mean(values, mask):
+    """Return a differentiable zero when a batch has no selected targets."""
+    selected = values[mask]
+    if selected.numel() == 0:
+        return values.sum() * 0.0
+    return selected.mean()
+
+
 # =============================================================================
 # Modules
 # =============================================================================
@@ -194,6 +213,7 @@ class FermatConfig:
     t_min: float = 1.0
     mask_ties: bool = False
     ignore_tokens: list = field(default_factory=lambda: [0])
+    output_ignore_tokens: list = field(default_factory=list)
     ignore_types: list = field(default_factory=lambda: [
         TokenType.PAD, TokenType.SEX, TokenType.NO_EVENT
     ])
@@ -245,7 +265,8 @@ class Fermat(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, idx, age, token_type, targets=None, targets_age=None,
-                target_token_type=None, validation_loss_mode=False):
+                target_token_type=None, validation_loss_mode=False,
+                return_attention=True):
         tok_emb = self.transformer.wte(idx)
         age_emb = self.transformer.wae(age.unsqueeze(-1))
         type_emb = self.transformer.wtype(token_type)
@@ -260,29 +281,45 @@ class Fermat(nn.Module):
             mask_ties=targets is not None and self.config.mask_ties,
         )
 
-        att = []
+        attention = [] if return_attention else None
         for block in self.transformer.h:
             x, a = block(x, attn_mask)
-            att.append(a)
+            if return_attention:
+                attention.append(a)
         x = self.transformer.ln_f(x)
-        att = torch.stack(att)
+        if return_attention:
+            attention = torch.stack(attention)
 
         if targets is not None:
             logits = self.lm_head(x)
             ignored_tokens = self.config.ignore_tokens.copy()
             if validation_loss_mode:
                 ignored_tokens += [1]
-                logits[..., ignored_tokens] = -torch.inf
+            output_ignore_tokens = sorted(set(
+                self.config.output_ignore_tokens
+                + ([1] if validation_loss_mode else [])
+            ))
+            if output_ignore_tokens:
+                logits[..., output_ignore_tokens] = -torch.inf
             targets_flat = targets.reshape(-1)
-            pass_tokens = targets_flat != -1
-            for k in ignored_tokens:
-                pass_tokens = pass_tokens & (targets_flat != k)
-            if target_token_type is not None:
-                target_types_flat = target_token_type.reshape(-1)
-                for tt in self.config.ignore_types:
-                    pass_tokens = pass_tokens & (target_types_flat != int(tt))
-
-            loss_ce = F.cross_entropy(logits.reshape(-1, logits.size(-1))[pass_tokens], targets_flat[pass_tokens], ignore_index=-1)
+            target_types_flat = (
+                target_token_type.reshape(-1)
+                if target_token_type is not None
+                else None
+            )
+            pass_tokens = build_target_mask(
+                targets_flat,
+                target_types_flat,
+                ignored_tokens,
+                self.config.ignore_types,
+            )
+            if pass_tokens.any():
+                loss_ce = F.cross_entropy(
+                    logits.reshape(-1, logits.size(-1))[pass_tokens],
+                    targets_flat[pass_tokens],
+                )
+            else:
+                loss_ce = logits.sum() * 0.0
 
             lse = torch.logsumexp(logits, -1)
             lse = -torch.log(torch.exp(-lse) + self.config.t_min)
@@ -293,14 +330,21 @@ class Fermat(nn.Module):
                 self.config.mask_ties,
             )
             ldt = -torch.log(dt + self.config.t_min).view(-1)
-            loss_dt = -(lse.reshape(-1) - torch.exp(lse.reshape(-1) - ldt.reshape(-1)))
-            loss_dt = torch.mean(loss_dt[pass_tokens])
-            loss = {'loss_ce': loss_ce, 'loss_dt': loss_dt}
+            per_target_dt = -(
+                lse.reshape(-1)
+                - torch.exp(lse.reshape(-1) - ldt.reshape(-1))
+            )
+            loss_dt = safe_masked_mean(per_target_dt, pass_tokens)
+            loss = {
+                'loss_ce': loss_ce,
+                'loss_dt': loss_dt,
+                'n_targets': pass_tokens.sum(),
+            }
         else:
             logits = self.lm_head(x[:, :, :])
             loss = None
 
-        return logits, loss, att
+        return logits, loss, attention
 
     def adjust_block_size(self, block_size):
         for block in self.transformer.h:
@@ -345,9 +389,18 @@ class Fermat(nn.Module):
             max_new_tokens = 128
 
         for _ in range(max_new_tokens):
-            logits, _, _ = self(idx, age, token_type)
+            logits, _, _ = self(
+                idx,
+                age,
+                token_type,
+                return_attention=False,
+            )
             logits = logits[:, -1, :]
-            logits[:, self.config.ignore_tokens] = -torch.inf
+            ignored_outputs = sorted(set(
+                self.config.ignore_tokens
+                + self.config.output_ignore_tokens
+            ))
+            logits[:, ignored_outputs] = -torch.inf
             if no_repeat:
                 fill = idx.clone(); fill[fill == 1] = 0
                 logits = logits.scatter_(1, fill, -torch.inf)
@@ -368,7 +421,12 @@ class Fermat(nn.Module):
             pad = (torch.cumsum(torch.cumsum(torch.isin(idx, termination_tokens), 1).bool().int(), 1) > 1) + (age > max_age)
         else:
             pad = age > max_age
-        logits, _, _ = self(idx, age, token_type)
+        logits, _, _ = self(
+            idx,
+            age,
+            token_type,
+            return_attention=False,
+        )
         idx[pad] = 0; age[pad] = mask_time; token_type[pad] = TokenType.PAD
         if no_repeat:
             fill = idx + 0; fill[fill == 1] = 0

@@ -7,6 +7,9 @@ Backward compatible with Delphi 3-column data (token_type defaults to DX).
 import os
 import time
 import math
+import json
+import platform
+import subprocess
 from contextlib import nullcontext
 
 import numpy as np
@@ -73,6 +76,7 @@ token_dropout = 0.0
 t_min = 0.0
 mask_ties = True
 ignore_tokens = [0]
+output_ignore_tokens = []
 ignore_types = [TokenType.PAD, TokenType.SEX, TokenType.NO_EVENT]
 data_fraction = 1.0
 no_event_token_rate = 5
@@ -83,6 +87,7 @@ loss_dt_weight = 1.0
 train_lifestyle_augmentations = True
 checkpoint_metric = 'objective'
 save_latest_checkpoint = False
+metrics_filename = 'metrics.jsonl'
 
 # =============================================================================
 # Config overrides
@@ -97,6 +102,32 @@ config = {k: globals()[k] for k in config_keys if k in globals()}
 # Setup
 # =============================================================================
 os.makedirs(out_dir, exist_ok=True)
+metrics_path = os.path.join(out_dir, metrics_filename)
+if init_from == 'scratch':
+    open(metrics_path, 'w').close()
+try:
+    git_commit = subprocess.check_output(
+        ['git', 'rev-parse', 'HEAD'],
+        text=True,
+        stderr=subprocess.DEVNULL,
+    ).strip()
+except Exception:
+    git_commit = None
+run_manifest = {
+    'created_at_unix': time.time(),
+    'git_commit': git_commit,
+    'python_version': platform.python_version(),
+    'torch_version': torch.__version__,
+    'cuda_available': torch.cuda.is_available(),
+    'cuda_device': (
+        torch.cuda.get_device_name(0)
+        if torch.cuda.is_available()
+        else None
+    ),
+    'config': config,
+}
+with open(os.path.join(out_dir, 'run_manifest.json'), 'w', encoding='utf-8') as handle:
+    json.dump(run_manifest, handle, indent=2)
 torch.manual_seed(seed)
 torch.set_float32_matmul_precision('high')
 
@@ -134,7 +165,8 @@ model_args = dict(
     n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
     bias=bias, vocab_size=vocab_size, n_token_types=n_token_types,
     dropout=dropout, token_dropout=token_dropout, t_min=t_min,
-    mask_ties=mask_ties, ignore_tokens=ignore_tokens, ignore_types=ignore_types,
+    mask_ties=mask_ties, ignore_tokens=ignore_tokens,
+    output_ignore_tokens=output_ignore_tokens, ignore_types=ignore_types,
 )
 
 if init_from == 'scratch':
@@ -200,7 +232,8 @@ def estimate_loss():
     out = {}
     model.eval()
     for split in ['train', 'val']:
-        losses = torch.zeros(eval_iters, 2)
+        loss_sums = torch.zeros(2, dtype=torch.float64)
+        target_count = 0
         data = train_data if split == 'train' else val_data
         p2i = train_p2i if split == 'train' else val_p2i
         selectors = (
@@ -216,9 +249,26 @@ def estimate_loss():
                               cut_batch=True, return_target_types=True)
             X, A, Y, B, XT, YT = _unpack_batch(batch, device)
             with ctx:
-                logits, loss, _ = model(X, A, XT, Y, B, target_token_type=YT, validation_loss_mode=True)
-            losses[k] = torch.stack([loss['loss_ce'], loss['loss_dt']])
-        out[split] = losses.mean(0)
+                logits, loss, _ = model(
+                    X, A, XT, Y, B,
+                    target_token_type=YT,
+                    validation_loss_mode=True,
+                    return_attention=False,
+                )
+            batch_targets = int(loss['n_targets'].item())
+            if batch_targets:
+                loss_sums += torch.tensor(
+                    [
+                        loss['loss_ce'].item() * batch_targets,
+                        loss['loss_dt'].item() * batch_targets,
+                    ],
+                    dtype=torch.float64,
+                )
+                target_count += batch_targets
+        if target_count == 0:
+            raise RuntimeError(f"No valid targets found while evaluating {split}")
+        out[split] = loss_sums / target_count
+        out[f'{split}_targets'] = target_count
     model.train()
     return out
 
@@ -277,6 +327,8 @@ while True:
             "val/loss_ce": losses['val'][0].item(),
             "val/loss_dt": losses['val'][1].item(),
             "val/objective_loss": val_objective,
+            "train/eval_targets": losses["train_targets"],
+            "val/eval_targets": losses["val_targets"],
         })
 
         improved = best_val_loss > val_loss
@@ -310,14 +362,22 @@ while True:
                 'config': config,
             }
             torch.save(checkpoint, os.path.join(out_dir, f'ckpt_{iter_num}.pt'))
+        t0 = time.time()
 
     if iter_num == 0 and eval_only:
         break
 
     # Forward / backward
+    step_target_count = 0
+    step_ce_sum = 0.0
+    step_dt_sum = 0.0
     for micro_step in range(gradient_accumulation_steps):
         with ctx:
-            logits, loss, att = model(X, A, XT, Y, B, target_token_type=YT)
+            logits, loss, _ = model(
+                X, A, XT, Y, B,
+                target_token_type=YT,
+                return_attention=False,
+            )
 
         # Prefetch next batch
         ix = torch.randint(len(train_p2i), (batch_size,))
@@ -326,8 +386,12 @@ while True:
                           no_event_token_rate=no_event_token_rate, cut_batch=True, return_target_types=True)
         X, A, Y, B, XT, YT = _unpack_batch(batch, device)
 
+        micro_target_count = int(loss['n_targets'].item())
+        step_target_count += micro_target_count
+        step_ce_sum += loss['loss_ce'].item() * micro_target_count
+        step_dt_sum += loss['loss_dt'].item() * micro_target_count
         combined_loss = loss['loss_ce'] + loss_dt_weight * loss['loss_dt']
-        scaler.scale(combined_loss).backward()
+        scaler.scale(combined_loss / gradient_accumulation_steps).backward()
 
     if grad_clip != 0.0:
         scaler.unscale_(optimizer)
@@ -342,12 +406,35 @@ while True:
     dt = t1 - t0
     t0 = t1
     if iter_num % log_interval == 0:
-        lossf = combined_loss.item()
-        print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms")
-        metrics.update({"train/loss": lossf, "lr": lr})
+        mean_ce = step_ce_sum / step_target_count if step_target_count else 0.0
+        mean_dt = step_dt_sum / step_target_count if step_target_count else 0.0
+        lossf = mean_ce + loss_dt_weight * mean_dt
+        tokens_per_second = step_target_count / dt if dt > 0 else 0.0
+        max_memory_gb = (
+            torch.cuda.max_memory_allocated() / 1024**3
+            if device_type == 'cuda'
+            else 0.0
+        )
+        print(
+            f"iter {iter_num}: loss {lossf:.4f} "
+            f"(ce {mean_ce:.4f}, dt {mean_dt:.4f}, "
+            f"targets {step_target_count}), time {dt*1000:.2f}ms"
+        )
+        metrics.update({
+            "train/loss": lossf,
+            "train/loss_ce": mean_ce,
+            "train/loss_dt": mean_dt,
+            "train/targets": step_target_count,
+            "train/targets_per_second": tokens_per_second,
+            "system/max_cuda_memory_gb": max_memory_gb,
+            "lr": lr,
+        })
 
     if wandb_log and (iter_num % log_interval == 0 or "val/loss" in metrics):
         wandb.log(metrics)
+    if len(metrics) > 1:
+        with open(metrics_path, 'a', encoding='utf-8') as handle:
+            handle.write(json.dumps(metrics, sort_keys=True) + '\n')
 
     iter_num += 1
     local_iter_num += 1

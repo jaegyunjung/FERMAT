@@ -78,8 +78,8 @@ def get_batch(ix, data, p2i, select='left', index='patient', padding='regular',
     has_types = data.shape[1] == 4
     mask_time = -10000.
 
-    x = torch.tensor(np.array([p2i[int(i)] for i in ix]))
-    ix = torch.tensor(np.array(ix))
+    ix = torch.as_tensor(ix, dtype=torch.long, device="cpu")
+    x = torch.from_numpy(np.asarray([p2i[int(i)] for i in ix]))
 
     gen = torch.Generator(device='cpu')
     gen.manual_seed(ix.sum().item())
