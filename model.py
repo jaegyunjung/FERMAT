@@ -86,7 +86,7 @@ def align_time_deltas(age, targets_age, attention_mask, mask_ties):
             device=age.device,
             dtype=torch.float32,
         ).view(1, 1, 1, -1)
-    ).max(-1).indices.squeeze((1, 2))
+    ).max(-1).indices.squeeze(1)
     return torch.gather(dt, -1, visible_index)
 
 

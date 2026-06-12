@@ -45,6 +45,22 @@ class TieMaskTest(unittest.TestCase):
 
         torch.testing.assert_close(dt, torch.tensor([[1.0, 1.0, 2.0, 3.0]]))
 
+    def test_time_delta_preserves_single_token_sequence_dimension(self):
+        idx = torch.tensor([[1], [2]])
+        age = torch.tensor([[1.0], [5.0]])
+        target_age = torch.tensor([[2.0], [8.0]])
+        mask = build_attention_mask(
+            idx,
+            age,
+            targets_age=target_age,
+            mask_ties=True,
+        )
+
+        dt = align_time_deltas(age, target_age, mask, mask_ties=True)
+
+        self.assertEqual(dt.shape, (2, 1))
+        torch.testing.assert_close(dt, torch.tensor([[1.0], [3.0]]))
+
     def test_padding_positions_keep_a_safe_diagonal(self):
         idx = torch.tensor([[0, 1]])
         age = torch.tensor([[-10000.0, 10.0]])
