@@ -76,11 +76,13 @@ def load_model(path, device):
             key.removeprefix("_orig_mod."): value
             for key, value in state_dict.items()
         }
-    # Checkpoints trained before the global log-rate scalar lack this key.
-    # Backfill its initial value so strict loading still validates every
-    # other tensor.
-    if "log_rate" not in state_dict:
-        state_dict["log_rate"] = model.log_rate.detach()
+    # Reconcile architecture differences (coupled log_rate vs decoupled
+    # time_head, or pre-fix checkpoints): drop keys the model does not have and
+    # backfill the ones it expects but the checkpoint lacks.
+    model_state = model.state_dict()
+    state_dict = {k: v for k, v in state_dict.items() if k in model_state}
+    for missing in model_state.keys() - state_dict.keys():
+        state_dict[missing] = model_state[missing]
     model.load_state_dict(state_dict)
     model.to(device)
     model.eval()
@@ -289,7 +291,7 @@ def evaluate_batch(
     unigram_log_probs,
     unigram_top1_token,
     stats,
-    time_errors,
+    time_acc,
     evaluate_time,
     autocast_context_factory,
 ):
@@ -304,7 +306,7 @@ def evaluate_batch(
             target_token_type=target_types,
             validation_loss_mode=True,
             return_attention=False,
-            compute_time_loss=False,
+            compute_time_loss=evaluate_time,
         )
     flat_targets = targets.reshape(-1)
     flat_types = target_types.reshape(-1)
@@ -378,20 +380,82 @@ def evaluate_batch(
             attention_mask,
             model.config.mask_ties,
         )
-        # Match the training-time rate: the global log-rate scalar shifts the
-        # per-token logits before the t_min cap. Omitting it would make the
-        # predicted waiting time inconsistent with the model the loss trained.
-        raw_log_rate = torch.logsumexp(logits.float(), dim=-1) + model.log_rate
-        effective_log_rate = -torch.log(
-            torch.exp(-raw_log_rate) + model.config.t_min
+        # Use the rate the model actually computed (coupled or decoupled head),
+        # exposed by forward(), instead of re-deriving it here.
+        effective_log_rate = loss["effective_log_rate"].float()
+        rate = torch.exp(effective_log_rate)
+        # Point prediction for the error metrics is the exponential *median*
+        # (ln2 / rate), the MAE-optimal estimator, so the comparison against the
+        # median-gap baseline is fair. The mean (1/rate) is inflated by the long
+        # tail. NLL below still uses the full rate.
+        predicted_dt = torch.clamp(
+            math.log(2.0) * torch.exp(-effective_log_rate), min=1.0
         )
-        predicted_dt = torch.clamp(torch.exp(-effective_log_rate), min=1.0)
-        errors = torch.abs(predicted_dt - actual_dt)[clinical_mask]
-        if errors.numel():
-            time_errors.append(errors.detach().cpu().numpy())
+        actual = actual_dt[clinical_mask]
+        if actual.numel():
+            errors = torch.abs(predicted_dt[clinical_mask] - actual)
+            # Per-target negative log-likelihood of the exponential waiting time:
+            # -log(rate) + rate * dt. Used to compare against a constant-rate
+            # baseline so "computable" is distinguished from "useful".
+            nll = -effective_log_rate[clinical_mask] + rate[clinical_mask] * actual
+            time_acc["errors"].append(errors.detach().cpu().numpy())
+            time_acc["actual"].append(actual.detach().cpu().numpy())
+            time_acc["nll"].append(nll.detach().cpu().numpy())
 
     stats["batches"] += 1
     stats["objective_model_targets"] += int(loss["n_targets"])
+
+
+def summarize_waiting_time(time_acc):
+    """Model waiting-time quality against constant-rate and median baselines.
+
+    The time head is only useful if it beats a global constant-rate exponential
+    on likelihood (NLL) and a median-gap predictor on absolute error, so a
+    finite MAE alone does not pass.
+    """
+    if not time_acc["actual"]:
+        return {
+            "targets": 0,
+            "model_mae_days": None,
+            "model_median_absolute_error_days": None,
+            "model_p95_absolute_error_days": None,
+            "model_nll": None,
+            "constant_rate_baseline_nll": None,
+            "median_baseline_mae_days": None,
+            "nll_improvement_over_constant_rate": None,
+            "mae_improvement_over_median": None,
+            "beats_baseline": None,
+        }
+    errors = np.concatenate(time_acc["errors"])
+    actual = np.concatenate(time_acc["actual"])
+    nll = np.concatenate(time_acc["nll"])
+    mean_actual = float(actual.mean())
+    median_actual = float(np.median(actual))
+    model_nll = float(nll.mean())
+    model_mae = float(errors.mean())
+    # Constant-rate exponential MLE (lambda = 1 / mean dt) has mean NLL
+    # log(mean dt) + 1. The median minimises absolute error, the strongest
+    # constant predictor for MAE.
+    constant_rate_nll = math.log(mean_actual) + 1.0 if mean_actual > 0 else None
+    median_baseline_mae = float(np.abs(actual - median_actual).mean())
+    nll_gain = (
+        constant_rate_nll - model_nll if constant_rate_nll is not None else None
+    )
+    mae_gain = median_baseline_mae - model_mae
+    return {
+        "targets": int(actual.size),
+        "model_mae_days": model_mae,
+        "model_median_absolute_error_days": float(np.median(errors)),
+        "model_p95_absolute_error_days": float(np.quantile(errors, 0.95)),
+        "model_nll": model_nll,
+        "constant_rate_baseline_nll": constant_rate_nll,
+        "median_baseline_mae_days": median_baseline_mae,
+        "nll_improvement_over_constant_rate": nll_gain,
+        "mae_improvement_over_median": mae_gain,
+        "beats_baseline": bool(
+            nll_gain is not None and nll_gain > 0 and mae_gain > 0
+        ),
+    }
 
 
 def main():
@@ -420,7 +484,7 @@ def main():
     )
 
     stats = defaultdict(float)
-    time_errors = []
+    time_acc = {"errors": [], "actual": [], "nll": []}
     if args.device.startswith("cuda") and args.dtype != "float32":
         autocast_context_factory = lambda: torch.amp.autocast(
             "cuda",
@@ -449,7 +513,7 @@ def main():
                 unigram_log_probs,
                 unigram_top1_token,
                 stats,
-                time_errors,
+                time_acc,
                 evaluate_time,
                 autocast_context_factory,
             )
@@ -462,16 +526,12 @@ def main():
                 unigram_log_probs,
                 unigram_top1_token,
                 stats,
-                time_errors,
+                time_acc,
                 evaluate_time,
                 autocast_context_factory,
             )
 
-    errors = (
-        np.concatenate(time_errors)
-        if time_errors
-        else np.array([], dtype=np.float32)
-    )
+    waiting_time = summarize_waiting_time(time_acc)
     metrics = {
         "checkpoint": str(args.ckpt),
         "checkpoint_step": checkpoint.get("iter_num"),
@@ -497,16 +557,7 @@ def main():
             name: finalize_accuracy(stats, f"type_{name}")
             for name in CLINICAL_TYPES.values()
         },
-        "clinical_waiting_time": {
-            "targets": int(errors.size),
-            "mae_days": float(errors.mean()) if errors.size else None,
-            "median_absolute_error_days": (
-                float(np.median(errors)) if errors.size else None
-            ),
-            "p95_absolute_error_days": (
-                float(np.quantile(errors, 0.95)) if errors.size else None
-            ),
-        },
+        "clinical_waiting_time": waiting_time,
         "evaluated_batches": int(stats["batches"]),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -36,6 +36,7 @@ POD_OUTPUT_ROOT = POD_STORAGE / "out"
 
 CE_ONLY_BASELINE_CE = 6.53
 CE_ONLY_BASELINE_TOP1 = 0.0364
+CE_ONLY_BASELINE_NEW_TOP1 = 0.0307
 
 
 def parse_args():
@@ -187,11 +188,17 @@ def write_summary(output, evaluation_path, resumed_from):
     waiting = evaluation["clinical_waiting_time"]
     clinical_ce = clinical["cross_entropy"]
     clinical_top1 = clinical["top1_accuracy"]
+    new_top1 = evaluation["new_clinical"]["top1_accuracy"]
 
     ce_pass = clinical_ce <= CE_ONLY_BASELINE_CE + 0.1
     top1_pass = clinical_top1 >= CE_ONLY_BASELINE_TOP1 - 0.001
-    time_pass = bool(evaluation["time_loss_enabled"]) and waiting["mae_days"] is not None
-    verdict = "PASS" if (ce_pass and top1_pass and time_pass) else "REVIEW"
+    # New-onset prediction is the clinically important subtask and the one that
+    # regressed when the time loss shared the token logits; hold it explicitly.
+    new_pass = new_top1 >= CE_ONLY_BASELINE_NEW_TOP1 - 0.001
+    # A finite MAE is not enough: the time head must beat the constant-rate and
+    # median baselines.
+    time_pass = bool(evaluation["time_loss_enabled"]) and bool(waiting["beats_baseline"])
+    verdict = "PASS" if (ce_pass and top1_pass and new_pass and time_pass) else "REVIEW"
 
     lines = [
         "# Task 13 waiting-time diagnostic (loss_dt re-enabled)",
@@ -214,8 +221,13 @@ def write_summary(output, evaluation_path, resumed_from):
             f"{clinical_top1:.4%} | {'yes' if top1_pass else 'no'} |"
         ),
         (
-            f"| Waiting-time reported | finite | "
-            f"{'finite' if time_pass else 'NA'} | {'yes' if time_pass else 'no'} |"
+            f"| New-onset top-1 | {CE_ONLY_BASELINE_NEW_TOP1:.4%} | "
+            f"{new_top1:.4%} | {'yes' if new_pass else 'no'} |"
+        ),
+        (
+            f"| Waiting-time beats baseline | yes | "
+            f"{'yes' if waiting['beats_baseline'] else 'no'} | "
+            f"{'yes' if time_pass else 'no'} |"
         ),
         "",
         "## Deterministic clinical-only metrics",
@@ -231,14 +243,29 @@ def write_summary(output, evaluation_path, resumed_from):
         f"| New clinical top-1 | {evaluation['new_clinical']['top1_accuracy']:.4%} |",
         f"| Repeated clinical top-1 | {evaluation['repeated_clinical']['top1_accuracy']:.4%} |",
         "",
-        "## Waiting-time error (clinical targets)",
+        "## Waiting-time: model vs baselines (clinical targets)",
         "",
-        "| Metric | Days |",
-        "|---|---:|",
-        f"| Targets | {waiting['targets']} |",
-        f"| Mean absolute error | {fmt(waiting['mae_days'], '.1f')} |",
-        f"| Median absolute error | {fmt(waiting['median_absolute_error_days'], '.1f')} |",
-        f"| p95 absolute error | {fmt(waiting['p95_absolute_error_days'], '.1f')} |",
+        "| Metric | Model | Baseline |",
+        "|---|---:|---:|",
+        (
+            f"| NLL | {fmt(waiting['model_nll'], '.4f')} | "
+            f"{fmt(waiting['constant_rate_baseline_nll'], '.4f')} (constant rate) |"
+        ),
+        (
+            f"| Mean absolute error (days) | {fmt(waiting['model_mae_days'], '.1f')} | "
+            f"{fmt(waiting['median_baseline_mae_days'], '.1f')} (median gap) |"
+        ),
+        f"| Median absolute error (days) | {fmt(waiting['model_median_absolute_error_days'], '.1f')} | |",
+        f"| p95 absolute error (days) | {fmt(waiting['model_p95_absolute_error_days'], '.1f')} | |",
+        f"| Targets | {waiting['targets']} | |",
+        "",
+        (
+            f"NLL improvement over constant rate: "
+            f"`{fmt(waiting['nll_improvement_over_constant_rate'], '+.4f')}`; "
+            f"MAE improvement over median: "
+            f"`{fmt(waiting['mae_improvement_over_median'], '+.1f')}` days "
+            f"(positive = model better)."
+        ),
         "",
         "## Validation CE trajectory",
         "",

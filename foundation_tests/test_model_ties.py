@@ -291,5 +291,77 @@ class GlobalLogRateTest(unittest.TestCase):
         self.assertIn(id(model.log_rate), grouped)
 
 
+class DecoupledTimeHeadTest(unittest.TestCase):
+    """Option A: a separate head predicts the rate from the hidden state."""
+
+    def _config(self, decoupled, vocab_size=64):
+        return FermatConfig(
+            block_size=8,
+            vocab_size=vocab_size,
+            n_token_types=len(TokenType),
+            n_layer=1,
+            n_head=1,
+            n_embd=8,
+            dropout=0.0,
+            bias=False,
+            t_min=0.1,
+            decoupled_time_head=decoupled,
+        )
+
+    def _forward(self, model):
+        torch.manual_seed(0)
+        idx = torch.tensor([[2, 3, 4, 5]])
+        age = torch.tensor([[10.0, 25.0, 40.0, 70.0]])
+        token_type = torch.full_like(idx, TokenType.DX)
+        targets = torch.tensor([[3, 4, 5, 6]])
+        targets_age = torch.tensor([[25.0, 40.0, 70.0, 120.0]])
+        return model(
+            idx,
+            age,
+            token_type,
+            targets,
+            targets_age,
+            target_token_type=token_type,
+        )
+
+    def test_decoupled_creates_time_head_not_log_rate(self):
+        model = Fermat(self._config(True))
+        self.assertTrue(hasattr(model, "time_head"))
+        self.assertFalse(hasattr(model, "log_rate"))
+
+    def test_coupled_creates_log_rate_not_time_head(self):
+        model = Fermat(self._config(False))
+        self.assertTrue(hasattr(model, "log_rate"))
+        self.assertFalse(hasattr(model, "time_head"))
+
+    def test_decoupled_exposes_finite_effective_log_rate(self):
+        model = Fermat(self._config(True))
+        _, loss, _ = self._forward(model)
+        self.assertTrue(torch.isfinite(loss["loss_dt"]))
+        effective = loss["effective_log_rate"]
+        self.assertIsNotNone(effective)
+        self.assertEqual(effective.shape, (1, 4))
+        self.assertTrue(torch.isfinite(effective).all())
+
+    def test_decoupled_time_head_receives_gradient(self):
+        model = Fermat(self._config(True))
+        _, loss, _ = self._forward(model)
+        loss["loss_dt"].backward()
+        self.assertIsNotNone(model.time_head.bias.grad)
+        self.assertTrue(torch.isfinite(model.time_head.bias.grad).all())
+        self.assertNotEqual(float(model.time_head.bias.grad.abs().sum()), 0.0)
+
+    def test_decoupled_optimizer_groups_include_time_head(self):
+        model = Fermat(self._config(True))
+        optimizer = model.configure_optimizers(0.1, 1e-3, (0.9, 0.95), "cpu")
+        grouped = {
+            id(param)
+            for group in optimizer.param_groups
+            for param in group["params"]
+        }
+        self.assertIn(id(model.time_head.weight), grouped)
+        self.assertIn(id(model.time_head.bias), grouped)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -17,6 +17,8 @@ FILES = [
     "config/train_fermat_snuh_pilot_lab_context.py",
     "config/train_fermat_snuh_dt.py",
     "config/train_fermat_snuh_dt_finetune.py",
+    "config/train_fermat_snuh_dt_decoupled.py",
+    "config/train_fermat_snuh_dt_decoupled_finetune.py",
     "scripts/evaluate_snuh_checkpoint.py",
     "scripts/run_snuh_task13_dt.py",
     "docs/snuh_pretraining_runbook.md",

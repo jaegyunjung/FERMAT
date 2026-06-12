@@ -183,3 +183,64 @@ The recommended single-pass recipe for scaled runs is to train cross-entropy
 first and ramp the time loss in (warmup), with a light `loss_dt_weight` around
 `0.1`; warm-starting the time loss onto a converged CE checkpoint gave the best
 waiting-time accuracy (29.8-day median) at nearly baseline top-1.
+
+### Option A experiment (decoupled time head, stage 1)
+
+A code review found that the coupled formulation also dropped new-onset top-1
+from 3.07% to 2.29% (aggregate top-1 held only because repeated events
+improved) and that the original time pass criterion accepted any finite MAE.
+Both are addressed before committing to full-scale training:
+
+- `model.py` gains a `decoupled_time_head` option: a separate linear head
+  predicts the log event-rate from the hidden state, so the time loss is
+  structurally absent from the token logits' graph (verified: the time loss
+  sends zero gradient into the logits). The transformer body stays shared.
+- `evaluate_snuh_checkpoint.py` now reports the waiting-time NLL against a
+  constant-rate baseline and MAE against a median-gap baseline, with a
+  `beats_baseline` flag. The runner's time criterion requires beating the
+  baseline, and the summary adds a new-onset top-1 pass check.
+
+Run the from-scratch comparison (directly comparable to the coupled
+from-scratch runs at CE 6.98-7.22):
+
+```bash
+python scripts/run_snuh_task13_dt.py --config config/train_fermat_snuh_dt_decoupled.py
+```
+
+Or warm-start from the CE-only run to mirror the best coupled result
+(CE 6.88, new-onset 2.29%) with only the head changed:
+
+```bash
+python scripts/run_snuh_task13_dt.py \
+  --resume-from <ce-only-dir> \
+  --config config/train_fermat_snuh_dt_decoupled_finetune.py
+```
+
+Pass means clinical CE recovers toward 6.53, new-onset top-1 returns to ~3.07%,
+and the time head beats both baselines.
+
+### Result: option A is adopted
+
+The decoupled head removes the output-layer interference but still shares the
+transformer body, so `loss_dt_weight` trades token calibration for time
+accuracy. A 1% warm-start weight sweep (objective selection, 3,000 steps) maps
+the frontier:
+
+| loss_dt_weight | clinical CE | top-1 | new-onset | top-5 / top-10 | time NLL gain | time MAE gain | verdict |
+|---:|---:|---:|---:|---:|---:|---:|:--:|
+| coupled (B) best | 6.88 | 3.57% | 2.29% | 9.3 / 13.7% | +0.6 | n/a | review |
+| 0.1 | 6.53 | 3.90% | 3.50% | 13.2 / 19.1% | +1.03 | -170 d | review (time weak) |
+| **0.3** | **6.56** | **4.26%** | **3.91%** | **13.3 / 19.3%** | **+1.97** | **+630 d** | **pass (4/4)** |
+| 1.0 | 6.77 | 4.27% | 4.20% | 11.8 / 17.0% | +2.24 | +825 d | review (CE drifts) |
+
+At `loss_dt_weight=0.3` every token metric is at or above the CE-only baseline
+(6.53 / 3.64% / 3.07% / 12.6% / 18.5%) and the time head beats both the
+constant-rate (NLL) and median-gap (MAE) baselines, with a 180-day median
+waiting-time error. This strictly dominates the coupled option B, which
+collapsed new-onset top-1 to 2.29%.
+
+Decision: adopt the decoupled time head with `loss_dt_weight=0.3` (this is the
+default in `config/train_fermat_snuh_dt_decoupled_finetune.py`). The weight is
+the knob for the calibration-vs-time-accuracy trade; raise it if the
+gastric-cancer downstream needs tighter time accuracy and can tolerate the CE
+cost. This recipe carries to the scaled runs in place of option B.

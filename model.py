@@ -212,6 +212,7 @@ class FermatConfig:
     bias: bool = True
     t_min: float = 1.0
     log_rate_init: float = None
+    decoupled_time_head: bool = False
     mask_ties: bool = False
     ignore_tokens: list = field(default_factory=lambda: [0])
     output_ignore_tokens: list = field(default_factory=list)
@@ -260,8 +261,22 @@ class Fermat(nn.Module):
             if config.log_rate_init is None
             else config.log_rate_init
         )
-        self.log_rate = nn.Parameter(torch.tensor(log_rate_init, dtype=torch.float32))
+        if config.decoupled_time_head:
+            # Option A: a dedicated head predicts the log event-rate from the
+            # shared hidden state, so the time loss no longer reshapes the token
+            # logits at the output layer. The transformer body stays shared.
+            self.time_head = nn.Linear(config.n_embd, 1, bias=True)
+        else:
+            # Option B (coupled): the rate is the summed token mass shifted by a
+            # learnable global scalar.
+            self.log_rate = nn.Parameter(torch.tensor(log_rate_init, dtype=torch.float32))
         self.apply(self._init_weights)
+        if config.decoupled_time_head:
+            # Start the predicted rate at the same global level as the coupled
+            # init (constant in the hidden state) so the time loss is the same
+            # order of magnitude as cross-entropy from the first step.
+            torch.nn.init.zeros_(self.time_head.weight)
+            torch.nn.init.constant_(self.time_head.bias, log_rate_init)
         for pn, p in self.named_parameters():
             if pn.endswith('c_proj.weight'):
                 torch.nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layer))
@@ -336,7 +351,10 @@ class Fermat(nn.Module):
                 loss_ce = x.sum() * 0.0
 
             if compute_time_loss:
-                lse = torch.logsumexp(logits, -1) + self.log_rate
+                if self.config.decoupled_time_head:
+                    lse = self.time_head(x).squeeze(-1)
+                else:
+                    lse = torch.logsumexp(logits, -1) + self.log_rate
                 lse = -torch.log(torch.exp(-lse) + self.config.t_min)
                 dt = align_time_deltas(
                     age,
@@ -350,12 +368,19 @@ class Fermat(nn.Module):
                     - torch.exp(lse.reshape(-1) - ldt.reshape(-1))
                 )
                 loss_dt = safe_masked_mean(per_target_dt, pass_tokens)
+                # Expose the per-position effective log-rate (post t_min cap) so
+                # evaluation can derive the predicted waiting time without
+                # re-deriving the rate, which differs between the coupled and
+                # decoupled heads.
+                effective_log_rate = lse
             else:
                 loss_dt = loss_ce.new_zeros(())
+                effective_log_rate = None
             loss = {
                 'loss_ce': loss_ce,
                 'loss_dt': loss_dt,
                 'n_targets': pass_tokens.sum(),
+                'effective_log_rate': effective_log_rate,
             }
         else:
             logits = self.lm_head(x[:, :, :])
@@ -423,6 +448,12 @@ class Fermat(nn.Module):
             if no_repeat:
                 fill = idx.clone(); fill[fill == 1] = 0
                 logits = logits.scatter_(1, fill, -torch.inf)
+            if self.config.decoupled_time_head:
+                raise NotImplementedError(
+                    "generate() does not yet sample waiting times from the "
+                    "decoupled time head; use forward()/evaluation for the "
+                    "Task 13 diagnostic."
+                )
             t_next = torch.clamp(-torch.exp(-(logits + self.log_rate)) * torch.rand(logits.shape, device=idx.device).log(), min=0, max=365*80).min(1)
             idx_next = t_next[1][:, None]
             age_next = age[..., [-1]] + t_next[0][:, None]

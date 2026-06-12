@@ -74,6 +74,7 @@ compile = False
 # FERMAT specific
 token_dropout = 0.0
 t_min = 0.0
+decoupled_time_head = False
 mask_ties = True
 ignore_tokens = [0]
 output_ignore_tokens = []
@@ -166,6 +167,7 @@ model_args = dict(
     n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
     bias=bias, vocab_size=vocab_size, n_token_types=n_token_types,
     dropout=dropout, token_dropout=token_dropout, t_min=t_min,
+    decoupled_time_head=decoupled_time_head,
     mask_ties=mask_ties, ignore_tokens=ignore_tokens,
     output_ignore_tokens=output_ignore_tokens, ignore_types=ignore_types,
 )
@@ -194,10 +196,14 @@ elif init_from in ('resume', 'finetune'):
     for k, v in list(state_dict.items()):
         if k.startswith(unwanted_prefix):
             state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
-    # Checkpoints from before the global log-rate scalar lack this key; backfill
-    # its initial value so a CE-only run can be continued with the time loss on.
-    if 'log_rate' not in state_dict:
-        state_dict['log_rate'] = model.log_rate.detach()
+    # Reconcile architecture differences between the checkpoint and the current
+    # model (e.g. a CE-only or coupled checkpoint loaded into a decoupled
+    # time-head model): drop keys this model does not have and backfill the ones
+    # it expects but the checkpoint lacks, then load strictly for the rest.
+    model_state = model.state_dict()
+    state_dict = {k: v for k, v in state_dict.items() if k in model_state}
+    for missing in model_state.keys() - state_dict.keys():
+        state_dict[missing] = model_state[missing]
     model.load_state_dict(state_dict)
     if init_from == 'resume':
         iter_num = checkpoint['iter_num']
