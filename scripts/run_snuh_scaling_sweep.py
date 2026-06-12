@@ -8,12 +8,16 @@ import shutil
 import statistics
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+POD_STORAGE = Path("/home/khdp-user/workspace/fermat-data")
+POD_DATA_DIR = POD_STORAGE / "etl/patient_001pct_seed_42"
+POD_OUTPUT_ROOT = POD_STORAGE / "out"
 DEFAULT_TRIALS = [
     {
         "name": "tiny_ctx256",
@@ -52,21 +56,52 @@ DEFAULT_TRIALS = [
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir", type=Path, required=True)
-    parser.add_argument("--output-dir", type=Path, default=Path("out/snuh-scaling"))
+    parser.add_argument("--data-dir", type=Path)
+    parser.add_argument("--output-dir", type=Path)
     parser.add_argument(
         "--policy",
         choices=["baseline", "lab-context"],
-        default="baseline",
+        default="lab-context",
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--dtype", default="bfloat16")
-    parser.add_argument("--max-iters", type=int, default=100)
-    parser.add_argument("--eval-interval", type=int, default=50)
-    parser.add_argument("--eval-iters", type=int, default=10)
+    parser.add_argument("--max-iters", type=int, default=500)
+    parser.add_argument("--eval-interval", type=int, default=100)
+    parser.add_argument("--eval-iters", type=int, default=20)
+    parser.add_argument("--log-interval", type=int, default=100)
+    parser.add_argument("--eval-batch-size", type=int, default=16)
     parser.add_argument("--trials-json", type=Path)
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
+
+
+def read_bundle_id():
+    manifest_path = ROOT / "bundle_manifest.json"
+    if not manifest_path.exists():
+        return "snuh_task12_scaling_sweep"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return manifest.get("bundle_id", "snuh_task12_scaling_sweep")
+
+
+def default_data_dir():
+    if POD_DATA_DIR.exists():
+        return POD_DATA_DIR
+    local = ROOT / "outputs/snuh_tokenization_etl/patient_001pct_seed_42"
+    if local.exists():
+        return local
+    raise FileNotFoundError(
+        f"Missing SNUH 1% pilot at {POD_DATA_DIR} or {local}"
+    )
+
+
+def default_output_dir():
+    base = POD_OUTPUT_ROOT if POD_STORAGE.exists() else ROOT / "out"
+    bundle_id = read_bundle_id()
+    candidate = base / bundle_id
+    if not candidate.exists():
+        return candidate
+    timestamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    return base / f"{bundle_id}_{timestamp}"
 
 
 def run(command, log_path):
@@ -97,6 +132,12 @@ def read_metrics(path):
     ]
 
 
+def read_evaluation(path):
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def summarize_trial(trial, trial_dir, return_code):
     records = read_metrics(trial_dir / "metrics.jsonl")
     train = [row for row in records if "train/loss" in row]
@@ -121,6 +162,10 @@ def summarize_trial(trial, trial_dir, return_code):
         parameter_count = Fermat(
             FermatConfig(**checkpoint["model_args"])
         ).get_num_params()
+    evaluation = read_evaluation(trial_dir / "evaluation.json")
+    clinical = evaluation.get("clinical_only_softmax", {})
+    new_clinical = evaluation.get("new_clinical", {})
+    repeated_clinical = evaluation.get("repeated_clinical", {})
     return {
         **trial,
         "status": "ok" if return_code == 0 else "failed",
@@ -137,6 +182,11 @@ def summarize_trial(trial, trial_dir, return_code):
             if validation
             else None
         ),
+        "clinical_ce": clinical.get("cross_entropy"),
+        "clinical_top1": clinical.get("top1_accuracy"),
+        "clinical_top5": clinical.get("top5_accuracy"),
+        "new_clinical_top1": new_clinical.get("top1_accuracy"),
+        "repeated_clinical_top1": repeated_clinical.get("top1_accuracy"),
         "median_effective_targets_per_second": (
             statistics.median(speeds) if speeds else None
         ),
@@ -158,8 +208,11 @@ def write_reports(rows, output_dir):
     lines = [
         "# SNUH scaling sweep",
         "",
-        "| trial | status | parameters | context | batch | best val | targets/s | VRAM GB |",
-        "|---|---|---:|---:|---:|---:|---:|---:|",
+        (
+            "| trial | status | parameters | context | batch | best val CE | "
+            "clinical CE | top-1 | top-5 | targets/s | VRAM GB |"
+        ),
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in rows:
         def value(key, fmt):
@@ -170,6 +223,9 @@ def write_reports(rows, output_dir):
             f"| {row['name']} | {row['status']} | "
             f"{value('parameter_count', ',')} | {row['block_size']} | "
             f"{row['batch_size']} | {value('best_val_objective', '.4f')} | "
+            f"{value('clinical_ce', '.4f')} | "
+            f"{value('clinical_top1', '.4%')} | "
+            f"{value('clinical_top5', '.4%')} | "
             f"{value('median_effective_targets_per_second', '.1f')} | "
             f"{value('max_cuda_memory_gb', '.2f')} |"
         )
@@ -183,8 +239,8 @@ def main():
     args = parse_args()
     if args.max_iters < args.eval_interval:
         raise ValueError("max-iters must be at least eval-interval")
-    data_dir = args.data_dir.resolve()
-    output = args.output_dir.resolve()
+    data_dir = (args.data_dir or default_data_dir()).resolve()
+    output = (args.output_dir or default_output_dir()).resolve()
     if output.exists():
         if not args.overwrite:
             raise FileExistsError(f"{output} exists; use --overwrite")
@@ -227,8 +283,30 @@ def main():
             f"--max_iters={args.max_iters}",
             f"--eval_interval={args.eval_interval}",
             f"--eval_iters={args.eval_iters}",
+            f"--log_interval={args.log_interval}",
+            f"--lr_decay_iters={args.max_iters}",
         ]
         return_code = run(command, trial_dir / "training.log")
+        checkpoint = trial_dir / "ckpt.pt"
+        if return_code == 0 and checkpoint.exists():
+            evaluation_code = run([
+                sys.executable,
+                "scripts/evaluate_snuh_checkpoint.py",
+                "--ckpt",
+                str(checkpoint),
+                "--data-dir",
+                str(data_dir),
+                "--device",
+                args.device,
+                "--dtype",
+                args.dtype,
+                "--batch-size",
+                str(args.eval_batch_size),
+                "--output",
+                str(trial_dir / "evaluation.json"),
+            ], trial_dir / "evaluation.log")
+            if evaluation_code:
+                return_code = evaluation_code
         rows.append(summarize_trial(trial, trial_dir, return_code))
         write_reports(rows, output)
 

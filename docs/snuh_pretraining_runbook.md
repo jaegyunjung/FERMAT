@@ -94,21 +94,23 @@ single-scan staging design for the full ETL.
 
 ## Task 12: scaling sweep
 
-Run this only after choosing the baseline or LAB-context target policy:
+Run the LAB-context CE-only sweep on the L4 GPU pod:
 
 ```bash
-python scripts/run_snuh_scaling_sweep.py \
-  --data-dir outputs/snuh_tokenization_etl/patient_001pct_seed_42 \
-  --policy lab-context \
-  --output-dir out/snuh-scaling-lab-context
+python scripts/run_snuh_scaling_sweep.py
 ```
 
-Primary output:
+The runner automatically uses the 1% ETL pilot on block storage and compares
+the following four candidates for 500 steps each:
 
 ```text
-out/snuh-scaling-lab-context/scaling_summary.md
+tiny:  2 layers, 128 embedding, context 256 and 512
+small: 4 layers, 256 embedding, context 256 and 512
 ```
 
-Choose a production candidate using validation trend, effective targets per
-second, and peak VRAM. The 1% pilot is for relative comparison, not final
-perplexity.
+Each successful trial receives deterministic clinical-only evaluation. Results
+are written under
+`/home/khdp-user/workspace/fermat-data/out/<bundle-id>/scaling_summary.md`.
+Choose the next production candidate using validation CE, clinical top-k,
+effective targets per second, and peak VRAM. The 1% pilot is for relative
+comparison, not final perplexity.
