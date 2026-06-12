@@ -211,6 +211,7 @@ class FermatConfig:
     token_dropout: float = 0.0
     bias: bool = True
     t_min: float = 1.0
+    log_rate_init: float = None
     mask_ties: bool = False
     ignore_tokens: list = field(default_factory=lambda: [0])
     output_ignore_tokens: list = field(default_factory=list)
@@ -247,6 +248,19 @@ class Fermat(nn.Module):
         ))
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
         self.transformer.wte.weight = self.lm_head.weight
+        # Learnable global log event-rate. The per-token logits set the relative
+        # ranking of events (cross-entropy); this scalar sets the absolute event
+        # rate used by the waiting-time loss. Without it the rate is forced to
+        # equal sum(exp(logit)) ~ vocab_size, which is several orders of
+        # magnitude above the true rate and makes the time loss dominate and
+        # flatten all logits. Initialised to -log(vocab_size) so the initial
+        # rate is decoupled from vocabulary size.
+        log_rate_init = (
+            -math.log(config.vocab_size)
+            if config.log_rate_init is None
+            else config.log_rate_init
+        )
+        self.log_rate = nn.Parameter(torch.tensor(log_rate_init, dtype=torch.float32))
         self.apply(self._init_weights)
         for pn, p in self.named_parameters():
             if pn.endswith('c_proj.weight'):
@@ -322,7 +336,7 @@ class Fermat(nn.Module):
                 loss_ce = x.sum() * 0.0
 
             if compute_time_loss:
-                lse = torch.logsumexp(logits, -1)
+                lse = torch.logsumexp(logits, -1) + self.log_rate
                 lse = -torch.log(torch.exp(-lse) + self.config.t_min)
                 dt = align_time_deltas(
                     age,
@@ -364,6 +378,8 @@ class Fermat(nn.Module):
                 elif pn.endswith('weight') and isinstance(m, (torch.nn.Linear,)):
                     decay.add(fpn)
                 elif pn.endswith('weight') and isinstance(m, (torch.nn.LayerNorm, LayerNorm, torch.nn.Embedding)):
+                    no_decay.add(fpn)
+                elif pn == 'log_rate':
                     no_decay.add(fpn)
         decay.remove('lm_head.weight')
         param_dict = {pn: p for pn, p in self.named_parameters()}
@@ -407,7 +423,7 @@ class Fermat(nn.Module):
             if no_repeat:
                 fill = idx.clone(); fill[fill == 1] = 0
                 logits = logits.scatter_(1, fill, -torch.inf)
-            t_next = torch.clamp(-torch.exp(-logits) * torch.rand(logits.shape, device=idx.device).log(), min=0, max=365*80).min(1)
+            t_next = torch.clamp(-torch.exp(-(logits + self.log_rate)) * torch.rand(logits.shape, device=idx.device).log(), min=0, max=365*80).min(1)
             idx_next = t_next[1][:, None]
             age_next = age[..., [-1]] + t_next[0][:, None]
             if token_type_lookup is not None:

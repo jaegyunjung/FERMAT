@@ -208,5 +208,88 @@ class TargetMaskTest(unittest.TestCase):
         self.assertEqual(float(loss["loss_dt"]), 0.0)
 
 
+class GlobalLogRateTest(unittest.TestCase):
+    """The learnable global log-rate decouples the event rate from vocab size.
+
+    Without it the time loss uses rate = sum(exp(logit)) ~ vocab_size, which is
+    orders of magnitude above the true rate and dominates cross-entropy. These
+    tests pin the scalar's initialisation, trainability, optimiser handling, and
+    the decoupling property that motivated it.
+    """
+
+    def _model(self, vocab_size, log_rate_init=None):
+        config = FermatConfig(
+            block_size=8,
+            vocab_size=vocab_size,
+            n_token_types=len(TokenType),
+            n_layer=1,
+            n_head=1,
+            n_embd=8,
+            dropout=0.0,
+            bias=False,
+            t_min=0.1,
+            log_rate_init=log_rate_init,
+        )
+        return Fermat(config)
+
+    def _time_loss_at_init(self, vocab_size):
+        torch.manual_seed(0)
+        model = self._model(vocab_size)
+        idx = torch.tensor([[2, 3, 4, 5]])
+        age = torch.tensor([[10.0, 25.0, 40.0, 70.0]])
+        token_type = torch.full_like(idx, TokenType.DX)
+        targets = torch.tensor([[3, 4, 5, 6]])
+        targets_age = torch.tensor([[25.0, 40.0, 70.0, 120.0]])
+        _, loss, _ = model(
+            idx,
+            age,
+            token_type,
+            targets,
+            targets_age,
+            target_token_type=token_type,
+        )
+        return model, loss
+
+    def test_log_rate_initialises_to_negative_log_vocab(self):
+        import math
+
+        model = self._model(7699)
+        self.assertAlmostEqual(float(model.log_rate), -math.log(7699), places=4)
+
+    def test_explicit_log_rate_init_is_respected(self):
+        model = self._model(64, log_rate_init=-3.0)
+        self.assertAlmostEqual(float(model.log_rate), -3.0, places=5)
+
+    def test_time_loss_does_not_scale_with_vocab_size(self):
+        # The pathology was loss_dt growing ~linearly with vocab. With the
+        # scalar both stay the same small order of magnitude despite a 64x gap.
+        _, small = self._time_loss_at_init(64)
+        _, large = self._time_loss_at_init(4096)
+        self.assertTrue(torch.isfinite(small["loss_dt"]))
+        self.assertTrue(torch.isfinite(large["loss_dt"]))
+        self.assertLess(float(large["loss_dt"]), 50.0)
+        self.assertLess(
+            float(large["loss_dt"]),
+            5.0 * float(small["loss_dt"]),
+        )
+
+    def test_log_rate_receives_gradient(self):
+        model, loss = self._time_loss_at_init(64)
+        (loss["loss_ce"] + loss["loss_dt"]).backward()
+        self.assertIsNotNone(model.log_rate.grad)
+        self.assertTrue(torch.isfinite(model.log_rate.grad))
+        self.assertNotEqual(float(model.log_rate.grad), 0.0)
+
+    def test_optimizer_groups_include_log_rate(self):
+        model = self._model(64)
+        optimizer = model.configure_optimizers(0.1, 1e-3, (0.9, 0.95), "cpu")
+        grouped = {
+            id(param)
+            for group in optimizer.param_groups
+            for param in group["params"]
+        }
+        self.assertIn(id(model.log_rate), grouped)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -76,6 +76,11 @@ def load_model(path, device):
             key.removeprefix("_orig_mod."): value
             for key, value in state_dict.items()
         }
+    # Checkpoints trained before the global log-rate scalar lack this key.
+    # Backfill its initial value so strict loading still validates every
+    # other tensor.
+    if "log_rate" not in state_dict:
+        state_dict["log_rate"] = model.log_rate.detach()
     model.load_state_dict(state_dict)
     model.to(device)
     model.eval()
@@ -373,7 +378,10 @@ def evaluate_batch(
             attention_mask,
             model.config.mask_ties,
         )
-        raw_log_rate = torch.logsumexp(logits.float(), dim=-1)
+        # Match the training-time rate: the global log-rate scalar shifts the
+        # per-token logits before the t_min cap. Omitting it would make the
+        # predicted waiting time inconsistent with the model the loss trained.
+        raw_log_rate = torch.logsumexp(logits.float(), dim=-1) + model.log_rate
         effective_log_rate = -torch.log(
             torch.exp(-raw_log_rate) + model.config.t_min
         )

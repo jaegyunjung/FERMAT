@@ -84,6 +84,7 @@ train_select = 'left'
 eval_select = 'left'
 eval_selects = []
 loss_dt_weight = 1.0
+loss_dt_warmup_iters = 0
 train_lifestyle_augmentations = True
 checkpoint_metric = 'objective'
 save_latest_checkpoint = False
@@ -103,7 +104,7 @@ config = {k: globals()[k] for k in config_keys if k in globals()}
 # =============================================================================
 os.makedirs(out_dir, exist_ok=True)
 metrics_path = os.path.join(out_dir, metrics_filename)
-if init_from == 'scratch':
+if init_from in ('scratch', 'finetune'):
     open(metrics_path, 'w').close()
 try:
     git_commit = subprocess.check_output(
@@ -173,8 +174,14 @@ if init_from == 'scratch':
     print("Initializing a new FERMAT model from scratch")
     conf = FermatConfig(**model_args)
     model = Fermat(conf)
-elif init_from == 'resume':
-    print(f"Resuming training from {out_dir}")
+elif init_from in ('resume', 'finetune'):
+    # resume   continues a run: keep iter_num, best_val_loss, and optimizer.
+    # finetune warm-starts from the weights only: fresh iter_num, best_val_loss,
+    #          optimizer, and learning-rate schedule. Use finetune to add the
+    #          time loss on top of a converged CE-only checkpoint without
+    #          inheriting its (CE-metric) best_val_loss, which would otherwise
+    #          block every new checkpoint save.
+    print(f"{'Resuming' if init_from == 'resume' else 'Warm-starting'} from {out_dir}")
     ckpt_path = os.path.join(out_dir, 'ckpt.pt')
     checkpoint = torch.load(ckpt_path, map_location=device, weights_only=False)
     checkpoint_model_args = checkpoint['model_args']
@@ -187,9 +194,14 @@ elif init_from == 'resume':
     for k, v in list(state_dict.items()):
         if k.startswith(unwanted_prefix):
             state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
+    # Checkpoints from before the global log-rate scalar lack this key; backfill
+    # its initial value so a CE-only run can be continued with the time loss on.
+    if 'log_rate' not in state_dict:
+        state_dict['log_rate'] = model.log_rate.detach()
     model.load_state_dict(state_dict)
-    iter_num = checkpoint['iter_num']
-    best_val_loss = checkpoint['best_val_loss']
+    if init_from == 'resume':
+        iter_num = checkpoint['iter_num']
+        best_val_loss = checkpoint['best_val_loss']
 
 model.to(device)
 
@@ -282,6 +294,15 @@ def get_lr(it):
     decay_ratio = (it - warmup_iters) / (lr_decay_iters - warmup_iters)
     coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
     return min_lr + coeff * (learning_rate - min_lr)
+
+
+def get_loss_dt_weight(it):
+    # Ramp the waiting-time loss in linearly so cross-entropy can establish
+    # token ranking before the time objective contributes gradient. With
+    # loss_dt_warmup_iters == 0 the full weight applies from the first step.
+    if loss_dt_warmup_iters <= 0:
+        return loss_dt_weight
+    return loss_dt_weight * min(1.0, it / loss_dt_warmup_iters)
 
 
 # =============================================================================
@@ -405,7 +426,8 @@ while True:
         combined_loss = (
             loss['loss_ce']
             if loss_dt_weight == 0
-            else loss['loss_ce'] + loss_dt_weight * loss['loss_dt']
+            else loss['loss_ce']
+            + get_loss_dt_weight(iter_num) * loss['loss_dt']
         )
         scaler.scale(combined_loss / gradient_accumulation_steps).backward()
 
