@@ -5,6 +5,7 @@ import getpass
 import json
 import os
 import platform
+import threading
 import time
 from pathlib import Path
 
@@ -14,12 +15,34 @@ from psycopg import sql
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", default="pg-2vge6u.vpc-cdb-kr.gov-ntruss.com")
-    parser.add_argument("--port", type=int, default=5432)
-    parser.add_argument("--dbname", default="cdm")
-    parser.add_argument("--user", default="jaegyun_jung")
-    parser.add_argument("--schema", default="cdm2024_official")
-    parser.add_argument("--sslmode", default="disable")
+    parser.add_argument(
+        "--host",
+        default=os.environ.get(
+            "SNUH_CDM_HOST",
+            "pg-2vge6u.vpc-cdb-kr.gov-ntruss.com",
+        ),
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("SNUH_CDM_PORT", "5432")),
+    )
+    parser.add_argument(
+        "--dbname",
+        default=os.environ.get("SNUH_CDM_DATABASE", "cdm"),
+    )
+    parser.add_argument(
+        "--user",
+        default=os.environ.get("SNUH_CDM_USER", "jaegyun_jung"),
+    )
+    parser.add_argument(
+        "--schema",
+        default=os.environ.get("SNUH_CDM_SCHEMA", "cdm2024_official"),
+    )
+    parser.add_argument(
+        "--sslmode",
+        default=os.environ.get("SNUH_CDM_SSLMODE", "disable"),
+    )
     parser.add_argument("--db-end-date", default="2025-02-05")
     parser.add_argument("--split-seed", type=int, default=42)
     parser.add_argument("--pilot-seed", type=int, default=20260611)
@@ -40,11 +63,32 @@ def fetch_one(conn, query, params=None):
         return dict(zip(columns, cursor.fetchone()))
 
 
-def execute_timed(conn, query, params=None):
+def execute_timed(conn, query, params=None, label=None):
+    if label:
+        print(f"[START] {label}", flush=True)
     started = time.time()
+    stop_heartbeat = threading.Event()
+
+    def heartbeat():
+        while not stop_heartbeat.wait(60):
+            elapsed = time.time() - started
+            print(f"[RUNNING] {label}: {elapsed / 60:.1f} min", flush=True)
+
+    thread = None
+    if label:
+        thread = threading.Thread(target=heartbeat, daemon=True)
+        thread.start()
     with conn.cursor() as cursor:
-        cursor.execute(query, params or ())
-    return time.time() - started
+        try:
+            cursor.execute(query, params or ())
+        finally:
+            stop_heartbeat.set()
+            if thread is not None:
+                thread.join()
+    elapsed = time.time() - started
+    if label:
+        print(f"[DONE] {label}: {elapsed:.1f}s", flush=True)
+    return elapsed
 
 
 def main():
@@ -110,12 +154,18 @@ def main():
             WHERE pilot_bucket < %s
             """).format(sql.Identifier(args.schema)),
             (args.split_seed, args.pilot_seed, args.patient_buckets),
+            label="Create sampled patient cohort",
         )
         execute_timed(
             conn,
             "CREATE INDEX ON tmp_fermat_stage_person(person_id)",
+            label="Index sampled patient cohort",
         )
-        execute_timed(conn, "ANALYZE tmp_fermat_stage_person")
+        execute_timed(
+            conn,
+            "ANALYZE tmp_fermat_stage_person",
+            label="Analyze sampled patient cohort",
+        )
         result["cohort"] = fetch_one(
             conn,
             """
@@ -153,10 +203,12 @@ def main():
               )
             """).format(sql.Identifier(args.schema)),
             (args.db_end_date,),
+            label="Scan measurement and create staging table",
         )
         result["stage_analyze_seconds"] = execute_timed(
             conn,
             "ANALYZE tmp_measurement_stage",
+            label="Analyze measurement staging table",
         )
 
         if args.create_indexes:
@@ -164,6 +216,7 @@ def main():
             execute_timed(
                 conn,
                 "CREATE INDEX ON tmp_measurement_stage(person_id, measurement_date)",
+                label="Index staging by patient and date",
             )
             execute_timed(
                 conn,
@@ -172,6 +225,7 @@ def main():
                     split, measurement_concept_id, unit_concept_id
                 ) WHERE value_as_number IS NOT NULL
                 """,
+                label="Index numeric LAB staging",
             )
             execute_timed(
                 conn,
@@ -181,6 +235,7 @@ def main():
                 ) WHERE value_as_concept_id IS NOT NULL
                   AND value_as_concept_id <> 0
                 """,
+                label="Index categorical LAB staging",
             )
             result["stage_index_seconds"] = time.time() - started
 
