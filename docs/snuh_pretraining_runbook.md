@@ -13,6 +13,11 @@ python scripts/run_snuh_task10.py \
 The command runs the window audit, baseline arm, LAB-context arm, deterministic
 checkpoint evaluation, and comparison report.
 
+Task 10 is currently a CE-only diagnostic. Both arms use
+`loss_dt_weight=0.0`, select checkpoints by validation CE, and compare against
+a train-only clinical unigram baseline. Do not start the scaling sweep unless
+the model improves meaningfully over that baseline.
+
 Primary output:
 
 ```text
@@ -20,7 +25,8 @@ out/snuh-task10/reports/comparison.md
 ```
 
 Use clinical-only metrics for arm comparison. Objective CE uses different
-target sets and is not directly comparable.
+target sets and is not directly comparable. Waiting-time metrics are `NA` in
+this diagnostic because the time loss is disabled.
 
 ## Task 11: measurement staging gate
 

@@ -42,10 +42,10 @@ def training_summary(records):
         if row.get("train/targets_per_second", 0) > 0
     ]
     return {
-        "first_train_loss": train[0]["train/loss"] if train else None,
-        "last_train_loss": train[-1]["train/loss"] if train else None,
-        "best_val_objective": (
-            min(row["val/objective_loss"] for row in validation)
+        "first_train_ce": train[0].get("train/loss_ce") if train else None,
+        "last_train_ce": train[-1].get("train/loss_ce") if train else None,
+        "best_val_ce": (
+            min(row["val/loss_ce"] for row in validation)
             if validation
             else None
         ),
@@ -84,6 +84,16 @@ def main():
             "clinical_only_softmax.top1_accuracy",
             ".4%",
         ),
+        (
+            "Train-unigram clinical CE",
+            "train_clinical_unigram.cross_entropy",
+            ".4f",
+        ),
+        (
+            "Train-unigram clinical top-1",
+            "train_clinical_unigram.top1_accuracy",
+            ".4%",
+        ),
         ("New clinical top-1", "new_clinical.top1_accuracy", ".4%"),
         (
             "Repeated clinical top-1",
@@ -107,8 +117,8 @@ def main():
         baseline_value = nested_get(baseline, path)
         context_value = nested_get(context, path)
         lines.append(
-            f"| {label} | {format(baseline_value, fmt)} | "
-            f"{format(context_value, fmt)} |"
+            f"| {label} | {display(baseline_value, fmt)} | "
+            f"{display(context_value, fmt)} |"
         )
     lines.extend([
         "",
@@ -117,19 +127,19 @@ def main():
         "| metric | baseline | LAB-context |",
         "|---|---:|---:|",
         (
-            "| First train objective | "
-            f"{display(baseline_training['first_train_loss'], '.4f')} | "
-            f"{display(context_training['first_train_loss'], '.4f')} |"
+            "| First train CE | "
+            f"{display(baseline_training['first_train_ce'], '.4f')} | "
+            f"{display(context_training['first_train_ce'], '.4f')} |"
         ),
         (
-            "| Last train objective | "
-            f"{display(baseline_training['last_train_loss'], '.4f')} | "
-            f"{display(context_training['last_train_loss'], '.4f')} |"
+            "| Last train CE | "
+            f"{display(baseline_training['last_train_ce'], '.4f')} | "
+            f"{display(context_training['last_train_ce'], '.4f')} |"
         ),
         (
-            "| Best validation objective | "
-            f"{display(baseline_training['best_val_objective'], '.4f')} | "
-            f"{display(context_training['best_val_objective'], '.4f')} |"
+            "| Best validation CE | "
+            f"{display(baseline_training['best_val_ce'], '.4f')} | "
+            f"{display(context_training['best_val_ce'], '.4f')} |"
         ),
         (
             "| Median effective targets/s | "
@@ -146,6 +156,8 @@ def main():
         "",
         "Objective CE is not directly comparable because the target policies differ.",
         "Use clinical-only metrics for the same-target arm comparison.",
+        "The train-unigram baseline uses add-one-smoothed clinical-token counts",
+        "from train.bin and is evaluated on the same validation clinical targets.",
         "",
     ])
     args.output.parent.mkdir(parents=True, exist_ok=True)

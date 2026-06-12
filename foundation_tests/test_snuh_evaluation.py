@@ -5,6 +5,7 @@ import torch
 
 from model import TokenType
 from scripts.evaluate_snuh_checkpoint import (
+    build_clinical_unigram,
     clinical_output_mask,
     collate,
     iter_windows,
@@ -68,6 +69,32 @@ class SnuhEvaluationTest(unittest.TestCase):
         torch.testing.assert_close(
             mask,
             torch.tensor([False, False, True, False, True, False]),
+        )
+
+    def test_clinical_unigram_uses_train_counts_and_shifted_ids(self):
+        data = np.array(
+            [
+                [0, 10, 3, TokenType.LAB],
+                [0, 20, 1, TokenType.DX],
+                [0, 30, 1, TokenType.DX],
+                [0, 40, 2, TokenType.RX],
+                [1, 10, 2, TokenType.RX],
+            ],
+            dtype=np.uint32,
+        )
+        clinical_mask = torch.tensor(
+            [False, False, True, True, False, False],
+        )
+
+        log_probs, top1_token = build_clinical_unigram(
+            data,
+            clinical_mask,
+        )
+
+        self.assertEqual(top1_token, 2)
+        torch.testing.assert_close(
+            log_probs[clinical_mask].exp(),
+            torch.tensor([0.6, 0.4], dtype=torch.float64),
         )
 
 

@@ -266,7 +266,7 @@ class Fermat(nn.Module):
 
     def forward(self, idx, age, token_type, targets=None, targets_age=None,
                 target_token_type=None, validation_loss_mode=False,
-                return_attention=True):
+                return_attention=True, compute_time_loss=True):
         tok_emb = self.transformer.wte(idx)
         age_emb = self.transformer.wae(age.unsqueeze(-1))
         type_emb = self.transformer.wtype(token_type)
@@ -319,22 +319,25 @@ class Fermat(nn.Module):
                     targets_flat[pass_tokens],
                 )
             else:
-                loss_ce = logits.sum() * 0.0
+                loss_ce = x.sum() * 0.0
 
-            lse = torch.logsumexp(logits, -1)
-            lse = -torch.log(torch.exp(-lse) + self.config.t_min)
-            dt = align_time_deltas(
-                age,
-                targets_age,
-                attn_mask,
-                self.config.mask_ties,
-            )
-            ldt = -torch.log(dt + self.config.t_min).view(-1)
-            per_target_dt = -(
-                lse.reshape(-1)
-                - torch.exp(lse.reshape(-1) - ldt.reshape(-1))
-            )
-            loss_dt = safe_masked_mean(per_target_dt, pass_tokens)
+            if compute_time_loss:
+                lse = torch.logsumexp(logits, -1)
+                lse = -torch.log(torch.exp(-lse) + self.config.t_min)
+                dt = align_time_deltas(
+                    age,
+                    targets_age,
+                    attn_mask,
+                    self.config.mask_ties,
+                )
+                ldt = -torch.log(dt + self.config.t_min).view(-1)
+                per_target_dt = -(
+                    lse.reshape(-1)
+                    - torch.exp(lse.reshape(-1) - ldt.reshape(-1))
+                )
+                loss_dt = safe_masked_mean(per_target_dt, pass_tokens)
+            else:
+                loss_dt = loss_ce.new_zeros(())
             loss = {
                 'loss_ce': loss_ce,
                 'loss_dt': loss_dt,

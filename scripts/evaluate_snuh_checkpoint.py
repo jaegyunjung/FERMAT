@@ -109,6 +109,38 @@ def clinical_output_mask(registry, vocab_size, device):
     return mask
 
 
+def build_clinical_unigram(data, clinical_vocab_mask, alpha=1.0):
+    """Build an add-one-smoothed clinical-token baseline from train data."""
+    clinical_types = np.array(list(CLINICAL_TYPES), dtype=np.int64)
+    target_rows = np.zeros(len(data), dtype=bool)
+    target_rows[1:] = data[1:, 0] == data[:-1, 0]
+    rows = target_rows & np.isin(
+        data[:, 3].astype(np.int64),
+        clinical_types,
+    )
+    model_token_ids = data[rows, 2].astype(np.int64) + 1
+    counts = np.bincount(
+        model_token_ids,
+        minlength=clinical_vocab_mask.numel(),
+    )[:clinical_vocab_mask.numel()]
+    counts = torch.as_tensor(
+        counts,
+        dtype=torch.float64,
+        device=clinical_vocab_mask.device,
+    )
+    smoothed = counts + alpha * clinical_vocab_mask.to(torch.float64)
+    smoothed = smoothed.masked_fill(~clinical_vocab_mask, 0)
+    total = smoothed.sum()
+    if total <= 0:
+        raise ValueError("No clinical tokens were found in the train split")
+    log_probs = torch.full_like(smoothed, -torch.inf)
+    log_probs[clinical_vocab_mask] = torch.log(
+        smoothed[clinical_vocab_mask] / total
+    )
+    top1_token = int(torch.argmax(smoothed).item())
+    return log_probs, top1_token
+
+
 def window_start(length, block_size, selector):
     available = max(length - block_size - 1, 0)
     if selector == "left":
@@ -220,12 +252,40 @@ def finalize_accuracy(stats, prefix):
     }
 
 
+def update_unigram(stats, log_probs, top1_token, targets, mask):
+    selected_targets = targets[mask]
+    count = int(selected_targets.numel())
+    if count == 0:
+        return
+    stats["unigram_ce_sum"] += float(
+        -log_probs[selected_targets].sum().item()
+    )
+    stats["unigram_top1"] += int((selected_targets == top1_token).sum())
+    stats["unigram_count"] += count
+
+
+def finalize_unigram(stats):
+    count = int(stats["unigram_count"])
+    if count == 0:
+        return {"targets": 0}
+    ce = stats["unigram_ce_sum"] / count
+    return {
+        "targets": count,
+        "cross_entropy": ce,
+        "perplexity": math.exp(ce) if ce < 700 else float("inf"),
+        "top1_accuracy": stats["unigram_top1"] / count,
+    }
+
+
 def evaluate_batch(
     model,
     tensors,
     clinical_vocab_mask,
+    unigram_log_probs,
+    unigram_top1_token,
     stats,
     time_errors,
+    evaluate_time,
     autocast_context_factory,
 ):
     x, age, targets, target_age, token_types, target_types, repeated = tensors
@@ -239,6 +299,7 @@ def evaluate_batch(
             target_token_type=target_types,
             validation_loss_mode=True,
             return_attention=False,
+            compute_time_loss=False,
         )
     flat_targets = targets.reshape(-1)
     flat_types = target_types.reshape(-1)
@@ -252,6 +313,13 @@ def evaluate_batch(
     for token_type in NON_CLINICAL_TYPES:
         clinical_mask &= target_types != token_type
 
+    update_unigram(
+        stats,
+        unigram_log_probs,
+        unigram_top1_token,
+        targets,
+        clinical_mask,
+    )
     update_accuracy(stats, logits, targets, objective_mask, "objective")
     update_accuracy(stats, logits, targets, clinical_mask, "clinical_full")
 
@@ -292,23 +360,27 @@ def evaluate_batch(
         "repeated_clinical",
     )
 
-    attention_mask = build_attention_mask(
-        x,
-        age,
-        targets_age=target_age,
-        mask_ties=model.config.mask_ties,
-    )
-    actual_dt = align_time_deltas(
-        age,
-        target_age,
-        attention_mask,
-        model.config.mask_ties,
-    )
-    raw_log_rate = torch.logsumexp(logits.float(), dim=-1)
-    predicted_dt = torch.clamp(torch.exp(-raw_log_rate), min=1.0)
-    errors = torch.abs(predicted_dt - actual_dt)[clinical_mask]
-    if errors.numel():
-        time_errors.append(errors.detach().cpu().numpy())
+    if evaluate_time:
+        attention_mask = build_attention_mask(
+            x,
+            age,
+            targets_age=target_age,
+            mask_ties=model.config.mask_ties,
+        )
+        actual_dt = align_time_deltas(
+            age,
+            target_age,
+            attention_mask,
+            model.config.mask_ties,
+        )
+        raw_log_rate = torch.logsumexp(logits.float(), dim=-1)
+        effective_log_rate = -torch.log(
+            torch.exp(-raw_log_rate) + model.config.t_min
+        )
+        predicted_dt = torch.clamp(torch.exp(-effective_log_rate), min=1.0)
+        errors = torch.abs(predicted_dt - actual_dt)[clinical_mask]
+        if errors.numel():
+            time_errors.append(errors.detach().cpu().numpy())
 
     stats["batches"] += 1
     stats["objective_model_targets"] += int(loss["n_targets"])
@@ -328,6 +400,16 @@ def main():
     )
     if not output_mask.any():
         raise ValueError("No clinical output tokens were found in the registry")
+    train_data, train_has_types = load_data(args.data_dir / "train.bin")
+    if not train_has_types:
+        raise ValueError("SNUH unigram baseline requires 4-column train data")
+    unigram_log_probs, unigram_top1_token = build_clinical_unigram(
+        train_data,
+        output_mask,
+    )
+    evaluate_time = (
+        float(checkpoint.get("config", {}).get("loss_dt_weight", 1.0)) != 0
+    )
 
     stats = defaultdict(float)
     time_errors = []
@@ -356,8 +438,11 @@ def main():
                 model,
                 collate(buffer, args.device),
                 output_mask,
+                unigram_log_probs,
+                unigram_top1_token,
                 stats,
                 time_errors,
+                evaluate_time,
                 autocast_context_factory,
             )
             buffer = []
@@ -366,8 +451,11 @@ def main():
                 model,
                 collate(buffer, args.device),
                 output_mask,
+                unigram_log_probs,
+                unigram_top1_token,
                 stats,
                 time_errors,
+                evaluate_time,
                 autocast_context_factory,
             )
 
@@ -390,9 +478,11 @@ def main():
             ],
             "ignore_types": [int(value) for value in model.config.ignore_types],
         },
+        "time_loss_enabled": evaluate_time,
         "objective": finalize_accuracy(stats, "objective"),
         "clinical_full_softmax": finalize_accuracy(stats, "clinical_full"),
         "clinical_only_softmax": finalize_accuracy(stats, "clinical_only"),
+        "train_clinical_unigram": finalize_unigram(stats),
         "new_clinical": finalize_accuracy(stats, "new_clinical"),
         "repeated_clinical": finalize_accuracy(stats, "repeated_clinical"),
         "type_specific": {

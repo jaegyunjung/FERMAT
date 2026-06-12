@@ -40,7 +40,8 @@ selected patient. It is not event-uniform.
 python train.py config/train_fermat_snuh_pilot.py
 ```
 
-LAB tokens are inputs and prediction targets.
+LAB tokens are inputs and prediction targets. This diagnostic run is CE-only:
+`loss_dt_weight=0.0` and checkpoint selection uses validation CE.
 
 ## 3. LAB-context arm
 
@@ -49,17 +50,16 @@ python train.py config/train_fermat_snuh_pilot_lab_context.py
 ```
 
 LAB tokens remain in the input context but LAB target positions are excluded
-from cross-entropy and waiting-time losses. This arm does not yet relink each
-position to the next non-LAB event or remove LAB tokens from the output
-softmax.
+from cross-entropy. This arm does not yet relink each position to the next
+non-LAB event or remove LAB tokens from the output softmax.
 
 ## Gate
 
 Both arms must:
 
 - load the 4-column shards without mapping errors
-- produce finite CE and time losses
-- show decreasing training objective
+- produce finite CE without computing the time loss
+- show decreasing training CE
 - complete validation over fixed left, middle, and right windows
 - fit in GPU memory at `block_size=256`
 
@@ -68,7 +68,10 @@ loss trends. Their CE values are not directly interchangeable because the
 target sets differ.
 
 The checkpoint evaluator therefore also reports clinical-only softmax metrics
-over the same DX/RX/PX/DTH target and output set for both arms.
+over the same DX/RX/PX/DTH target and output set for both arms. It compares
+those metrics with an add-one-smoothed clinical unigram baseline built only
+from `train.bin`. Waiting-time metrics are reported as `NA` while the time loss
+is disabled.
 
 Use the window audit to decide whether the next experiment should use LAB
 event dropout/downsampling, longer context, or next-non-LAB target relinking.

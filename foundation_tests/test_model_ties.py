@@ -109,6 +109,7 @@ class TargetMaskTest(unittest.TestCase):
             dropout=0.0,
             bias=False,
             mask_ties=True,
+            output_ignore_tokens=[0, 1],
             ignore_types=[
                 TokenType.PAD,
                 TokenType.SEX,
@@ -173,6 +174,38 @@ class TargetMaskTest(unittest.TestCase):
         self.assertTrue(torch.isneginf(logits[..., 1]).all())
         self.assertTrue(torch.isfinite(loss["loss_ce"]))
         self.assertTrue(torch.isfinite(loss["loss_dt"]))
+
+    def test_ce_only_forward_skips_unstable_time_loss(self):
+        config = FermatConfig(
+            block_size=2,
+            vocab_size=8,
+            n_token_types=len(TokenType),
+            n_layer=1,
+            n_head=1,
+            n_embd=8,
+            dropout=0.0,
+            bias=False,
+            t_min=0.0,
+        )
+        model = Fermat(config)
+        idx = torch.tensor([[2, 3]])
+        age = torch.tensor([[0.0, 1.0]])
+        token_type = torch.full_like(idx, TokenType.DX)
+        targets = torch.tensor([[3, 4]])
+        target_age = torch.tensor([[1e30, 1e30]])
+
+        _, loss, _ = model(
+            idx,
+            age,
+            token_type,
+            targets,
+            target_age,
+            target_token_type=token_type,
+            compute_time_loss=False,
+        )
+
+        self.assertTrue(torch.isfinite(loss["loss_ce"]))
+        self.assertEqual(float(loss["loss_dt"]), 0.0)
 
 
 if __name__ == "__main__":

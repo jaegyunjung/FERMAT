@@ -43,9 +43,9 @@ train_select = "random"
 eval_select = "middle"
 eval_selects = ["left", "middle", "right"]
 no_event_token_rate = 0
-loss_dt_weight = 1.0
+loss_dt_weight = 0.0
 train_lifestyle_augmentations = False
-checkpoint_metric = "objective"
+checkpoint_metric = "ce"
 
 device = "cuda"
 dtype = "bfloat16"

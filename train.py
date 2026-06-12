@@ -254,6 +254,7 @@ def estimate_loss():
                     target_token_type=YT,
                     validation_loss_mode=True,
                     return_attention=False,
+                    compute_time_loss=loss_dt_weight != 0,
                 )
             batch_targets = int(loss['n_targets'].item())
             if batch_targets:
@@ -310,8 +311,18 @@ while True:
     # Evaluate
     if iter_num % eval_interval == 0 and iter_num > 0:
         losses = estimate_loss()
-        train_objective = losses['train'][0].item() + loss_dt_weight * losses['train'][1].item()
-        val_objective = losses['val'][0].item() + loss_dt_weight * losses['val'][1].item()
+        train_objective = (
+            losses['train'][0].item()
+            if loss_dt_weight == 0
+            else losses['train'][0].item()
+            + loss_dt_weight * losses['train'][1].item()
+        )
+        val_objective = (
+            losses['val'][0].item()
+            if loss_dt_weight == 0
+            else losses['val'][0].item()
+            + loss_dt_weight * losses['val'][1].item()
+        )
         val_loss = losses['val'][0].item() if checkpoint_metric == 'ce' else val_objective
         print(
             f"step {iter_num}: "
@@ -377,6 +388,7 @@ while True:
                 X, A, XT, Y, B,
                 target_token_type=YT,
                 return_attention=False,
+                compute_time_loss=loss_dt_weight != 0,
             )
 
         # Prefetch next batch
@@ -390,7 +402,11 @@ while True:
         step_target_count += micro_target_count
         step_ce_sum += loss['loss_ce'].item() * micro_target_count
         step_dt_sum += loss['loss_dt'].item() * micro_target_count
-        combined_loss = loss['loss_ce'] + loss_dt_weight * loss['loss_dt']
+        combined_loss = (
+            loss['loss_ce']
+            if loss_dt_weight == 0
+            else loss['loss_ce'] + loss_dt_weight * loss['loss_dt']
+        )
         scaler.scale(combined_loss / gradient_accumulation_steps).backward()
 
     if grad_clip != 0.0:
@@ -408,7 +424,11 @@ while True:
     if iter_num % log_interval == 0:
         mean_ce = step_ce_sum / step_target_count if step_target_count else 0.0
         mean_dt = step_dt_sum / step_target_count if step_target_count else 0.0
-        lossf = mean_ce + loss_dt_weight * mean_dt
+        lossf = (
+            mean_ce
+            if loss_dt_weight == 0
+            else mean_ce + loss_dt_weight * mean_dt
+        )
         tokens_per_second = step_target_count / dt if dt > 0 else 0.0
         max_memory_gb = (
             torch.cuda.max_memory_allocated() / 1024**3
