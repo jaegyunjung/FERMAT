@@ -19,6 +19,7 @@ from utils import get_batch, get_p2i, load_data
 TYPE_NAMES = {int(token_type): token_type.name for token_type in TokenType}
 BASELINE_IGNORED = {TokenType.PAD, TokenType.SEX, TokenType.NO_EVENT}
 CONTEXT_IGNORED = BASELINE_IGNORED | {TokenType.LAB}
+CLINICAL_TYPES = {TokenType.DX, TokenType.RX, TokenType.PX, TokenType.DTH}
 
 
 def parse_args():
@@ -45,6 +46,21 @@ def summarize(values):
     }
 
 
+def summarize_same_day(counts):
+    return {
+        name: {
+            "targets": values["targets"],
+            "same_day": values["same_day"],
+            "rate": (
+                values["same_day"] / values["targets"]
+                if values["targets"]
+                else 0.0
+            ),
+        }
+        for name, values in counts.items()
+    }
+
+
 def main():
     args = parse_args()
     data, has_types = load_data(args.data_dir / f"{args.split}.bin")
@@ -59,6 +75,11 @@ def main():
     baseline_targets = []
     context_targets = []
     same_day_transitions = []
+    clinical_same_day_transitions = []
+    same_day_counts = {
+        name: {"targets": 0, "same_day": 0}
+        for name in ("all", "lab", "clinical", "DX", "RX", "PX", "DTH")
+    }
 
     for _ in range(args.batches):
         patient_ix = torch.randint(
@@ -101,9 +122,29 @@ def main():
 
             baseline_targets.append(int(baseline_mask.sum()))
             context_targets.append(int(context_mask.sum()))
-            same_day_transitions.append(
-                int(((target_age[row] == age[row]) & valid_target).sum())
+            same_day_mask = target_age[row] == age[row]
+            clinical_mask = torch.zeros_like(valid_target)
+            for token_type in CLINICAL_TYPES:
+                clinical_mask |= valid_target & (target_row == token_type)
+            same_day_transitions.append(int((same_day_mask & valid_target).sum()))
+            clinical_same_day_transitions.append(
+                int((same_day_mask & clinical_mask).sum())
             )
+
+            masks = {
+                "all": valid_target,
+                "lab": valid_target & (target_row == TokenType.LAB),
+                "clinical": clinical_mask,
+                "DX": valid_target & (target_row == TokenType.DX),
+                "RX": valid_target & (target_row == TokenType.RX),
+                "PX": valid_target & (target_row == TokenType.PX),
+                "DTH": valid_target & (target_row == TokenType.DTH),
+            }
+            for name, mask in masks.items():
+                same_day_counts[name]["targets"] += int(mask.sum())
+                same_day_counts[name]["same_day"] += int(
+                    (same_day_mask & mask).sum()
+                )
 
     total_inputs = sum(type_counts.values())
     result = {
@@ -123,6 +164,10 @@ def main():
         "baseline_effective_targets_per_window": summarize(baseline_targets),
         "lab_context_effective_targets_per_window": summarize(context_targets),
         "same_day_transitions_per_window": summarize(same_day_transitions),
+        "clinical_same_day_transitions_per_window": summarize(
+            clinical_same_day_transitions
+        ),
+        "same_day_target_summary": summarize_same_day(same_day_counts),
     }
 
     print(json.dumps(result, indent=2))

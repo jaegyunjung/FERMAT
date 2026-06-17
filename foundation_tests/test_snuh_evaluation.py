@@ -5,10 +5,13 @@ import torch
 
 from model import TokenType
 from scripts.evaluate_snuh_checkpoint import (
+    binary_auprc,
+    binary_auroc,
     build_clinical_unigram,
     clinical_output_mask,
     collate,
     iter_windows,
+    summarize_same_day,
     window_start,
 )
 
@@ -96,6 +99,27 @@ class SnuhEvaluationTest(unittest.TestCase):
             log_probs[clinical_mask].exp(),
             torch.tensor([0.6, 0.4], dtype=torch.float64),
         )
+
+    def test_same_day_metrics_are_perfect_for_perfect_ranking(self):
+        labels = np.array([0, 0, 1, 1])
+        scores = np.array([0.1, 0.2, 0.8, 0.9])
+
+        self.assertAlmostEqual(binary_auroc(labels, scores), 1.0)
+        self.assertAlmostEqual(binary_auprc(labels, scores), 1.0)
+
+    def test_same_day_summary_reports_calibration(self):
+        time_acc = {
+            "same_day_labels": [np.array([0, 0, 1, 1])],
+            "same_day_probabilities": [np.array([0.1, 0.2, 0.8, 0.9])],
+        }
+
+        result = summarize_same_day(time_acc, n_bins=2)
+
+        self.assertEqual(result["targets"], 4)
+        self.assertEqual(result["same_day_targets"], 2)
+        self.assertAlmostEqual(result["same_day_prevalence"], 0.5)
+        self.assertAlmostEqual(result["brier_score"], 0.025)
+        self.assertAlmostEqual(result["expected_calibration_error"], 0.15)
 
 
 if __name__ == "__main__":

@@ -2,12 +2,14 @@
 FERMAT: Foundation model for Exploring Real-world Multimodal health data
         using Autoregressive Trajectory modeling.
 
-Extends the Delphi architecture (Shmatko, Jung, Gaurav et al., Nature 2025) with:
-  1. Token Type Embedding — distinguishes DX, RX, PX, LAB, LIFESTYLE, DTH, PAD
-  2. 4-column data format — (patient_id, age_in_days, token_id, token_type_id)
-  3. Type-aware ignore_tokens — per-type control over loss computation
+The causal transformer consumes token, event-type, and continuous-age
+representations for diagnosis, prescription, procedure, laboratory, lifestyle,
+and death events. Separate prediction heads support clinical-event and event-time
+modeling.
 
-Based on nanoGPT (Karpathy) and Delphi (gerstung-lab).
+The training and evaluation paths support type-specific target policies,
+same-day-aware attention, and four-column patient event data:
+(patient_id, age_in_days, token_id, token_type_id).
 """
 
 import math
@@ -213,6 +215,7 @@ class FermatConfig:
     t_min: float = 1.0
     log_rate_init: float = None
     decoupled_time_head: bool = False
+    two_stage_time_head: bool = False
     mask_ties: bool = False
     ignore_tokens: list = field(default_factory=lambda: [0])
     output_ignore_tokens: list = field(default_factory=list)
@@ -223,16 +226,18 @@ class FermatConfig:
 
 class Fermat(nn.Module):
     """
-    FERMAT: Foundation model for Exploring Real-world Multimodal health data
-            using Autoregressive Trajectory modeling.
+    Causal transformer for longitudinal multimodal clinical event trajectories.
 
     Each clinical event is represented as the sum of three embeddings:
-      - Token embedding:  what specific clinical code (e.g., E11 = T2DM)
-      - Age encoding:     when it occurred (continuous sinusoidal)
-      - Type embedding:   what kind of event (DX, RX, PX, LAB, etc.)
+      - token embedding: the clinical concept or discretized measurement,
+      - age encoding: the event time on the patient timeline, and
+      - type embedding: DX, RX, PX, LAB, LIFESTYLE, DTH, or metadata.
 
-    Input:  idx (B,T), age (B,T), token_type (B,T)
-    Output: logits (B,T,V), loss dict, attention weights
+    The shared representation feeds a next-token head and, when configured,
+    separate same-day classification and conditional waiting-time heads.
+
+    Input: idx (B,T), age (B,T), token_type (B,T)
+    Output: token logits (B,T,V), multi-objective loss dict, attention weights
     """
 
     def __init__(self, config):
@@ -270,6 +275,8 @@ class Fermat(nn.Module):
             # Option B (coupled): the rate is the summed token mass shifted by a
             # learnable global scalar.
             self.log_rate = nn.Parameter(torch.tensor(log_rate_init, dtype=torch.float32))
+        if config.two_stage_time_head:
+            self.same_day_head = nn.Linear(config.n_embd, 1, bias=True)
         self.apply(self._init_weights)
         if config.decoupled_time_head:
             # Start the predicted rate at the same global level as the coupled
@@ -277,6 +284,9 @@ class Fermat(nn.Module):
             # order of magnitude as cross-entropy from the first step.
             torch.nn.init.zeros_(self.time_head.weight)
             torch.nn.init.constant_(self.time_head.bias, log_rate_init)
+        if config.two_stage_time_head:
+            torch.nn.init.zeros_(self.same_day_head.weight)
+            torch.nn.init.zeros_(self.same_day_head.bias)
         for pn, p in self.named_parameters():
             if pn.endswith('c_proj.weight'):
                 torch.nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layer))
@@ -302,6 +312,7 @@ class Fermat(nn.Module):
         x = self.transformer.token_drop(tok_emb) * (1 - self.config.token_dropout)
         x = x + age_emb + type_emb
         x = self.transformer.drop(x)
+        x_input = x
 
         attn_mask = build_attention_mask(
             idx,
@@ -367,7 +378,56 @@ class Fermat(nn.Module):
                     lse.reshape(-1)
                     - torch.exp(lse.reshape(-1) - ldt.reshape(-1))
                 )
-                loss_dt = safe_masked_mean(per_target_dt, pass_tokens)
+                if self.config.two_stage_time_head:
+                    # The same-day label is exactly what the targets_age tie mask
+                    # encodes: it hides current-date events only when the next
+                    # event is same-day. Reusing the main hidden state would let
+                    # the same-day head read its own answer off the attention
+                    # pattern (label leakage). Recompute a target-independent
+                    # plain-causal representation for this head only.
+                    causal_mask = build_attention_mask(idx, age, mask_ties=False)
+                    x_same_day = x_input
+                    for block in self.transformer.h:
+                        x_same_day, _ = block(x_same_day, causal_mask)
+                    x_same_day = self.transformer.ln_f(x_same_day)
+                    same_day_logits = self.same_day_head(x_same_day).squeeze(-1)
+                    same_day_targets = targets_age == age
+                    clinical_time_tokens = torch.zeros_like(pass_tokens)
+                    if target_types_flat is not None:
+                        for token_type in (
+                            TokenType.DX,
+                            TokenType.RX,
+                            TokenType.PX,
+                            TokenType.DTH,
+                        ):
+                            clinical_time_tokens |= (
+                                pass_tokens
+                                & (target_types_flat == int(token_type))
+                            )
+                    else:
+                        clinical_time_tokens = pass_tokens
+                    per_target_same_day = F.binary_cross_entropy_with_logits(
+                        same_day_logits.reshape(-1),
+                        same_day_targets.reshape(-1).to(same_day_logits.dtype),
+                        reduction="none",
+                    )
+                    loss_same_day = safe_masked_mean(
+                        per_target_same_day,
+                        clinical_time_tokens,
+                    )
+                    different_day_tokens = (
+                        clinical_time_tokens & ~same_day_targets.reshape(-1)
+                    )
+                    loss_dt = safe_masked_mean(
+                        per_target_dt,
+                        different_day_tokens,
+                    )
+                else:
+                    same_day_logits = None
+                    loss_same_day = loss_ce.new_zeros(())
+                    clinical_time_tokens = pass_tokens
+                    different_day_tokens = pass_tokens
+                    loss_dt = safe_masked_mean(per_target_dt, pass_tokens)
                 # Expose the per-position effective log-rate (post t_min cap) so
                 # evaluation can derive the predicted waiting time without
                 # re-deriving the rate, which differs between the coupled and
@@ -375,12 +435,20 @@ class Fermat(nn.Module):
                 effective_log_rate = lse
             else:
                 loss_dt = loss_ce.new_zeros(())
+                loss_same_day = loss_ce.new_zeros(())
                 effective_log_rate = None
+                same_day_logits = None
+                clinical_time_tokens = pass_tokens.new_zeros(pass_tokens.shape)
+                different_day_tokens = pass_tokens.new_zeros(pass_tokens.shape)
             loss = {
                 'loss_ce': loss_ce,
+                'loss_same_day': loss_same_day,
                 'loss_dt': loss_dt,
                 'n_targets': pass_tokens.sum(),
+                'n_time_targets': clinical_time_tokens.sum(),
+                'n_dt_targets': different_day_tokens.sum(),
                 'effective_log_rate': effective_log_rate,
+                'same_day_logits': same_day_logits,
             }
         else:
             logits = self.lm_head(x[:, :, :])

@@ -244,3 +244,163 @@ default in `config/train_fermat_snuh_dt_decoupled_finetune.py`). The weight is
 the knob for the calibration-vs-time-accuracy trade; raise it if the
 gastric-cancer downstream needs tighter time accuracy and can tolerate the CE
 cost. This recipe carries to the scaled runs in place of option B.
+
+## Task 14: two-stage clinical time model
+
+The pre-full-scale audit found that `83.0%` of sampled clinical
+`DX/RX/PX/DTH` targets occurred on the same day. A single positive waiting-time
+head therefore mixed two different questions. Task 14 separates them:
+
+- a same-day versus different-day classifier
+- a conditional waiting-time head evaluated only on different-day targets
+
+The same-day classifier uses a plain causal representation that does not
+depend on `targets_age`; the target-date tie mask remains limited to the token
+and conditional waiting-time path. This prevents the classifier from reading
+its label from a target-dependent attention pattern.
+
+The corrected 1% diagnostic passed at step `2000`:
+
+| Metric | Result |
+|---|---:|
+| Clinical-only CE | `6.4826` |
+| Clinical-only top-1 | `4.4183%` |
+| Clinical-only top-10 | `20.3640%` |
+| Different-day NLL | `6.2617` |
+| Different-day MAE | `1041.3 days` |
+| Same-day AUROC | `0.5967` |
+| Same-day AUPRC | `0.8482` |
+| Same-day Brier score | `0.1639` |
+| Constant-prevalence Brier score | `0.1763` |
+
+Decision: adopt the two-stage, decoupled time model with
+`loss_dt_weight=0.3`. Close the 1% architecture diagnostics and reassess
+same-day discrimination and calibration after scaling the data and model.
+
+## Task 15: full-cohort tokenization ETL
+
+Run from an ETL Pod with the 300 GB block storage mounted at
+`/home/khdp-user/workspace/fermat-data`:
+
+```bash
+python scripts/run_snuh_task15_full_etl.py
+```
+
+The runner executes the validated tokenization notebook cells in order with:
+
+```text
+patient buckets: 100%
+output root: /home/khdp-user/workspace/fermat-data/etl
+minimum free-space gate: 140 GB
+numeric LAB aggregation: 5% patient-hash chunks
+```
+
+It prompts once for the SNUH CDM password. No checkpoint or data path needs to
+be supplied. Full-cohort artifacts are written to:
+
+```text
+/home/khdp-user/workspace/fermat-data/etl/patient_100pct_seed_42
+```
+
+Progress is also appended to `task15.log` in that directory. Numeric LAB
+aggregation is chunked because the original single full-cohort query remained
+silent for many hours and crossed the DB/VPN TCP timeout. The connection also
+enables libpq keepalives. If a smaller chunk is needed:
+
+```bash
+python scripts/run_snuh_task15_full_etl.py --lab-bucket-width 2
+```
+
+Required completion artifacts:
+
+- `train.bin`, `val.bin`, `test.bin`
+- `manifest.json`, `sha256.json`
+- `token_registry.csv`, `token_registry.parquet`
+- `train_lab_decile_cutpoints.parquet`
+- domain and LAB frequency summaries
+- `patient_id_map.parquet`
+- `event_summary.csv`, `shard_validation.csv`, `split_counts.csv`
+
+Do not bypass the disk gate unless storage has been reviewed. The ETL uses
+session-local PostgreSQL tables and streams only compact final shards to block
+storage; it must not copy the source measurement table to the Pod.
+
+## Task 16: full-cohort two-stage training
+
+Task 16 starts only after Task 15 has finished writing the full ETL directory:
+
+```text
+/home/khdp-user/workspace/fermat-data/etl/patient_100pct_seed_42
+```
+
+The Task 16 runners require these files before training begins:
+
+```text
+train.bin
+val.bin
+test.bin
+manifest.json
+token_registry.csv
+train_lab_decile_cutpoints.parquet
+sha256.json
+```
+
+The runners read `model_vocab_size` from `manifest.json`; do not hand-edit the
+vocabulary size in the Pod command. The adopted architecture flags are forced
+by the runner:
+
+```text
+two_stage_time_head = True
+decoupled_time_head = True
+loss_dt_weight = 0.3
+checkpoint_metric = objective
+```
+
+Build the Task 16 bundle locally:
+
+```bash
+python scripts/build_snuh_task16_bundle.py
+```
+
+Copy the printed zip to:
+
+```text
+/home/khdp-user/workspace/fermat-data
+```
+
+Then extract and run on the GPU Pod using the exact commands printed by the
+bundle builder. The default benchmark command is:
+
+```bash
+cd /home/khdp-user/workspace/fermat-data
+mkdir -p <bundle_id>-code
+unzip -o <bundle_id>.zip -d <bundle_id>-code
+cd <bundle_id>-code
+python scripts/run_snuh_task16_benchmark.py
+```
+
+The benchmark defaults to 1,000 steps and writes:
+
+```text
+/home/khdp-user/workspace/fermat-data/out/<bundle_id>/training.log
+/home/khdp-user/workspace/fermat-data/out/<bundle_id>/metrics.jsonl
+/home/khdp-user/workspace/fermat-data/out/<bundle_id>/evaluation.json
+/home/khdp-user/workspace/fermat-data/out/<bundle_id>/benchmark_summary.md
+```
+
+Use `benchmark_summary.md` to choose the final model size and batch shape from
+throughput, VRAM, validation CE, same-day loss, and different-day loss. Then
+start the long training job from the same extracted bundle:
+
+```bash
+python scripts/run_snuh_task16_train.py \
+  --batch-size <chosen_batch_size> \
+  --gradient-accumulation-steps <chosen_accumulation> \
+  --n-layer <chosen_layers> \
+  --n-head <chosen_heads> \
+  --n-embd <chosen_embedding>
+```
+
+All paths default to block storage under
+`/home/khdp-user/workspace/fermat-data`; do not move them to a Pod-local
+filesystem because Pod-local disks are not shared across instances.

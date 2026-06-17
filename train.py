@@ -75,6 +75,7 @@ compile = False
 token_dropout = 0.0
 t_min = 0.0
 decoupled_time_head = False
+two_stage_time_head = False
 mask_ties = True
 ignore_tokens = [0]
 output_ignore_tokens = []
@@ -168,6 +169,7 @@ model_args = dict(
     bias=bias, vocab_size=vocab_size, n_token_types=n_token_types,
     dropout=dropout, token_dropout=token_dropout, t_min=t_min,
     decoupled_time_head=decoupled_time_head,
+    two_stage_time_head=two_stage_time_head,
     mask_ties=mask_ties, ignore_tokens=ignore_tokens,
     output_ignore_tokens=output_ignore_tokens, ignore_types=ignore_types,
 )
@@ -250,8 +252,10 @@ def estimate_loss():
     out = {}
     model.eval()
     for split in ['train', 'val']:
-        loss_sums = torch.zeros(2, dtype=torch.float64)
+        loss_sums = torch.zeros(3, dtype=torch.float64)
         target_count = 0
+        time_target_count = 0
+        dt_target_count = 0
         data = train_data if split == 'train' else val_data
         p2i = train_p2i if split == 'train' else val_p2i
         selectors = (
@@ -275,19 +279,37 @@ def estimate_loss():
                     compute_time_loss=loss_dt_weight != 0,
                 )
             batch_targets = int(loss['n_targets'].item())
+            batch_time_targets = int(loss['n_time_targets'].item())
+            batch_dt_targets = int(loss['n_dt_targets'].item())
             if batch_targets:
-                loss_sums += torch.tensor(
-                    [
-                        loss['loss_ce'].item() * batch_targets,
-                        loss['loss_dt'].item() * batch_targets,
-                    ],
-                    dtype=torch.float64,
-                )
+                loss_sums[0] += loss['loss_ce'].item() * batch_targets
                 target_count += batch_targets
+            if batch_time_targets:
+                loss_sums[1] += (
+                    loss['loss_same_day'].item() * batch_time_targets
+                )
+                time_target_count += batch_time_targets
+            if batch_dt_targets:
+                loss_sums[2] += loss['loss_dt'].item() * batch_dt_targets
+                dt_target_count += batch_dt_targets
         if target_count == 0:
             raise RuntimeError(f"No valid targets found while evaluating {split}")
-        out[split] = loss_sums / target_count
+        out[split] = torch.stack([
+            loss_sums[0] / target_count,
+            (
+                loss_sums[1] / time_target_count
+                if time_target_count
+                else loss_sums[1]
+            ),
+            (
+                loss_sums[2] / dt_target_count
+                if dt_target_count
+                else loss_sums[2]
+            ),
+        ])
         out[f'{split}_targets'] = target_count
+        out[f'{split}_time_targets'] = time_target_count
+        out[f'{split}_dt_targets'] = dt_target_count
     model.train()
     return out
 
@@ -342,31 +364,42 @@ while True:
             losses['train'][0].item()
             if loss_dt_weight == 0
             else losses['train'][0].item()
-            + loss_dt_weight * losses['train'][1].item()
+            + loss_dt_weight
+            * (losses['train'][1].item() + losses['train'][2].item())
         )
         val_objective = (
             losses['val'][0].item()
             if loss_dt_weight == 0
             else losses['val'][0].item()
-            + loss_dt_weight * losses['val'][1].item()
+            + loss_dt_weight
+            * (losses['val'][1].item() + losses['val'][2].item())
         )
         val_loss = losses['val'][0].item() if checkpoint_metric == 'ce' else val_objective
         print(
             f"step {iter_num}: "
             f"train objective {train_objective:.4f} "
-            f"(ce {losses['train'][0].item():.4f}, dt {losses['train'][1].item():.4f}); "
+            f"(ce {losses['train'][0].item():.4f}, "
+            f"same-day {losses['train'][1].item():.4f}, "
+            f"dt {losses['train'][2].item():.4f}); "
             f"val objective {val_objective:.4f} "
-            f"(ce {losses['val'][0].item():.4f}, dt {losses['val'][1].item():.4f})"
+            f"(ce {losses['val'][0].item():.4f}, "
+            f"same-day {losses['val'][1].item():.4f}, "
+            f"dt {losses['val'][2].item():.4f})"
         )
 
         metrics.update({
             "train/agg_loss": train_objective,
             "val/loss": val_loss,
             "val/loss_ce": losses['val'][0].item(),
-            "val/loss_dt": losses['val'][1].item(),
+            "val/loss_same_day": losses['val'][1].item(),
+            "val/loss_dt": losses['val'][2].item(),
             "val/objective_loss": val_objective,
             "train/eval_targets": losses["train_targets"],
             "val/eval_targets": losses["val_targets"],
+            "train/eval_time_targets": losses["train_time_targets"],
+            "val/eval_time_targets": losses["val_time_targets"],
+            "train/eval_dt_targets": losses["train_dt_targets"],
+            "val/eval_dt_targets": losses["val_dt_targets"],
         })
 
         improved = best_val_loss > val_loss
@@ -408,7 +441,10 @@ while True:
     # Forward / backward
     step_target_count = 0
     step_ce_sum = 0.0
+    step_same_day_sum = 0.0
     step_dt_sum = 0.0
+    step_time_target_count = 0
+    step_dt_target_count = 0
     for micro_step in range(gradient_accumulation_steps):
         with ctx:
             logits, loss, _ = model(
@@ -426,14 +462,22 @@ while True:
         X, A, Y, B, XT, YT = _unpack_batch(batch, device)
 
         micro_target_count = int(loss['n_targets'].item())
+        micro_time_target_count = int(loss['n_time_targets'].item())
+        micro_dt_target_count = int(loss['n_dt_targets'].item())
         step_target_count += micro_target_count
+        step_time_target_count += micro_time_target_count
+        step_dt_target_count += micro_dt_target_count
         step_ce_sum += loss['loss_ce'].item() * micro_target_count
-        step_dt_sum += loss['loss_dt'].item() * micro_target_count
+        step_same_day_sum += (
+            loss['loss_same_day'].item() * micro_time_target_count
+        )
+        step_dt_sum += loss['loss_dt'].item() * micro_dt_target_count
         combined_loss = (
             loss['loss_ce']
             if loss_dt_weight == 0
             else loss['loss_ce']
-            + get_loss_dt_weight(iter_num) * loss['loss_dt']
+            + get_loss_dt_weight(iter_num)
+            * (loss['loss_same_day'] + loss['loss_dt'])
         )
         scaler.scale(combined_loss / gradient_accumulation_steps).backward()
 
@@ -451,11 +495,18 @@ while True:
     t0 = t1
     if iter_num % log_interval == 0:
         mean_ce = step_ce_sum / step_target_count if step_target_count else 0.0
-        mean_dt = step_dt_sum / step_target_count if step_target_count else 0.0
+        mean_same_day = (
+            step_same_day_sum / step_time_target_count
+            if step_time_target_count
+            else 0.0
+        )
+        mean_dt = (
+            step_dt_sum / step_dt_target_count if step_dt_target_count else 0.0
+        )
         lossf = (
             mean_ce
             if loss_dt_weight == 0
-            else mean_ce + loss_dt_weight * mean_dt
+            else mean_ce + loss_dt_weight * (mean_same_day + mean_dt)
         )
         tokens_per_second = step_target_count / dt if dt > 0 else 0.0
         max_memory_gb = (
@@ -465,14 +516,19 @@ while True:
         )
         print(
             f"iter {iter_num}: loss {lossf:.4f} "
-            f"(ce {mean_ce:.4f}, dt {mean_dt:.4f}, "
-            f"targets {step_target_count}), time {dt*1000:.2f}ms"
+            f"(ce {mean_ce:.4f}, same-day {mean_same_day:.4f}, "
+            f"dt {mean_dt:.4f}, targets {step_target_count}, "
+            f"time targets {step_time_target_count}, "
+            f"dt targets {step_dt_target_count}), time {dt*1000:.2f}ms"
         )
         metrics.update({
             "train/loss": lossf,
             "train/loss_ce": mean_ce,
+            "train/loss_same_day": mean_same_day,
             "train/loss_dt": mean_dt,
             "train/targets": step_target_count,
+            "train/time_targets": step_time_target_count,
+            "train/dt_targets": step_dt_target_count,
             "train/targets_per_second": tokens_per_second,
             "system/max_cuda_memory_gb": max_memory_gb,
             "lr": lr,

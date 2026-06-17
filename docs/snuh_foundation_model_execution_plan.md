@@ -81,7 +81,8 @@ The initial baseline retains the existing decoder-only FERMAT architecture.
 It learns:
 
 - next clinical event token
-- time until the next event
+- whether the next clinical event occurs on the same day
+- conditional waiting time for different-day clinical events
 
 Primary pretraining outputs:
 
@@ -89,6 +90,7 @@ Primary pretraining outputs:
 - top-1 and top-k token accuracy
 - new-onset token accuracy separated from repeated-event accuracy
 - next-event-time likelihood and error summaries
+- same-day discrimination and calibration
 
 Architecture modernization and continuous-time versus discrete-time ablations
 are later experiments, not prerequisites for the first baseline.
@@ -175,7 +177,14 @@ then reuse the protocol for additional cancer types.
 
 ## Storage Rule
 
-Every listed pod has only 100 GB block storage. Do not copy the 300+ GB
+The research Pods share a 300 GB block-storage volume mounted at:
+
+```text
+/home/khdp-user/workspace/fermat-data
+```
+
+Pod-local files do not persist across Pods. Keep ETL artifacts, bundles,
+checkpoints, and run reports on this block storage. Do not copy the 300+ GB
 measurement table or other source CDM tables. Perform split joins, LAB
 aggregation, cutpoint application, and tokenization inside PostgreSQL, and
 write only compact event shards and reproducibility artifacts.

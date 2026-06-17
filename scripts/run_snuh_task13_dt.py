@@ -186,6 +186,7 @@ def write_summary(output, evaluation_path, resumed_from):
     clinical = evaluation["clinical_only_softmax"]
     unigram = evaluation["train_clinical_unigram"]
     waiting = evaluation["clinical_waiting_time"]
+    same_day = evaluation.get("clinical_same_day", {"targets": 0})
     clinical_ce = clinical["cross_entropy"]
     clinical_top1 = clinical["top1_accuracy"]
     new_top1 = evaluation["new_clinical"]["top1_accuracy"]
@@ -198,10 +199,36 @@ def write_summary(output, evaluation_path, resumed_from):
     # A finite MAE is not enough: the time head must beat the constant-rate and
     # median baselines.
     time_pass = bool(evaluation["time_loss_enabled"]) and bool(waiting["beats_baseline"])
-    verdict = "PASS" if (ce_pass and top1_pass and new_pass and time_pass) else "REVIEW"
+    if evaluation.get("two_stage_time_head"):
+        prevalence = same_day.get("same_day_prevalence")
+        constant_brier = (
+            prevalence * (1.0 - prevalence)
+            if prevalence is not None
+            else None
+        )
+        same_day_pass = bool(
+            same_day.get("auroc") is not None
+            and same_day["auroc"] > 0.5
+            and same_day.get("auprc") is not None
+            and same_day["auprc"] > prevalence
+            and same_day.get("brier_score") is not None
+            and same_day["brier_score"] < constant_brier
+        )
+    else:
+        constant_brier = None
+        same_day_pass = True
+    verdict = (
+        "PASS"
+        if (ce_pass and top1_pass and new_pass and time_pass and same_day_pass)
+        else "REVIEW"
+    )
 
     lines = [
-        "# Task 13 waiting-time diagnostic (loss_dt re-enabled)",
+        (
+            "# Task 14 two-stage time diagnostic"
+            if evaluation.get("two_stage_time_head")
+            else "# Task 13 waiting-time diagnostic (loss_dt re-enabled)"
+        ),
         "",
         f"- Verdict: **{verdict}**",
         f"- Resumed from: `{resumed_from}`" if resumed_from else "- Started from scratch",
@@ -229,6 +256,17 @@ def write_summary(output, evaluation_path, resumed_from):
             f"{'yes' if waiting['beats_baseline'] else 'no'} | "
             f"{'yes' if time_pass else 'no'} |"
         ),
+        *(
+            [
+                (
+                    f"| Same-day beats non-informative baselines | yes | "
+                    f"{'yes' if same_day_pass else 'no'} | "
+                    f"{'yes' if same_day_pass else 'no'} |"
+                )
+            ]
+            if evaluation.get("two_stage_time_head")
+            else []
+        ),
         "",
         "## Deterministic clinical-only metrics",
         "",
@@ -243,7 +281,7 @@ def write_summary(output, evaluation_path, resumed_from):
         f"| New clinical top-1 | {evaluation['new_clinical']['top1_accuracy']:.4%} |",
         f"| Repeated clinical top-1 | {evaluation['repeated_clinical']['top1_accuracy']:.4%} |",
         "",
-        "## Waiting-time: model vs baselines (clinical targets)",
+        "## Different-day waiting time: model vs train-only baselines",
         "",
         "| Metric | Model | Baseline |",
         "|---|---:|---:|",
@@ -267,14 +305,46 @@ def write_summary(output, evaluation_path, resumed_from):
             f"(positive = model better)."
         ),
         "",
-        "## Validation CE trajectory",
+        "## Same-day classification (clinical targets)",
         "",
-        "| step | validation CE | validation targets |",
-        "|---:|---:|---:|",
+        "| Metric | Result |",
+        "|---|---:|",
+        f"| Targets | {same_day.get('targets', 0)} |",
+        f"| Same-day prevalence | {fmt(same_day.get('same_day_prevalence'), '.4%')} |",
+        f"| AUROC | {fmt(same_day.get('auroc'), '.4f')} |",
+        f"| AUPRC | {fmt(same_day.get('auprc'), '.4f')} |",
+        f"| Brier score | {fmt(same_day.get('brier_score'), '.4f')} |",
+        f"| Constant-prevalence Brier score | {fmt(constant_brier, '.4f')} |",
+        (
+            f"| Expected calibration error | "
+            f"{fmt(same_day.get('expected_calibration_error'), '.4f')} |"
+        ),
+        "",
+        "### Same-day calibration bins",
+        "",
+        "| Predicted probability bin | Targets | Mean predicted | Observed same-day |",
+        "|---|---:|---:|---:|",
+        *[
+            (
+                f"| {item['lower']:.1f}-{item['upper']:.1f} | "
+                f"{item['targets']} | "
+                f"{fmt(item['mean_probability'], '.4f')} | "
+                f"{fmt(item['observed_same_day_rate'], '.4f')} |"
+            )
+            for item in same_day.get("calibration_bins", [])
+        ],
+        "",
+        "## Validation trajectory",
+        "",
+        "| step | validation CE | same-day loss | different-day loss | validation objective | validation targets |",
+        "|---:|---:|---:|---:|---:|---:|",
     ]
     for row in validation:
         lines.append(
             f"| {row['iter']} | {row['val/loss_ce']:.4f} | "
+            f"{row.get('val/loss_same_day', 0.0):.4f} | "
+            f"{row['val/loss_dt']:.4f} | "
+            f"{row['val/objective_loss']:.4f} | "
             f"{row['val/eval_targets']} |"
         )
     lines.extend([

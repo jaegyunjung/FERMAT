@@ -363,5 +363,141 @@ class DecoupledTimeHeadTest(unittest.TestCase):
         self.assertIn(id(model.time_head.bias), grouped)
 
 
+class TwoStageTimeHeadTest(unittest.TestCase):
+    def _model(self):
+        return Fermat(FermatConfig(
+            block_size=4,
+            vocab_size=16,
+            n_token_types=len(TokenType),
+            n_layer=1,
+            n_head=1,
+            n_embd=8,
+            dropout=0.0,
+            bias=False,
+            t_min=0.1,
+            decoupled_time_head=True,
+            two_stage_time_head=True,
+            mask_ties=True,
+            ignore_types=[
+                TokenType.PAD,
+                TokenType.SEX,
+                TokenType.NO_EVENT,
+                TokenType.LAB,
+            ],
+        ))
+
+    def test_same_day_and_different_day_losses_use_separate_targets(self):
+        model = self._model()
+        idx = torch.tensor([[2, 3, 4, 5]])
+        age = torch.tensor([[10.0, 10.0, 20.0, 30.0]])
+        token_type = torch.full_like(idx, TokenType.DX)
+        targets = torch.tensor([[3, 4, 5, 6]])
+        target_age = torch.tensor([[10.0, 20.0, 30.0, 30.0]])
+
+        _, loss, _ = model(
+            idx,
+            age,
+            token_type,
+            targets,
+            target_age,
+            target_token_type=token_type,
+        )
+
+        self.assertEqual(int(loss["n_targets"]), 4)
+        self.assertEqual(int(loss["n_dt_targets"]), 2)
+        self.assertEqual(loss["same_day_logits"].shape, targets.shape)
+        self.assertTrue(torch.isfinite(loss["loss_same_day"]))
+        self.assertTrue(torch.isfinite(loss["loss_dt"]))
+
+    def test_same_day_only_batch_has_finite_zero_different_day_loss(self):
+        model = self._model()
+        idx = torch.tensor([[2, 3]])
+        age = torch.tensor([[10.0, 20.0]])
+        token_type = torch.full_like(idx, TokenType.DX)
+        targets = torch.tensor([[3, 4]])
+
+        _, loss, _ = model(
+            idx,
+            age,
+            token_type,
+            targets,
+            age.clone(),
+            target_token_type=token_type,
+        )
+
+        self.assertEqual(int(loss["n_dt_targets"]), 0)
+        self.assertTrue(torch.isfinite(loss["loss_dt"]))
+        self.assertEqual(float(loss["loss_dt"].detach()), 0.0)
+
+    def test_same_day_head_receives_gradient_and_is_optimized(self):
+        model = self._model()
+        idx = torch.tensor([[2, 3]])
+        age = torch.tensor([[10.0, 20.0]])
+        token_type = torch.full_like(idx, TokenType.DX)
+        targets = torch.tensor([[3, 4]])
+        target_age = torch.tensor([[10.0, 30.0]])
+        _, loss, _ = model(
+            idx,
+            age,
+            token_type,
+            targets,
+            target_age,
+            target_token_type=token_type,
+        )
+        loss["loss_same_day"].backward()
+        self.assertIsNotNone(model.same_day_head.bias.grad)
+        self.assertTrue(torch.isfinite(model.same_day_head.bias.grad).all())
+
+        optimizer = model.configure_optimizers(0.1, 1e-3, (0.9, 0.95), "cpu")
+        grouped = {
+            id(param)
+            for group in optimizer.param_groups
+            for param in group["params"]
+        }
+        self.assertIn(id(model.same_day_head.weight), grouped)
+        self.assertIn(id(model.same_day_head.bias), grouped)
+
+    def test_same_day_logits_do_not_leak_the_target_age(self):
+        # The tie mask hides current-date events only when the next event is
+        # same-day, so the same-day head must read a target-independent causal
+        # representation. Its logits must not change when targets_age changes.
+        config = FermatConfig(
+            block_size=8,
+            vocab_size=64,
+            n_token_types=len(TokenType),
+            n_layer=2,
+            n_head=2,
+            n_embd=16,
+            dropout=0.0,
+            bias=False,
+            t_min=0.1,
+            mask_ties=True,
+            decoupled_time_head=True,
+            two_stage_time_head=True,
+        )
+        model = Fermat(config).eval()
+        idx = torch.tensor([[2, 3, 4, 5]])
+        age = torch.tensor([[10.0, 10.0, 10.0, 20.0]])
+        token_type = torch.full_like(idx, TokenType.DX)
+        targets = torch.tensor([[3, 4, 5, 6]])
+        token_target_type = torch.full_like(targets, TokenType.DX)
+        same_day_age = torch.tensor([[10.0, 10.0, 20.0, 40.0]])
+        different_day_age = torch.tensor([[15.0, 25.0, 35.0, 45.0]])
+
+        with torch.no_grad():
+            _, loss_a, _ = model(
+                idx, age, token_type, targets, same_day_age,
+                target_token_type=token_target_type, return_attention=False,
+            )
+            _, loss_b, _ = model(
+                idx, age, token_type, targets, different_day_age,
+                target_token_type=token_target_type, return_attention=False,
+            )
+
+        torch.testing.assert_close(
+            loss_a["same_day_logits"], loss_b["same_day_logits"]
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -57,6 +57,7 @@ def parse_args():
     )
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--max-patients", type=int)
+    parser.add_argument("--time-baseline-max-patients", type=int)
     parser.add_argument("--device", default="cpu")
     parser.add_argument(
         "--dtype",
@@ -223,6 +224,90 @@ def collate(windows, device):
     )
 
 
+def clinical_target_mask(targets, target_types):
+    mask = targets > 0
+    for token_type in NON_CLINICAL_TYPES:
+        mask &= target_types != token_type
+    return mask
+
+
+def collect_clinical_waiting_gaps(
+    data,
+    block_size,
+    selectors,
+    batch_size,
+    max_patients,
+    mask_ties,
+):
+    chunks = []
+    buffer = []
+
+    def collect(windows):
+        x, age, targets, target_age, _, target_types, _ = collate(
+            windows,
+            "cpu",
+        )
+        attention_mask = build_attention_mask(
+            x,
+            age,
+            targets_age=target_age,
+            mask_ties=mask_ties,
+        )
+        actual_dt = align_time_deltas(
+            age,
+            target_age,
+            attention_mask,
+            mask_ties,
+        )
+        mask = clinical_target_mask(targets, target_types) & (target_age > age)
+        if mask.any():
+            chunks.append(actual_dt[mask].float().numpy())
+
+    for window in iter_windows(
+        data,
+        block_size,
+        selectors,
+        max_patients,
+    ):
+        buffer.append(window)
+        if len(buffer) < batch_size:
+            continue
+        collect(buffer)
+        buffer = []
+    if buffer:
+        collect(buffer)
+
+    if not chunks:
+        return np.array([], dtype=np.float32)
+    return np.concatenate(chunks)
+
+
+def build_train_waiting_baseline(
+    train_data,
+    block_size,
+    selectors,
+    batch_size,
+    max_patients,
+    mask_ties,
+):
+    gaps = collect_clinical_waiting_gaps(
+        train_data,
+        block_size,
+        selectors,
+        batch_size,
+        max_patients,
+        mask_ties,
+    )
+    if not gaps.size:
+        return None
+    return {
+        "source_split": "train",
+        "targets": int(gaps.size),
+        "mean_gap_days": float(gaps.mean()),
+        "median_gap_days": float(np.median(gaps)),
+    }
+
+
 def update_accuracy(stats, logits, targets, mask, prefix):
     count = int(mask.sum())
     if count == 0:
@@ -284,6 +369,86 @@ def finalize_unigram(stats):
     }
 
 
+def binary_auroc(labels, scores):
+    labels = np.asarray(labels, dtype=np.int64)
+    scores = np.asarray(scores, dtype=np.float64)
+    positives = int(labels.sum())
+    negatives = int(labels.size - positives)
+    if positives == 0 or negatives == 0:
+        return None
+    order = np.argsort(scores, kind="mergesort")
+    sorted_scores = scores[order]
+    ranks = np.empty(labels.size, dtype=np.float64)
+    start = 0
+    while start < labels.size:
+        end = start + 1
+        while end < labels.size and sorted_scores[end] == sorted_scores[start]:
+            end += 1
+        ranks[order[start:end]] = (start + end + 1) / 2.0
+        start = end
+    positive_rank_sum = ranks[labels == 1].sum()
+    return float(
+        (positive_rank_sum - positives * (positives + 1) / 2)
+        / (positives * negatives)
+    )
+
+
+def binary_auprc(labels, scores):
+    labels = np.asarray(labels, dtype=np.int64)
+    scores = np.asarray(scores, dtype=np.float64)
+    positives = int(labels.sum())
+    if positives == 0:
+        return None
+    order = np.argsort(-scores, kind="mergesort")
+    sorted_labels = labels[order]
+    true_positives = np.cumsum(sorted_labels)
+    precision = true_positives / np.arange(1, labels.size + 1)
+    return float(precision[sorted_labels == 1].sum() / positives)
+
+
+def summarize_same_day(time_acc, n_bins=10):
+    if not time_acc["same_day_labels"]:
+        return {"targets": 0}
+    labels = np.concatenate(time_acc["same_day_labels"]).astype(np.int64)
+    probabilities = np.concatenate(time_acc["same_day_probabilities"]).astype(
+        np.float64
+    )
+    bins = []
+    ece = 0.0
+    for index in range(n_bins):
+        lower = index / n_bins
+        upper = (index + 1) / n_bins
+        if index == n_bins - 1:
+            mask = (probabilities >= lower) & (probabilities <= upper)
+        else:
+            mask = (probabilities >= lower) & (probabilities < upper)
+        count = int(mask.sum())
+        if count:
+            mean_probability = float(probabilities[mask].mean())
+            observed_rate = float(labels[mask].mean())
+            ece += count / labels.size * abs(mean_probability - observed_rate)
+        else:
+            mean_probability = None
+            observed_rate = None
+        bins.append({
+            "lower": lower,
+            "upper": upper,
+            "targets": count,
+            "mean_probability": mean_probability,
+            "observed_same_day_rate": observed_rate,
+        })
+    return {
+        "targets": int(labels.size),
+        "same_day_targets": int(labels.sum()),
+        "same_day_prevalence": float(labels.mean()),
+        "auroc": binary_auroc(labels, probabilities),
+        "auprc": binary_auprc(labels, probabilities),
+        "brier_score": float(np.mean((probabilities - labels) ** 2)),
+        "expected_calibration_error": float(ece),
+        "calibration_bins": bins,
+    }
+
+
 def evaluate_batch(
     model,
     tensors,
@@ -316,9 +481,7 @@ def evaluate_batch(
         list(model.config.ignore_tokens) + [1],
         model.config.ignore_types,
     ).reshape_as(targets)
-    clinical_mask = targets > 0
-    for token_type in NON_CLINICAL_TYPES:
-        clinical_mask &= target_types != token_type
+    clinical_mask = clinical_target_mask(targets, target_types)
 
     update_unigram(
         stats,
@@ -391,13 +554,28 @@ def evaluate_batch(
         predicted_dt = torch.clamp(
             math.log(2.0) * torch.exp(-effective_log_rate), min=1.0
         )
-        actual = actual_dt[clinical_mask]
+        same_day_mask = target_age == age
+        different_day_mask = clinical_mask & ~same_day_mask
+        if loss["same_day_logits"] is not None:
+            same_day_probabilities = torch.sigmoid(
+                loss["same_day_logits"].float()
+            )
+            time_acc["same_day_probabilities"].append(
+                same_day_probabilities[clinical_mask].detach().cpu().numpy()
+            )
+            time_acc["same_day_labels"].append(
+                same_day_mask[clinical_mask].detach().cpu().numpy()
+            )
+        actual = actual_dt[different_day_mask]
         if actual.numel():
-            errors = torch.abs(predicted_dt[clinical_mask] - actual)
+            errors = torch.abs(predicted_dt[different_day_mask] - actual)
             # Per-target negative log-likelihood of the exponential waiting time:
             # -log(rate) + rate * dt. Used to compare against a constant-rate
             # baseline so "computable" is distinguished from "useful".
-            nll = -effective_log_rate[clinical_mask] + rate[clinical_mask] * actual
+            nll = (
+                -effective_log_rate[different_day_mask]
+                + rate[different_day_mask] * actual
+            )
             time_acc["errors"].append(errors.detach().cpu().numpy())
             time_acc["actual"].append(actual.detach().cpu().numpy())
             time_acc["nll"].append(nll.detach().cpu().numpy())
@@ -406,7 +584,7 @@ def evaluate_batch(
     stats["objective_model_targets"] += int(loss["n_targets"])
 
 
-def summarize_waiting_time(time_acc):
+def summarize_waiting_time(time_acc, baseline):
     """Model waiting-time quality against constant-rate and median baselines.
 
     The time head is only useful if it beats a global constant-rate exponential
@@ -424,24 +602,36 @@ def summarize_waiting_time(time_acc):
             "median_baseline_mae_days": None,
             "nll_improvement_over_constant_rate": None,
             "mae_improvement_over_median": None,
+            "baseline_source_split": None,
+            "baseline_targets": 0,
+            "baseline_mean_gap_days": None,
+            "baseline_median_gap_days": None,
             "beats_baseline": None,
         }
     errors = np.concatenate(time_acc["errors"])
     actual = np.concatenate(time_acc["actual"])
     nll = np.concatenate(time_acc["nll"])
-    mean_actual = float(actual.mean())
-    median_actual = float(np.median(actual))
     model_nll = float(nll.mean())
     model_mae = float(errors.mean())
-    # Constant-rate exponential MLE (lambda = 1 / mean dt) has mean NLL
-    # log(mean dt) + 1. The median minimises absolute error, the strongest
-    # constant predictor for MAE.
-    constant_rate_nll = math.log(mean_actual) + 1.0 if mean_actual > 0 else None
-    median_baseline_mae = float(np.abs(actual - median_actual).mean())
+    if baseline is None:
+        constant_rate_nll = None
+        median_baseline_mae = None
+    else:
+        baseline_rate = 1.0 / max(baseline["mean_gap_days"], 1e-12)
+        constant_rate_nll = float(
+            (-math.log(baseline_rate) + baseline_rate * actual).mean()
+        )
+        median_baseline_mae = float(
+            np.abs(actual - baseline["median_gap_days"]).mean()
+        )
     nll_gain = (
         constant_rate_nll - model_nll if constant_rate_nll is not None else None
     )
-    mae_gain = median_baseline_mae - model_mae
+    mae_gain = (
+        median_baseline_mae - model_mae
+        if median_baseline_mae is not None
+        else None
+    )
     return {
         "targets": int(actual.size),
         "model_mae_days": model_mae,
@@ -452,8 +642,17 @@ def summarize_waiting_time(time_acc):
         "median_baseline_mae_days": median_baseline_mae,
         "nll_improvement_over_constant_rate": nll_gain,
         "mae_improvement_over_median": mae_gain,
+        "baseline_source_split": baseline["source_split"] if baseline else None,
+        "baseline_targets": baseline["targets"] if baseline else 0,
+        "baseline_mean_gap_days": baseline["mean_gap_days"] if baseline else None,
+        "baseline_median_gap_days": (
+            baseline["median_gap_days"] if baseline else None
+        ),
         "beats_baseline": bool(
-            nll_gain is not None and nll_gain > 0 and mae_gain > 0
+            nll_gain is not None
+            and mae_gain is not None
+            and nll_gain > 0
+            and mae_gain > 0
         ),
     }
 
@@ -482,9 +681,26 @@ def main():
     evaluate_time = (
         float(checkpoint.get("config", {}).get("loss_dt_weight", 1.0)) != 0
     )
+    waiting_baseline = None
+    if evaluate_time:
+        print("Building train-only clinical waiting-time baselines...")
+        waiting_baseline = build_train_waiting_baseline(
+            train_data,
+            model.config.block_size,
+            args.selectors,
+            args.batch_size,
+            args.time_baseline_max_patients,
+            model.config.mask_ties,
+        )
 
     stats = defaultdict(float)
-    time_acc = {"errors": [], "actual": [], "nll": []}
+    time_acc = {
+        "errors": [],
+        "actual": [],
+        "nll": [],
+        "same_day_probabilities": [],
+        "same_day_labels": [],
+    }
     if args.device.startswith("cuda") and args.dtype != "float32":
         autocast_context_factory = lambda: torch.amp.autocast(
             "cuda",
@@ -531,7 +747,7 @@ def main():
                 autocast_context_factory,
             )
 
-    waiting_time = summarize_waiting_time(time_acc)
+    waiting_time = summarize_waiting_time(time_acc, waiting_baseline)
     metrics = {
         "checkpoint": str(args.ckpt),
         "checkpoint_step": checkpoint.get("iter_num"),
@@ -547,6 +763,7 @@ def main():
             "ignore_types": [int(value) for value in model.config.ignore_types],
         },
         "time_loss_enabled": evaluate_time,
+        "two_stage_time_head": bool(model.config.two_stage_time_head),
         "objective": finalize_accuracy(stats, "objective"),
         "clinical_full_softmax": finalize_accuracy(stats, "clinical_full"),
         "clinical_only_softmax": finalize_accuracy(stats, "clinical_only"),
@@ -558,6 +775,7 @@ def main():
             for name in CLINICAL_TYPES.values()
         },
         "clinical_waiting_time": waiting_time,
+        "clinical_same_day": summarize_same_day(time_acc),
         "evaluated_batches": int(stats["batches"]),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
