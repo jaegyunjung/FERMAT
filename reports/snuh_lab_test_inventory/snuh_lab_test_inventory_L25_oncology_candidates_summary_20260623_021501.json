@@ -1,0 +1,39 @@
+{
+  "source_inventory": "/Users/user/workspace/FERMAT/reports/snuh_lab_test_inventory/snuh_lab_test_inventory_20260623_021501.csv",
+  "rows_in_inventory": 387,
+  "candidate_rows": 29,
+  "matched_term_counts": {
+    "BCR-ABL1": 5,
+    "BRAF": 1,
+    "BRCA1": 3,
+    "BRCA2": 2,
+    "CBFB-MYH11": 2,
+    "EGFR": 1,
+    "FLT3": 2,
+    "MMR": 1,
+    "MLH1": 2,
+    "MSH2": 2,
+    "MSH6": 1,
+    "PMS2": 1,
+    "JAK2": 2,
+    "KIT": 1,
+    "KRAS": 2,
+    "PML-RARA": 3,
+    "RUNX1-RUNX1T1": 3,
+    "AML1-ETO": 3,
+    "NPM1": 3,
+    "MSI": 1,
+    "RET": 2,
+    "NRAS": 1,
+    "BRCA1/2": 1
+  },
+  "candidate_group_counts": {
+    "heme_molecular": 16,
+    "solid_tumor": 7,
+    "hereditary_cancer_mmr": 6
+  },
+  "outputs": {
+    "csv": "/Users/user/workspace/FERMAT/reports/snuh_lab_test_inventory/snuh_lab_test_inventory_L25_oncology_candidates_20260623_021501.csv",
+    "json": "/Users/user/workspace/FERMAT/reports/snuh_lab_test_inventory/snuh_lab_test_inventory_L25_oncology_candidates_20260623_021501.json"
+  }
+}

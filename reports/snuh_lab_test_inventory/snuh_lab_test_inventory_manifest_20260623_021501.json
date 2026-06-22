@@ -1,0 +1,253 @@
+{
+  "generated_at": "2026-06-23T02:15:01+09:00",
+  "classes": [
+    "L25"
+  ],
+  "rows": 387,
+  "summary_by_class": {
+    "L25": {
+      "rows": 387,
+      "orderable_yes": 387,
+      "active": 387,
+      "unique_item_codes": 387
+    }
+  },
+  "pages": [
+    {
+      "ins_class_code": "L25",
+      "page": 1,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=1&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 2,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=2&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 3,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=3&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 4,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=4&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 5,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=5&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 6,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=6&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 7,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=7&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 8,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=8&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 9,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=9&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 10,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=10&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 11,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=11&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 12,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=12&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 13,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=13&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 14,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=14&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 15,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=15&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 16,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=16&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 17,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=17&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 18,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=18&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 19,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=19&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 20,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=20&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 21,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=21&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 22,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=22&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 23,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=23&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 24,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=24&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 25,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=25&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 26,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=26&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 27,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=27&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 28,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=28&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 29,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=29&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 30,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=30&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 31,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=31&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 32,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=32&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 33,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=33&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 34,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=34&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 35,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=35&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 36,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=36&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 37,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=37&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 38,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=38&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 10
+    },
+    {
+      "ins_class_code": "L25",
+      "page": 39,
+      "url": "http://www.snuhlab.org/checkup/check_list.aspx?page=39&ins_class_code=L25&searchfield=TOTAL&searchword=",
+      "rows": 7
+    }
+  ],
+  "csv": "reports/snuh_lab_test_inventory/snuh_lab_test_inventory_20260623_021501.csv",
+  "json": "reports/snuh_lab_test_inventory/snuh_lab_test_inventory_20260623_021501.json"
+}
