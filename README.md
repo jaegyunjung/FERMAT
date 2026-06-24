@@ -2,128 +2,202 @@
 
 **Foundation model for Exploring Real-world Multimodal health data using Autoregressive Trajectory modeling**
 
-FERMAT is a generative transformer that learns the temporal progression of an individual's health from nationwide multimodal clinical data. It models the interplay between diagnoses, drug prescriptions, procedures, repeated biomarker measurements, and lifestyle changes as a single autoregressive sequence — predicting what clinical event comes next and when it will occur.
+FERMAT is a generative transformer for longitudinal clinical trajectories. It
+serializes each patient's history as an autoregressive sequence of clinical
+events and learns both what event is likely to occur next and when it is likely
+to occur.
+
+The current development line supports two execution paths:
+
+- a public Synthetic SNUH 4-column pipeline used for reproducible code
+  verification; and
+- a private SNUH-CDM full-cohort pretraining pipeline run on research Pods,
+  including Task 17 GENOMICS conditioning tokens.
 
 ## Motivation
 
-A patient's health trajectory is not a list of diagnoses. Before diabetic nephropathy appears, there are years of gradually worsening fasting glucose levels, antihyperglycemic prescriptions, dose escalations, and screening results that collectively define the clinical path toward that outcome. Existing models for health trajectory prediction discard most of this pre-diagnostic context, operating only on diagnosis codes.
-
-FERMAT addresses this by treating the full spectrum of clinical events — diagnoses, prescriptions, procedures, lab results, and lifestyle assessments — as a unified token sequence ordered by the patient's age. This design is enabled by Korea's National Healthcare Big Data Integration Platform, which links data across multiple public institutions including the National Health Insurance Service (NHIS), the Health Insurance Review and Assessment Service (HIRA), the national death registry, the Korea Disease Control and Prevention Agency (KDCA), the National Cancer Center, and university hospital CDMs, covering the complete healthcare utilization of the Korean population across all providers.
+A patient's trajectory is not a list of diagnoses. Long before an outcome such
+as diabetic nephropathy appears, there may be years of prescriptions,
+procedures, screening values, hospital measurements, and other context. FERMAT
+models these heterogeneous events in a single age-ordered sequence rather than
+restricting the history to diagnosis codes.
 
 ## Data Sources
 
-FERMAT is designed to train on linked multimodal data from Korea's single-payer healthcare system. The platform provides:
+FERMAT is designed for linked Korean healthcare data, including national
+claims, screening, death registry, cancer registry, cohort resources, and
+hospital CDMs. The public repository keeps data-specific credentials and raw
+private SNUH artifacts out of Git; Pod-side outputs are produced under
+`/home/khdp-user/workspace/fermat-data`.
 
 | Source | Data | What it captures |
 |--------|------|-----------------|
-| **NHIS** (National Health Insurance Service) | Eligibility (BFC), health screening with 113 variables (G1EQ), death records (TG_DTH), cancer screening (5 types) | Biennial biomarker trajectories (BP, glucose, cholesterol, BMI, liver function), lifestyle questionnaires (smoking, alcohol, exercise), demographics, mortality |
-| **HIRA** (Health Insurance Review & Assessment Service) | Claims summary (TWJHC200), services (TWJHC300), diagnoses (TWJHC400), prescriptions (TWJHC530) | Every diagnosis, drug prescription, and procedure across all healthcare providers nationwide |
-| **National Death Registry** (Statistics Korea) | Cause-of-death records (DTH, KCD 8th edition) | Out-of-hospital deaths with cause codes |
-| **KDCA** (Korea Disease Control & Prevention Agency) | KNHANES (600–1,100 vars/year), KoGES, vaccination records, TB registry | Detailed nutrition, physical activity, mental health, cohort-level longitudinal data |
-| **National Cancer Center** | Cancer registry (1999–2022) | Pathologically confirmed cancer diagnoses (24 major cancer types) |
-| **University Hospital CDMs** (Pusan, Chonnam, Kyungpook) | OMOP standard tables (CONDITION, DRUG, MEASUREMENT, PROCEDURE, DEATH, PERSON, VISIT) | Hospital-level clinical detail including lab values — used for external validation |
-
-These sources are linked at the individual level through a trusted third party (TTP) mechanism, creating longitudinal patient trajectories that span all levels of care.
+| NHIS | eligibility, health screening, death and cancer screening records | demographics, biennial biomarkers, lifestyle, mortality |
+| HIRA | claims, diagnoses, procedures, prescriptions | nationwide healthcare utilization |
+| Statistics Korea | cause-of-death records | out-of-hospital deaths with cause codes |
+| KDCA | KNHANES, KoGES, registries | cohort and public-health context |
+| Cancer registry | cancer diagnoses | registry-confirmed cancers |
+| Hospital CDMs | OMOP tables and local source values | hospital-level clinical detail and external validation |
 
 ## Multimodal Token Vocabulary
 
-FERMAT represents every clinical event as a token with three attributes: **what** (token ID), **when** (age in days), and **what kind** (token type). This is stored as a 4-column binary format:
+Each event is stored in the 4-column FERMAT binary format:
 
-```
+```text
 patient_id | age_in_days | token_id | token_type
----------- | ----------- | -------- | ----------
-001        | 9131        | 42       | DX          ← hypertension diagnosed
-001        | 9496        | 815      | RX          ← amlodipine prescribed
-001        | 9861        | 1102     | LAB         ← fasting glucose 110 (prediabetes range)
-001        | 10227       | 1103     | LAB         ← fasting glucose 130 (diabetes range)
-001        | 10592       | 55       | DX          ← type 2 diabetes diagnosed
-001        | 10957       | 830      | RX          ← metformin prescribed
 ```
 
-### Token types
+`patient_id` is a dense integer, `age_in_days` is the patient's age at the
+event, `token_id` is a global vocabulary ID, and `token_type` identifies the
+modality.
 
-| Type | ID | Source | Role in sequence | Temporal behavior |
-|------|----|--------|-----------------|-------------------|
-| DX | 1 | KCD/ICD-10 (HIRA TWJHC400) | Predicted — primary outcome | Longitudinal: each diagnosis is a distinct event |
-| RX | 2 | ATC code (HIRA TWJHC530) | Predicted — pharmacological intervention | Longitudinal: each prescription is a distinct event |
-| PX | 3 | EDI procedure code (HIRA TWJHC300) | Predicted — procedural intervention | Longitudinal |
-| LAB | 4 | NHIS screening results (G1EQ) | Contextual — biomarker state at screening | Longitudinal: updated at each biennial screening |
-| LIFESTYLE | 5 | NHIS screening questionnaire | Contextual — behavioral state | Longitudinal: updated at each biennial screening |
-| DTH | 6 | Death registry + KCD cause code | Predicted — terminal event | Once per patient; terminates trajectory |
-| SEX | 7 | NHIS BFC | Conditioning — static attribute | Static: entered once, never predicted |
-| NO_EVENT | 8 | Synthetic | Structural — fills long event-free gaps | Synthetic: prevents artificial long-range dependencies |
-| PAD | 0 | N/A | Structural — sequence padding | N/A |
+Example:
 
-The estimated vocabulary size is 2,000–3,400 tokens across all types.
+```text
+001 | 9131  | 42   | DX        # hypertension
+001 | 9496  | 815  | RX        # amlodipine
+001 | 9861  | 1102 | LAB       # fasting glucose bucket
+001 | 10592 | 55   | DX        # type 2 diabetes
+001 | 10957 | 830  | RX        # metformin
+```
+
+### Token Types
+
+| Type | Role in the trajectory |
+|------|------------------------|
+| DX | diagnosis |
+| RX | drug prescription |
+| PX | procedure |
+| LAB | lab / measurement context |
+| GENOMICS | genomics / tumor biomarker context |
+| LIFESTYLE | screening questionnaire context |
+| DTH | death event |
+| SEX | static demographic conditioning token |
+| NO_EVENT | structural no-event token |
+| PAD | sequence padding |
+
+In the SNUH full-cohort run, LAB and GENOMICS were used as context rather than
+as prediction targets.
+
+### GENOMICS Tokens
+
+Task 17 adds a unified `GENOMICS:*` namespace for tumor biomarker and genomics
+context. Examples:
+
+```text
+GENOMICS:EGFR:MUTATION:EXON19DEL
+GENOMICS:ALK:STATUS:NEGATIVE_OR_WT
+GENOMICS:PDL1:TPS:70
+```
+
+The integrated SNUH run created 1,170 GENOMICS events for 615 patients, with
+278 unique token keys. Source provenance is retained in
+`genomics_token_events.csv`:
+
+- `canonical_report`: 2004-2020 molecular pathology / NGS note parser outputs.
+- `weak_clinical_summary`: 2021+ `observation_source_value=기타`,
+  `observation_concept_id=1340204` biomarker summary text.
+
+GENOMICS tokens are conditioning-only by design: somatic biomarker facts are
+treated as known context for downstream clinical prediction, not as events that
+the model should learn to predict from prior clinical history.
 
 ## Architecture
 
-Each token is embedded as the sum of three learned representations:
+Each input event is embedded as:
 
+```text
+TokenEmb(token_id) + AgeEncoding(age_in_days) + TypeEmb(token_type)
 ```
-Event representation = TokenEmb(what) + AgeEncoding(when) + TypeEmb(what kind)
-```
 
-- **TokenEmb**: learned embedding for each clinical code (shared with output projection via weight tying)
-- **AgeEncoding**: continuous sinusoidal encoding of age in days, followed by a learned linear projection
-- **TypeEmb**: learned embedding for each token type — enables the model to learn type-specific interaction patterns (e.g., how a prior RX token modifies the probability of a subsequent DX token)
+- `TokenEmb` is a learned vocabulary embedding tied to the output projection.
+- `AgeEncoding` is a continuous sinusoidal age representation followed by a
+  learned projection.
+- `TypeEmb` lets the transformer distinguish modalities.
 
-The embedded sequence passes through a stack of transformer blocks with causal attention (each event attends only to prior events). Co-occurring events at the same age are additionally masked from attending to each other.
+The sequence is passed through causal transformer blocks. Same-day events can
+be masked from attending to each other with `mask_ties=True`.
 
-Two output heads produce:
-- **Next-token head**: probability distribution over the full vocabulary — which clinical event is most likely next
-- **Time-to-event head**: expected time until the next event, modeled as an exponential waiting time
+The current SNUH pretraining configuration uses:
 
-Training minimizes the sum of cross-entropy loss (next token identity) and exponential log-likelihood loss (time to next event).
+- a next-token softmax head;
+- a two-stage time objective with a same-day classifier;
+- a decoupled waiting-time head that predicts log event rate separately from
+  the token logits; and
+- objective-based checkpoint selection.
+
+The SNUH Task 16 production candidate used 10 layers, 10 heads, 640 hidden
+dimensions, context length 512, bfloat16, and `loss_dt_weight=0.3`.
+
+## Training And Evaluation
+
+FERMAT supports:
+
+- 3-column Delphi-compatible input;
+- 4-column typed FERMAT input;
+- full checkpoint save/resume;
+- best-checkpoint and latest-checkpoint outputs;
+- deterministic capped checkpoint evaluation; and
+- clinical next-token, waiting-time, and same-day metrics.
+
+The SNUH Task 16 full-cohort run completed 100,000 iterations. The
+validation-selected best checkpoint was at iteration 83,000. Capped validation
+evaluation on 20,000 patients reported:
+
+| Metric | Value |
+|--------|------:|
+| Clinical CE | 3.1940 |
+| Clinical top-1 | 33.91% |
+| Clinical top-5 | 65.24% |
+| Clinical top-10 | 74.09% |
+| Waiting-time NLL | 5.0487 |
+| Waiting-time MAE | 539.5 days |
+| Waiting-time median absolute error | 21.4 days |
+| Beats waiting-time baseline | true |
+| Same-day AUROC | 0.8035 |
+| Same-day AUPRC | 0.9123 |
+| Same-day Brier | 0.1140 |
+
+The final/latest checkpoint at 100,000 iterations is retained, but validation
+selection uses the 83,000-iteration best checkpoint.
 
 ## Ablation Design
 
-The central experiment is a 6-step ablation that progressively adds pre-diagnostic context:
+The original ablation plan progressively adds modalities to quantify which
+contexts improve trajectory modeling. That design remains important, but the
+current README does not treat it as completed evidence. The ablation section
+should be expanded after the corresponding experiments are run and reported
+with shared metrics.
 
-| Step | Tokens included | Question answered |
-|------|----------------|-------------------|
-| 1 | DX only | Baseline: what can diagnosis sequences alone predict? |
-| 2 | DX + RX | Does knowing what drugs were prescribed improve prediction? |
-| 3 | DX + RX + PX | Does procedural history add information beyond drug history? |
-| 4 | DX + RX + PX + LAB (static) | Does a one-time biomarker snapshot help? |
-| 5 | DX + RX + PX + LAB (dynamic) | Does the *trajectory* of biomarker change outperform a static snapshot? |
-| 6 | Full (+ LIFESTYLE) | Does behavioral context add further value? |
+Planned comparisons include:
 
-The comparison between steps 4 and 5 is the key experiment: it isolates whether it is the *level* of a biomarker or the *temporal change* that carries predictive information.
+- DX-only baseline;
+- DX + RX;
+- DX + RX + PX;
+- adding LAB context;
+- adding lifestyle context; and
+- adding GENOMICS conditioning for oncology-focused analyses.
 
 ## Current Implementation Status
 
 | Component | Status |
 |-----------|--------|
-| Model architecture (`model.py`) | Implemented and trained on 4-column Synthetic SNUH trajectories. |
-| Data loader (`utils.py`) | Implemented for 3-column Delphi compatibility and 4-column FERMAT data. |
-| Training loop (`train.py`) | Implemented with checkpoint save/load and token-prediction training on full Synthetic SNUH data. |
-| Synthetic SNUH preprocessing (`scripts/preprocess_synthetic_snuh_to_fermat.py`) | Implemented for OMOP-style Synthetic SNUH DuckDB → 4-column FERMAT bins. |
-| Synthetic SNUH mapping audit (`scripts/audit_fermat_mapping.py`) | Implemented with source-table/token-type consistency checks and split validation. |
-| Token vocabulary mapping tables | Implemented for the Synthetic SNUH pipeline (`vocab.csv` generated during preprocessing). |
-| Evaluation and generation | Implemented via `scripts/evaluate_token_prediction.py` and `scripts/demo_next_token_prediction.py`. |
-| Ablation / experiment configs | Executable for Synthetic SNUH (`train_fermat_synthetic_snuh*.py`). |
-| NHIS/HIRA production preprocessing | **Not implemented yet.** |
-| Real SNUH training / external validation | **Not implemented yet in this public repo.** |
+| Core transformer (`model.py`) | Implemented with token, age, and type embeddings |
+| Same-day masking | Implemented |
+| Decoupled time head | Implemented and used for SNUH Task 16 |
+| Two-stage time objective | Implemented |
+| 3-column Delphi compatibility | Implemented |
+| 4-column FERMAT data loading | Implemented |
+| Synthetic SNUH preprocessing | Implemented |
+| Synthetic SNUH training/evaluation | Implemented |
+| SNUH full-cohort Task 15 ETL runner | Implemented in Pod workflow |
+| SNUH Task 16 full-cohort training | Implemented and run to 100k iterations |
+| SNUH Task 17 biomarker form discovery | Implemented |
+| SNUH Task 17 GENOMICS token integration | Implemented as conditioning-only context |
+| NHIS/HIRA production preprocessing | Not implemented in this repo |
+| Ablation result table | Planned after experiments |
 
-Current best public synthetic result on full `data/synthetic_snuh`:
-
-- Next-token prediction checkpoint: `FERMAT-synthetic-snuh-token-prediction-longer/ckpt_top1_best.pt`
-- Validation CE: `1.7232`
-- Perplexity: `5.6022`
-- Top-1 accuracy: `40.83%`
-- Top-5 accuracy: `86.57%`
-- Top-10 accuracy: `93.25%`
-
-See:
-- `logs/fermat_token_prediction_eval.md`
-- `logs/fermat_next_token_examples.md`
-- `logs/fermat_mapping_audit.md`
-- `logs/fermat_dataset_summary.md`
-
-## Reproducing the Synthetic SNUH Pipeline
-
-### 1. Build / validate the 4-column Synthetic SNUH dataset
+## Reproducing The Public Synthetic SNUH Pipeline
 
 If `data/synthetic_snuh_raw.duckdb` is available:
 
@@ -132,23 +206,17 @@ SYNTHETIC_SNUH_DUCKDB=data/synthetic_snuh_raw.duckdb \
   bash scripts/run_smoke_synthetic_snuh.sh
 ```
 
-This runs:
-- schema inspection
-- preprocessing to 4-column FERMAT bins
-- bin validation
-- dataset summary
-- mapping audit
-- CPU smoke training
+This runs schema inspection, preprocessing, bin validation, dataset summary,
+mapping audit, and CPU smoke training. If the DuckDB file is missing, the
+harness falls back to a self-synthetic 4-column dataset for code verification.
 
-If the DuckDB file is missing, the harness falls back to a self-synthetic 4-column dataset for code verification.
-
-### 2. Run next-token prediction training on full Synthetic SNUH
+Train the public synthetic next-token model:
 
 ```bash
 python train.py config/train_fermat_synthetic_snuh_token_prediction_longer.py --device=cpu
 ```
 
-### 3. Evaluate the trained checkpoint
+Evaluate:
 
 ```bash
 python scripts/evaluate_token_prediction.py \
@@ -157,7 +225,7 @@ python scripts/evaluate_token_prediction.py \
   --device cpu
 ```
 
-### 4. Generate qualitative next-token examples
+Generate examples:
 
 ```bash
 python scripts/demo_next_token_prediction.py \
@@ -166,21 +234,25 @@ python scripts/demo_next_token_prediction.py \
   --device cpu
 ```
 
-## Related Work
+## SNUH Pod Workflow
 
-FERMAT is a transformer-based model for longitudinal clinical event modeling.
+The private SNUH workflow is documented in:
 
-Related work on generative modeling of disease trajectories includes:
+- `docs/snuh_pretraining_runbook.md`
+- `docs/snuh_task17_genomic_variant_audit.md`
 
-```bibtex
-@article{shmatko2025delphi,
-  title={Learning the natural history of human disease with generative transformers},
-  author={Shmatko, Artem and Jung, Alexander Wolfgang and Gaurav, Kumar and others},
-  journal={Nature},
-  volume={647},
-  pages={248--256},
-  year={2025}
-}
+Task 16 bundles are created with:
+
+```bash
+python scripts/build_snuh_task16_bundle.py
+```
+
+Task 17 / GENOMICS tooling includes:
+
+```text
+scripts/discover_snuh_task17_biomarker_forms.py
+scripts/add_snuh_task17_genomics_tokens.py
+```
 
 ## License
 

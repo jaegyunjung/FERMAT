@@ -4,9 +4,10 @@ This document defines how OMOP CDM events are converted into FERMAT's
 4-column event sequence. It is the **mapping rule layer** that the
 existing FERMAT README's "token schema" leaves to implementation.
 
-Scope: Synthetic SNUH OMOP CDM v5.4 (10,000 persons) and any OMOP v5.4
-dataset that exposes the same tables. Adjustments for the BOBIC
-flattened claims/screening tables are deferred to v0.2.
+Scope: Synthetic SNUH OMOP CDM v5.4 (10,000 persons), SNUH-CDM full-cohort
+pretraining artifacts, and any OMOP v5.4 dataset that exposes the same core
+tables. Adjustments for BOBIC flattened claims/screening tables are deferred
+to a later specification.
 
 ---
 
@@ -35,22 +36,23 @@ Rows are sorted by `(patient_id, age_in_days, deterministic_order)`.
 
 Aligned with `model.py::TokenType`:
 
-| name      | id | role                                  | included in loss |
-|-----------|----|---------------------------------------|------------------|
-| PAD       | 0  | sequence padding                      | no               |
-| DX        | 1  | diagnosis (KCD / ICD-10)              | yes              |
-| RX        | 2  | drug prescription                     | yes              |
-| PX        | 3  | procedure                             | yes              |
-| LAB       | 4  | discretized lab / screening result    | yes              |
-| LIFESTYLE | 5  | screening questionnaire (smoking etc) | yes              |
-| DTH       | 6  | death (terminal)                      | yes              |
-| SEX       | 7  | sex (static, prepended)               | no               |
-| NO_EVENT  | 8  | Delphi-style no-event padding         | no               |
-| GENOMICS   | 9  | genomics / tumor biomarker event      | yes              |
+| name      | id | role                                  |
+|-----------|----|---------------------------------------|
+| PAD       | 0  | sequence padding                      |
+| DX        | 1  | diagnosis (KCD / ICD-10)              |
+| RX        | 2  | drug prescription                     |
+| PX        | 3  | procedure                             |
+| LAB       | 4  | discretized lab / screening result    |
+| LIFESTYLE | 5  | screening questionnaire (smoking etc) |
+| DTH       | 6  | death (terminal)                      |
+| SEX       | 7  | sex (static, prepended)               |
+| NO_EVENT  | 8  | Delphi-style no-event padding         |
+| GENOMICS  | 9  | genomics / tumor biomarker event      |
 
-The "ignore in loss" set is enforced via `FermatConfig.ignore_types`:
-`[PAD, SEX, NO_EVENT]`. LAB is included in v0.1 to keep type-embedding
-gradients flowing; the context-only ablation is deferred to v0.2.
+The "ignore in loss" set is enforced via `FermatConfig.ignore_types`. The SNUH
+Task 16 full-cohort configuration uses `[PAD, SEX, NO_EVENT, LAB, GENOMICS]`,
+so LAB and GENOMICS remain available as input context but are not prediction
+targets.
 
 ---
 
@@ -121,7 +123,7 @@ Notes:
   in the source row. Otherwise the fallback column is used.
 - The `source_value` strategy keeps Korean local codes (KCD, EDI, KD)
   intact when present. Mapping to standard ontologies (ATC, LOINC,
-  SNOMED) is deferred to v0.2.
+  SNOMED) is deferred to a later specification.
 - All tokens carry a `token_type_name`-prefixed label in `vocab.csv` for
   debuggability: e.g., `DX:I10`, `RX:A10BA02`, `PX:M0010`,
   `LAB:LDL:Q3`, `DTH:I21`.
@@ -158,8 +160,8 @@ For each `measurement` row:
 
 - Unit (`unit_concept_id`, `unit_source_value`) is **not converted** in
   v0.1. It is stored in `vocab.csv` metadata as a warning that the same
-  key may carry different units across rows. A v0.2 task is to either
-  split by unit or harmonize.
+  key may carry different units across rows. A later task is to either split
+  by unit or harmonize.
 - Quantile cutpoints are computed on the **training split only** to
   avoid leakage. Validation rows use the train cutpoints.
 - A measurement key needs at least 30 non-null `value_as_number`
@@ -195,15 +197,16 @@ sequence.
 | DX         | yes                  | yes                  |
 | RX         | yes                  | yes                  |
 | PX         | yes                  | yes                  |
-| LAB        | yes (v0.1)           | yes (v0.1)           |
+| LAB        | no (context only in SNUH Task 16) | no (context only in SNUH Task 16) |
 | LIFESTYLE  | yes                  | yes                  |
 | DTH        | yes                  | yes                  |
 | SEX        | no                   | no                   |
 | NO_EVENT   | no                   | no                   |
+| GENOMICS   | no (context only in SNUH Task 16) | no (context only in SNUH Task 16) |
 
-Enforced by `FermatConfig.ignore_types = [PAD, SEX, NO_EVENT]`. The
-implementation in `model.py::Fermat.forward` masks predictions of
-ignored types via `pass_tokens`.
+Enforced by `FermatConfig.ignore_types`. The implementation in
+`model.py::Fermat.forward` masks predictions of ignored types via
+`pass_tokens` while leaving those events visible in the input sequence.
 
 ---
 
@@ -229,7 +232,7 @@ This file is summarized in `summarize_fermat_dataset.py`.
 
 ---
 
-## 10. Open decisions deferred to v0.2
+## 10. Open Decisions
 
 - Unit harmonization for measurements (currently ignored).
 - Clinical-cutpoint LOW/NORMAL/HIGH bins (currently quantile-only).
