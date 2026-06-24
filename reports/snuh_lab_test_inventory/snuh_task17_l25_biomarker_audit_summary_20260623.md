@@ -94,6 +94,45 @@ Policy decision:
 - Exclude `PDL1_MENTION` when value-bearing PDL1 exists for the same person or
   same date.
 
+Follow-up form-discovery checks after the initial 135-person artifact found that
+post-2021 biomarker-bearing text is concentrated in:
+
+```text
+observation.observation_source_value = 기타
+observation.observation_concept_id = 1340204
+```
+
+After excluding common false positives such as `BrCa` for breast cancer,
+`MSi(rheumatic)` for mitral stenosis, and broad `RET`/`MET` substrings, stricter
+local parsing of this observation form produced:
+
+- Prefilter rows: 335
+- Classified event rows: 336
+- Classified persons: 186
+- Unique person-token-value tuples: 275
+
+Main high-confidence post-2021 weak tokens included:
+
+- `ALK_STATUS NEGATIVE_OR_WT`: 55 rows, 45 persons
+- `EGFR_MUTATION EXON19DEL`: 45 rows, 36 persons
+- `EGFR_STATUS WT`: 39 rows, 35 persons
+- `EGFR_MUTATION L858R`: 18 rows, 15 persons
+- `PDL1_TPS 0`: 17 rows, 12 persons
+- `PDL1_PERCENT 0`: 12 rows, 9 persons
+- `BRAF_STATUS WT`: 8 rows, 8 persons
+- `ALK_STATUS POSITIVE`: 12 rows, 7 persons
+- `HER2_STATUS NEGATIVE`: 7 rows, 6 persons
+- `ROS1_STATUS NEGATIVE_OR_WT`: 6 rows, 6 persons
+- `MSI_STATUS MSS`: 6 rows, 4 persons
+
+Interpretation: 2021+ biomarker information is not absent from CDM, but the
+usable source found so far is a weak clinical-summary observation form, not a
+canonical molecular pathology or NGS report form.
+
+`condition_occurrence.ext_cond_source_value_cc_text` also contains a small
+post-2021 `BRCA mutation` diagnosis/problem-list signal, but this is not a
+report result source.
+
 ## Overall unique person coverage
 
 Pod-side union check across existing Task 17 artifacts showed:
@@ -118,8 +157,19 @@ weak-signal token source.
 
 ## Next direction
 
-The next unresolved task is to find a higher-coverage authoritative report/result
-path, if one exists. The current evidence supports keeping these artifacts while
-continuing to search for the canonical molecular pathology or genomics report
-route rather than treating the 135-person post-2021 observation signal as the
-final genomic-token integration path.
+The durable next step is form discovery before token parsing. EGFR/ALK/KRAS and
+similar marker terms were useful for locating post-2021 biomarker-bearing text,
+but token integration should not be built as marker-name search over the whole
+CDM. Instead:
+
+1. Identify source/form signatures that carry biomarker result language.
+2. Validate the form's noise profile and date coverage.
+3. Parse values inside approved forms.
+4. Keep canonical report-derived tokens separate from weak clinical-summary
+   tokens.
+
+The helper `scripts/discover_snuh_task17_biomarker_forms.py` implements this
+direction for Pod-side use. It profiles biomarker-bearing forms by table and
+source signature across `observation`, `note`, and `condition_occurrence`, with
+measurement available only as an explicit opt-in because the table is large and
+unindexed in this environment.

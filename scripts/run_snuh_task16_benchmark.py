@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 POD_ROOT = Path("/home/khdp-user/workspace/fermat-data")
-POD_DATA_DIR = POD_ROOT / "etl" / "patient_100pct_seed_42"
+POD_DATA_DIR = POD_ROOT / "etl" / "patient_100pct_seed_42_with_genomics_tokens"
 POD_OUTPUT_ROOT = POD_ROOT / "out"
 CONFIG = "config/train_fermat_snuh_full_two_stage_benchmark.py"
 

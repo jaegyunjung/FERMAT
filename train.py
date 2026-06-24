@@ -153,6 +153,21 @@ print(f"Train: {len(train_data)} rows, Val: {len(val_data)} rows")
 train_p2i = get_p2i(train_data)
 val_p2i = get_p2i(val_data)
 
+train_patient_count = len(train_p2i)
+val_patient_count = len(val_p2i)
+train_p2i = train_p2i[train_p2i[:, 1] >= 2]
+val_p2i = val_p2i[val_p2i[:, 1] >= 2]
+if len(train_p2i) == 0 or len(val_p2i) == 0:
+    raise RuntimeError(
+        "Training requires at least one train and validation patient with "
+        "two or more events."
+    )
+print(
+    "Trainable patients: "
+    f"{len(train_p2i)}/{train_patient_count} train, "
+    f"{len(val_p2i)}/{val_patient_count} val"
+)
+
 if data_fraction < 1.0:
     train_p2i = train_p2i[:int(data_fraction * len(train_p2i))]
 

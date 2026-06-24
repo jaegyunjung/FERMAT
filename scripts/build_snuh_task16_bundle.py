@@ -17,6 +17,7 @@ FILES = [
     "config/train_fermat_snuh_full_two_stage_benchmark.py",
     "config/train_fermat_snuh_full_two_stage_train.py",
     "scripts/evaluate_snuh_checkpoint.py",
+    "scripts/add_snuh_task17_genomics_tokens.py",
     "scripts/run_snuh_task16_benchmark.py",
     "scripts/run_snuh_task16_train.py",
     "docs/snuh_pretraining_runbook.md",
@@ -53,6 +54,7 @@ def main():
             f"cd {bundle_id}-code"
         ),
         "pod_benchmark_command": "python scripts/run_snuh_task16_benchmark.py",
+        "pod_add_genomics_tokens_command": "python scripts/add_snuh_task17_genomics_tokens.py",
         "pod_train_command": "python scripts/run_snuh_task16_train.py",
     }
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -64,6 +66,7 @@ def main():
         )
     print(output)
     print(manifest["pod_extract_command"])
+    print(manifest["pod_add_genomics_tokens_command"])
     print(manifest["pod_benchmark_command"])
     print(manifest["pod_train_command"])
 

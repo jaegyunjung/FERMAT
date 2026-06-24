@@ -25,7 +25,7 @@ All four columns are stored as `uint32` in a contiguous binary file
 - `patient_id`: dense integer assigned by `preprocess_*.py` (0..N-1).
 - `age_in_days`: integer days from birth to event, computed per Section 4.
 - `token_id`: globally unique integer (Section 3).
-- `token_type`: integer in `0..8` mapped to `TokenType` enum (Section 2).
+- `token_type`: integer in `0..9` mapped to `TokenType` enum (Section 2).
 
 Rows are sorted by `(patient_id, age_in_days, deterministic_order)`.
 
@@ -46,6 +46,7 @@ Aligned with `model.py::TokenType`:
 | DTH       | 6  | death (terminal)                      | yes              |
 | SEX       | 7  | sex (static, prepended)               | no               |
 | NO_EVENT  | 8  | Delphi-style no-event padding         | no               |
+| GENOMICS   | 9  | genomics / tumor biomarker event      | yes              |
 
 The "ignore in loss" set is enforced via `FermatConfig.ignore_types`:
 `[PAD, SEX, NO_EVENT]`. LAB is included in v0.1 to keep type-embedding
@@ -113,6 +114,7 @@ construction.
 | `procedure_occurrence`  | PX   | `procedure_source_value`       | `procedure_concept_id`         | `procedure_date`        |
 | `measurement`           | LAB  | see Section 6                  | see Section 6                  | `measurement_date`      |
 | `death`                 | DTH  | `cause_source_value`           | `cause_concept_id` or const    | `death_date`            |
+| Task 17 biomarker forms | GENOMICS | source-specific parser output | retained provenance columns | source event date |
 
 Notes:
 - "preferred source column" is used whenever it is non-null and non-empty
@@ -123,6 +125,13 @@ Notes:
 - All tokens carry a `token_type_name`-prefixed label in `vocab.csv` for
   debuggability: e.g., `DX:I10`, `RX:A10BA02`, `PX:M0010`,
   `LAB:LDL:Q3`, `DTH:I21`.
+- SNUH Task 17 genomics/tumor biomarker tokens use a unified `GENOMICS:*`
+  namespace. Source provenance is retained separately, so canonical
+  report-derived events and weak clinical-summary events can be separated in
+  sensitivity analyses without splitting the token namespace.
+- GENOMICS is a conditioning-only token type for SNUH pretraining: it remains
+  in the input sequence but is excluded from the next-token and waiting-time
+  losses via `ignore_types`.
 
 ---
 

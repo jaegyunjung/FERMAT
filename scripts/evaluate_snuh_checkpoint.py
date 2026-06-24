@@ -41,6 +41,7 @@ NON_CLINICAL_TYPES = {
     int(TokenType.NO_EVENT),
     int(TokenType.LAB),
     int(TokenType.LIFESTYLE),
+    int(TokenType.GENOMICS),
 }
 
 

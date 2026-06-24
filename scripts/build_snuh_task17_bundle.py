@@ -18,6 +18,7 @@ FILES = [
     "scripts/probe_snuh_task17_l25_codes.py",
     "scripts/check_snuh_task17_status.py",
     "scripts/review_task17_biomarker_outputs.py",
+    "scripts/discover_snuh_task17_biomarker_forms.py",
     "docs/snuh_task17_genomic_variant_audit.md",
 ]
 
@@ -72,6 +73,9 @@ def main():
             "--report /home/khdp-user/workspace/fermat-data/scripts/outputs/"
             "task17_molecular_biomarker_audit/task17_biomarker_review.md"
         ),
+        "pod_biomarker_form_discovery_command": (
+            "python scripts/discover_snuh_task17_biomarker_forms.py"
+        ),
     }
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
         for relative_path in FILES:
@@ -86,6 +90,7 @@ def main():
     print(manifest["pod_l25_code_probe_command"])
     print(manifest["pod_status_command"])
     print(manifest["pod_review_command"])
+    print(manifest["pod_biomarker_form_discovery_command"])
 
 
 if __name__ == "__main__":

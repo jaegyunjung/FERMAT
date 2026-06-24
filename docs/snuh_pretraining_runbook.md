@@ -356,6 +356,34 @@ loss_dt_weight = 0.3
 checkpoint_metric = objective
 ```
 
+Before Task 16 benchmark/training, add Task 17 GENOMICS tokens into a separate
+ETL directory. The original Task 15 ETL directory remains unchanged.
+
+```bash
+python scripts/add_snuh_task17_genomics_tokens.py
+```
+
+Default input and output:
+
+```text
+input:  /home/khdp-user/workspace/fermat-data/etl/patient_100pct_seed_42
+output: /home/khdp-user/workspace/fermat-data/etl/patient_100pct_seed_42_with_genomics_tokens
+```
+
+The output directory contains updated `train.bin`, `val.bin`, `test.bin`,
+`token_registry.*`, `manifest.json`, and provenance files:
+
+```text
+genomics_token_events.csv
+genomics_token_events.parquet
+genomics_token_summary.csv
+```
+
+GENOMICS tokens are conditioning-only in Task 16. They remain visible as prior
+context but are excluded from token and waiting-time targets through
+`ignore_types`, matching the Task 17 D1 design decision that somatic biomarker
+facts are conditions rather than prediction targets.
+
 Build the Task 16 bundle locally:
 
 ```bash
@@ -376,7 +404,9 @@ cd /home/khdp-user/workspace/fermat-data
 mkdir -p <bundle_id>-code
 unzip -o <bundle_id>.zip -d <bundle_id>-code
 cd <bundle_id>-code
-python scripts/run_snuh_task16_benchmark.py
+python scripts/add_snuh_task17_genomics_tokens.py
+python scripts/run_snuh_task16_benchmark.py \
+  --data-dir /home/khdp-user/workspace/fermat-data/etl/patient_100pct_seed_42_with_genomics_tokens
 ```
 
 The benchmark defaults to 1,000 steps and writes:
@@ -394,6 +424,7 @@ start the long training job from the same extracted bundle:
 
 ```bash
 python scripts/run_snuh_task16_train.py \
+  --data-dir /home/khdp-user/workspace/fermat-data/etl/patient_100pct_seed_42_with_genomics_tokens \
   --batch-size <chosen_batch_size> \
   --gradient-accumulation-steps <chosen_accumulation> \
   --n-layer <chosen_layers> \

@@ -35,6 +35,7 @@ EVAL_TOKEN_TYPES = {
     int(TokenType.PX): "PX",
     int(TokenType.LAB): "LAB",
     int(TokenType.DTH): "DTH",
+    int(TokenType.GENOMICS): "GENOMICS",
 }
 IGNORED_TARGET_TYPES = {
     int(TokenType.PAD),
@@ -186,7 +187,7 @@ def write_markdown(out_path, metrics, checkpoint, ckpt_path, data_dir):
 
         f.write("## Token-Type Specific Top-1 Accuracy\n\n")
         f.write("| token_type | top1_accuracy | count |\n|---|---:|---:|\n")
-        for token_name in ["DX", "RX", "PX", "LAB", "DTH"]:
+        for token_name in ["DX", "RX", "PX", "LAB", "DTH", "GENOMICS"]:
             type_metrics = metrics["type_specific"].get(token_name, {"accuracy": float("nan"), "count": 0})
             acc = type_metrics["accuracy"]
             if math.isnan(acc):
@@ -207,7 +208,7 @@ def write_csv(out_path, metrics):
         "top10_accuracy": metrics["top10_accuracy"],
         "evaluated_targets": metrics["evaluated_targets"],
     }
-    for token_name in ["DX", "RX", "PX", "LAB", "DTH"]:
+    for token_name in ["DX", "RX", "PX", "LAB", "DTH", "GENOMICS"]:
         type_metrics = metrics["type_specific"].get(token_name, {"accuracy": float("nan"), "count": 0})
         row[f"{token_name.lower()}_top1_accuracy"] = type_metrics["accuracy"]
         row[f"{token_name.lower()}_count"] = type_metrics["count"]

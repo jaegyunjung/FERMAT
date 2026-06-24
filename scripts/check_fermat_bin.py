@@ -6,7 +6,7 @@ Checks invariants from docs/token_spec_v0.1.md:
   - patient_id is dense (0..N-1) and contiguous (rows for same pid are adjacent)
   - age_in_days is non-negative and <= 150 years in days
   - token_id matches an entry in vocab.csv
-  - token_type is in 0..8
+  - token_type is in 0..9
   - train/val patient sets do not overlap
 
 Usage:
@@ -90,13 +90,13 @@ def check_one(name, arr, vocab_ids, out, max_age_days=150 * 365):
         out.write(f"  OK: all token_ids in vocab\n")
 
     # Token type range
-    if (types > 8).any() or (types < 0).any():
-        bad = types[(types > 8) | (types < 0)]
+    if (types > 9).any() or (types < 0).any():
+        bad = types[(types > 9) | (types < 0)]
         out.write(f"  ERROR: invalid token_type values (e.g. {bad[:5].tolist()})\n")
         issues += 1
     else:
         out.write(
-            f"  OK: token_type in 0..8 (counts: "
+            f"  OK: token_type in 0..9 (counts: "
             f"{dict(zip(*np.unique(types, return_counts=True)))})\n"
         )
 

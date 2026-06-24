@@ -31,6 +31,73 @@ The intended tokenization direction is LAB-like: a candidate test concept plus
 its observed result value, not separate GEN_TEST / GEN_RESULT / GEN_PROC token
 types.
 
+## Post-2021 biomarker report-location finding
+
+Follow-up Pod checks on 2026-06-23 showed a split between pre-2021 report-like
+sources and post-2021 weak clinical-summary sources:
+
+- 2004-2020 molecular/NGS/pathology-like biomarker artifacts are primarily
+  `note` based. Existing parser outputs point to `source_table=note`,
+  `source_id=note_id`, `note_source_value2=M ...` or pathology accessions, and
+  note titles such as `분자병리 검사` and `차세대염기서열검사`.
+- Those direct note titles continue through 2020 but were not found after the
+  first few days of 2021 in the current CDM extract. General `note` rows
+  continue through 2025, so this is not a whole-note-table cutoff.
+- The only non-system schema visible in the database was `cdm2024_official`.
+  Candidate report/text tables were limited to `note`, empty `note_nlp`,
+  `bio_signal`, `specimen`, and `condition_occurrence` text extension fields.
+- `bio_signal` samples were respiratory waveform files, not biomarker reports.
+  `note_source_value4` and `ext_format_*` were dominated by non-biomarker
+  structured formats such as ECG, body composition, and breast laterality
+  fields.
+
+Current interpretation: the authoritative molecular pathology or NGS report
+route is available in `note` through 2020, but a post-2021 canonical report
+route has not been identified inside the current CDM extract.
+
+Post-2021 biomarker information is still present, but mainly as clinical-summary
+text in:
+
+```text
+observation.observation_source_value = 기타
+observation.observation_concept_id = 1340204
+```
+
+Stricter local parsing of that form found 336 classified event rows, 186
+persons, and 275 unique person-token-value tuples. High-confidence examples
+include `EGFR EXON19DEL`, `EGFR L858R`, `EGFR WT`, `ALK WT/positive`,
+`PD-L1 TPS/CPS/%`, `BRAF V600E/WT`, `HER2`, `MSS/MMRd`, and a small number of
+BRCA-related status mentions. These should be treated as weak clinical-summary
+biomarker tokens, not as canonical report-derived tokens.
+
+`condition_occurrence.ext_cond_source_value_cc_text` contains a small post-2021
+`BRCA mutation` diagnosis/problem-list signal, but it is not a molecular report
+result source.
+
+## Form-discovery principle
+
+Do not build Task 17 integration around hard-coded EGFR/ALK/KRAS searches alone.
+Those terms were useful for finding the location of post-2021 biomarker-bearing
+text, but the durable unit of discovery should be the source/form signature
+first, followed by cautious value parsing within that form.
+
+The Pod-side helper:
+
+```bash
+python scripts/discover_snuh_task17_biomarker_forms.py
+```
+
+profiles biomarker-bearing forms by table and source signature:
+
+- `observation`: source value plus observation concept ID
+- `note`: note title plus source value
+- `condition_occurrence`: condition source value plus condition concept ID
+
+It intentionally excludes broad `RET`/`MET` substring matching because those
+terms match common non-biomarker text such as interpretation, preterm, ureter,
+metastasis, and endometrial. Use its output to decide which forms should feed a
+token parser, rather than treating marker keyword hits as the final artifact.
+
 By default the script does not rescan the OMOP `measurement` table. It reads
 Task 15 ETL frequency files from:
 

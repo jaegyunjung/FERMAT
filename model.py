@@ -38,6 +38,7 @@ class TokenType(IntEnum):
     DTH = 6       # Death (with cause code)
     SEX = 7       # Sex (static, not predicted)
     NO_EVENT = 8  # No-event padding token (Delphi-style)
+    GENOMICS = 9   # Genomics / tumor biomarker token
 
 N_TOKEN_TYPES = len(TokenType)
 
@@ -77,7 +78,7 @@ def build_attention_mask(idx, age, targets_age=None, mask_ties=False):
 def align_time_deltas(age, targets_age, attention_mask, mask_ties):
     """Return waiting times aligned to the latest visible non-tied event."""
     dt = torch.clamp(targets_age - age, min=1.0)
-    if not mask_ties:
+    if not mask_ties or age.shape[1] == 0:
         return dt
 
     sequence_length = age.shape[1]

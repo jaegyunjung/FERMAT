@@ -11,7 +11,7 @@ from model import TokenType
 
 
 out_dir = "out/snuh-full-two-stage-benchmark"
-dataset_dir = "/home/khdp-user/workspace/fermat-data/etl/patient_100pct_seed_42"
+dataset_dir = "/home/khdp-user/workspace/fermat-data/etl/patient_100pct_seed_42_with_genomics_tokens"
 
 eval_interval = 100
 eval_iters = 25
@@ -49,6 +49,7 @@ ignore_types = [
     TokenType.SEX,
     TokenType.NO_EVENT,
     TokenType.LAB,
+    TokenType.GENOMICS,
 ]
 mask_ties = True
 train_select = "random"
