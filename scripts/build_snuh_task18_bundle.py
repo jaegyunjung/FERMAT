@@ -12,8 +12,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = [
+    "model.py",
+    "utils.py",
+    "scripts/evaluate_snuh_checkpoint.py",
     "scripts/organize_fermat_data_tasks.py",
     "scripts/build_snuh_event_date_sidecar.py",
+    "scripts/evaluate_snuh_source_date_strata.py",
 ]
 
 
