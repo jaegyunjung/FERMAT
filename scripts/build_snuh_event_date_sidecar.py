@@ -217,9 +217,17 @@ def upload_reference_tables(conn, args):
     )
 
     cutpoints = pd.read_parquet(args.base_etl_dir / "train_lab_decile_cutpoints.parquet")
+    cutpoints = cutpoints[[
+        "measurement_concept_id",
+        "unit_concept_id",
+        "cutpoints",
+    ]].copy()
+    cutpoints["cutpoints"] = cutpoints["cutpoints"].map(
+        lambda values: [float(value) for value in values]
+    )
     upload_dataframe(
         conn,
-        cutpoints[["measurement_concept_id", "unit_concept_id", "cutpoints"]],
+        cutpoints,
         "tmp_sidecar_lab_cutpoint",
         "measurement_concept_id bigint, unit_concept_id bigint, cutpoints double precision[]",
         "INSERT INTO tmp_sidecar_lab_cutpoint VALUES (%s,%s,%s)",
