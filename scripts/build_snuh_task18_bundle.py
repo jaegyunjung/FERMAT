@@ -39,12 +39,12 @@ def main():
         "dirty": dirty,
         "content_hash": content_hash,
         "files": FILES,
-        "pod_task_dir": "/home/khdp-user/workspace/fermat-data/tasks/task18_event_date_calibration",
+        "pod_task_dir": "/home/khdp-user/workspace/fermat-data/task18",
         "pod_extract_command": (
-            "TASK_DIR=/home/khdp-user/workspace/fermat-data/tasks/task18_event_date_calibration\n"
-            "mkdir -p \"$TASK_DIR\"\n"
-            "cd \"$TASK_DIR\"\n"
-            f"unzip -o {output.name} -d {bundle_id}-code\n"
+            "TASK_DIR=/home/khdp-user/workspace/fermat-data/task18\n"
+            "mkdir -p \"$TASK_DIR\"/code \"$TASK_DIR\"/outputs \"$TASK_DIR\"/logs \"$TASK_DIR\"/zips\n"
+            "cd \"$TASK_DIR\"/code\n"
+            f"unzip -o \"$TASK_DIR\"/zips/{output.name} -d {bundle_id}-code\n"
             f"cd {bundle_id}-code"
         ),
     }
