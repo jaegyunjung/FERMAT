@@ -17,6 +17,7 @@ FILES = [
     "config/train_fermat_snuh_full_two_stage_benchmark.py",
     "config/train_fermat_snuh_full_two_stage_train.py",
     "scripts/evaluate_snuh_checkpoint.py",
+    "scripts/run_snuh_checkpoint_eval_suite.py",
     "scripts/add_snuh_task17_genomics_tokens.py",
     "scripts/run_snuh_task16_benchmark.py",
     "scripts/run_snuh_task16_train.py",

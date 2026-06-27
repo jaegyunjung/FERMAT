@@ -43,6 +43,40 @@ NON_CLINICAL_TYPES = {
     int(TokenType.LIFESTYLE),
     int(TokenType.GENOMICS),
 }
+FREQUENCY_BUCKETS = [
+    ("head", 10000, None),
+    ("medium", 1000, 9999),
+    ("tail", 100, 999),
+    ("rare", 1, 99),
+    ("unseen_near_rare", 0, 0),
+]
+AGE_GROUPS = [
+    ("age_000_017", 0, 18 * 365.25),
+    ("age_018_039", 18 * 365.25, 40 * 365.25),
+    ("age_040_064", 40 * 365.25, 65 * 365.25),
+    ("age_065_079", 65 * 365.25, 80 * 365.25),
+    ("age_080_plus", 80 * 365.25, None),
+]
+SEQUENCE_LENGTH_BUCKETS = [
+    ("seq_000_127", 0, 127),
+    ("seq_128_511", 128, 511),
+    ("seq_512_1023", 512, 1023),
+    ("seq_1024_plus", 1024, None),
+]
+VISIT_DENSITY_BUCKETS = [
+    ("density_000_004_per_year", 0, 4),
+    ("density_005_019_per_year", 5, 19),
+    ("density_020_049_per_year", 20, 49),
+    ("density_050_plus_per_year", 50, None),
+]
+TIME_HORIZON_BUCKETS = [
+    ("0_days", 0, 0),
+    ("1_7_days", 1, 7),
+    ("8_30_days", 8, 30),
+    ("31_90_days", 31, 90),
+    ("91_365_days", 91, 365),
+    ("over_365_days", 366, None),
+]
 
 
 def parse_args():
@@ -59,6 +93,8 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--max-patients", type=int)
     parser.add_argument("--time-baseline-max-patients", type=int)
+    parser.add_argument("--bootstrap-samples", type=int, default=0)
+    parser.add_argument("--bootstrap-seed", type=int, default=42)
     parser.add_argument("--device", default="cpu")
     parser.add_argument(
         "--dtype",
@@ -150,6 +186,11 @@ def build_clinical_unigram(data, clinical_vocab_mask, alpha=1.0):
     return log_probs, top1_token
 
 
+def build_train_token_counts(data, vocab_size):
+    model_token_ids = data[:, 2].astype(np.int64) + 1
+    return np.bincount(model_token_ids, minlength=vocab_size)[:vocab_size]
+
+
 def window_start(length, block_size, selector):
     available = max(length - block_size - 1, 0)
     if selector == "left":
@@ -171,6 +212,13 @@ def iter_windows(data, block_size, selectors, max_patients=None):
         ]
         if len(patient) < 2:
             continue
+        sex_tokens = patient[patient[:, 3] == int(TokenType.SEX), 2]
+        sex_token = int(sex_tokens[0]) if sex_tokens.size else None
+        age_span_years = max(
+            (int(patient[:, 1].max()) - int(patient[:, 1].min())) / 365.25,
+            1.0 / 365.25,
+        )
+        visit_density = float(len(patient) / age_span_years)
         earliest_age = {}
         for row in patient:
             token_id = int(row[2])
@@ -191,6 +239,9 @@ def iter_windows(data, block_size, selectors, max_patients=None):
                 "patient_id": int(patient[0, 0]),
                 "rows": window,
                 "repeated": repeated,
+                "sex_token": sex_token,
+                "patient_length": int(len(patient)),
+                "visit_density_per_year": visit_density,
             }
 
 
@@ -222,6 +273,24 @@ def collate(windows, device):
     return tuple(
         tensor.to(device)
         for tensor in (x, a, y, b, xt, yt, repeated)
+    )
+
+
+def collate_metadata(windows, max_targets, device):
+    patient_ids = torch.full((len(windows), max_targets), -1, dtype=torch.long)
+    sex_tokens = torch.full_like(patient_ids, -1)
+    patient_lengths = torch.zeros_like(patient_ids)
+    visit_density = torch.zeros((len(windows), max_targets), dtype=torch.float32)
+    for index, window in enumerate(windows):
+        length = len(window["rows"]) - 1
+        patient_ids[index, :length] = int(window["patient_id"])
+        sex_token = -1 if window["sex_token"] is None else int(window["sex_token"])
+        sex_tokens[index, :length] = sex_token
+        patient_lengths[index, :length] = int(window["patient_length"])
+        visit_density[index, :length] = float(window["visit_density_per_year"])
+    return tuple(
+        tensor.to(device)
+        for tensor in (patient_ids, sex_tokens, patient_lengths, visit_density)
     )
 
 
@@ -330,6 +399,17 @@ def update_accuracy(stats, logits, targets, mask, prefix):
         )
 
 
+def update_group_accuracy(stats, logits, targets, base_mask, groups, prefix):
+    for name, group_mask in groups.items():
+        update_accuracy(
+            stats,
+            logits,
+            targets,
+            base_mask & group_mask,
+            f"{prefix}_{name}",
+        )
+
+
 def finalize_accuracy(stats, prefix):
     count = int(stats[f"{prefix}_count"])
     if count == 0:
@@ -343,6 +423,47 @@ def finalize_accuracy(stats, prefix):
         "top5_accuracy": stats[f"{prefix}_top5"] / count,
         "top10_accuracy": stats[f"{prefix}_top10"] / count,
     }
+
+
+def finalize_group_accuracy(stats, prefix, names):
+    return {name: finalize_accuracy(stats, f"{prefix}_{name}") for name in names}
+
+
+def observed_group_names(stats, prefix):
+    marker = f"{prefix}_"
+    suffix = "_count"
+    names = []
+    for key in stats:
+        if key.startswith(marker) and key.endswith(suffix):
+            names.append(key[len(marker):-len(suffix)])
+    return sorted(set(names))
+
+
+def range_masks(values, ranges):
+    masks = {}
+    for name, lower, upper in ranges:
+        mask = values >= lower
+        if upper is not None:
+            mask &= values <= upper
+        masks[name] = mask
+    return masks
+
+
+def frequency_bucket_masks(targets, token_counts):
+    counts = torch.as_tensor(
+        token_counts,
+        dtype=torch.long,
+        device=targets.device,
+    )
+    clipped = targets.clamp(min=0, max=counts.numel() - 1)
+    target_counts = counts[clipped]
+    masks = {}
+    for name, lower, upper in FREQUENCY_BUCKETS:
+        mask = target_counts >= lower
+        if upper is not None:
+            mask &= target_counts <= upper
+        masks[name] = mask
+    return masks
 
 
 def update_unigram(stats, log_probs, top1_token, targets, mask):
@@ -367,6 +488,150 @@ def finalize_unigram(stats):
         "cross_entropy": ce,
         "perplexity": math.exp(ce) if ce < 700 else float("inf"),
         "top1_accuracy": stats["unigram_top1"] / count,
+    }
+
+
+def patient_record(patient_acc, patient_id):
+    return patient_acc[int(patient_id)]
+
+
+def update_patient_clinical(patient_acc, logits, targets, mask, patient_ids):
+    if not mask.any():
+        return
+    selected_logits = logits[mask].float()
+    selected_targets = targets[mask]
+    selected_patients = patient_ids[mask]
+    ce = F.cross_entropy(selected_logits, selected_targets, reduction="none")
+    max_k = min(10, selected_logits.shape[-1])
+    topk = torch.topk(selected_logits, k=max_k, dim=-1).indices
+    top1 = (topk[:, :1] == selected_targets[:, None]).any(dim=-1)
+    top5 = (topk[:, :min(5, max_k)] == selected_targets[:, None]).any(dim=-1)
+    top10 = (topk[:, :min(10, max_k)] == selected_targets[:, None]).any(dim=-1)
+    for patient_id, loss, hit1, hit5, hit10 in zip(
+        selected_patients.detach().cpu().numpy(),
+        ce.detach().cpu().numpy(),
+        top1.detach().cpu().numpy(),
+        top5.detach().cpu().numpy(),
+        top10.detach().cpu().numpy(),
+    ):
+        record = patient_record(patient_acc, patient_id)
+        record["clinical_ce_sum"] += float(loss)
+        record["clinical_count"] += 1
+        record["clinical_top1"] += int(hit1)
+        record["clinical_top5"] += int(hit5)
+        record["clinical_top10"] += int(hit10)
+
+
+def update_patient_same_day(patient_acc, patient_ids, labels, probabilities):
+    for patient_id, label, probability in zip(
+        patient_ids.detach().cpu().numpy(),
+        labels.detach().cpu().numpy(),
+        probabilities.detach().cpu().numpy(),
+    ):
+        record = patient_record(patient_acc, patient_id)
+        record["same_day_count"] += 1
+        record["same_day_positive"] += int(label)
+        record["same_day_brier_sum"] += float((probability - label) ** 2)
+
+
+def update_patient_time(patient_acc, patient_ids, errors, nll):
+    for patient_id, error, target_nll in zip(
+        patient_ids.detach().cpu().numpy(),
+        errors.detach().cpu().numpy(),
+        nll.detach().cpu().numpy(),
+    ):
+        record = patient_record(patient_acc, patient_id)
+        record["time_count"] += 1
+        record["time_error_sum"] += float(error)
+        record["time_nll_sum"] += float(target_nll)
+
+
+def summarize_patient_sample(records):
+    clinical_count = sum(record["clinical_count"] for record in records)
+    time_count = sum(record["time_count"] for record in records)
+    same_day_count = sum(record["same_day_count"] for record in records)
+    result = {}
+    if clinical_count:
+        result.update({
+            "clinical_ce": (
+                sum(record["clinical_ce_sum"] for record in records)
+                / clinical_count
+            ),
+            "clinical_top1": (
+                sum(record["clinical_top1"] for record in records)
+                / clinical_count
+            ),
+            "clinical_top5": (
+                sum(record["clinical_top5"] for record in records)
+                / clinical_count
+            ),
+            "clinical_top10": (
+                sum(record["clinical_top10"] for record in records)
+                / clinical_count
+            ),
+        })
+    if time_count:
+        result.update({
+            "time_mae_days": (
+                sum(record["time_error_sum"] for record in records)
+                / time_count
+            ),
+            "time_nll": (
+                sum(record["time_nll_sum"] for record in records)
+                / time_count
+            ),
+        })
+    if same_day_count:
+        result.update({
+            "same_day_brier": (
+                sum(record["same_day_brier_sum"] for record in records)
+                / same_day_count
+            ),
+            "same_day_prevalence": (
+                sum(record["same_day_positive"] for record in records)
+                / same_day_count
+            ),
+        })
+    return result
+
+
+def summarize_patient_bootstrap(patient_acc, samples, seed):
+    records = [
+        dict(record)
+        for record in patient_acc.values()
+        if (
+            record["clinical_count"]
+            or record["time_count"]
+            or record["same_day_count"]
+        )
+    ]
+    if samples <= 0 or not records:
+        return {
+            "enabled": False,
+            "patients": len(records),
+            "samples": int(samples),
+        }
+    rng = np.random.default_rng(seed)
+    draws = defaultdict(list)
+    for _ in range(samples):
+        indices = rng.integers(0, len(records), size=len(records))
+        metrics = summarize_patient_sample([records[index] for index in indices])
+        for key, value in metrics.items():
+            draws[key].append(value)
+    intervals = {}
+    for key, values in draws.items():
+        arr = np.asarray(values, dtype=np.float64)
+        intervals[key] = {
+            "mean": float(arr.mean()),
+            "ci95_lower": float(np.quantile(arr, 0.025)),
+            "ci95_upper": float(np.quantile(arr, 0.975)),
+        }
+    return {
+        "enabled": True,
+        "patients": len(records),
+        "samples": int(samples),
+        "seed": int(seed),
+        "metrics": intervals,
     }
 
 
@@ -416,6 +681,9 @@ def summarize_same_day(time_acc, n_bins=10):
     )
     bins = []
     ece = 0.0
+    reliability = 0.0
+    resolution = 0.0
+    prevalence = float(labels.mean())
     for index in range(n_bins):
         lower = index / n_bins
         upper = (index + 1) / n_bins
@@ -428,6 +696,12 @@ def summarize_same_day(time_acc, n_bins=10):
             mean_probability = float(probabilities[mask].mean())
             observed_rate = float(labels[mask].mean())
             ece += count / labels.size * abs(mean_probability - observed_rate)
+            reliability += count / labels.size * (
+                mean_probability - observed_rate
+            ) ** 2
+            resolution += count / labels.size * (
+                observed_rate - prevalence
+            ) ** 2
         else:
             mean_probability = None
             observed_rate = None
@@ -438,30 +712,72 @@ def summarize_same_day(time_acc, n_bins=10):
             "mean_probability": mean_probability,
             "observed_same_day_rate": observed_rate,
         })
+    uncertainty = prevalence * (1.0 - prevalence)
     return {
         "targets": int(labels.size),
         "same_day_targets": int(labels.sum()),
-        "same_day_prevalence": float(labels.mean()),
+        "same_day_prevalence": prevalence,
         "auroc": binary_auroc(labels, probabilities),
         "auprc": binary_auprc(labels, probabilities),
         "brier_score": float(np.mean((probabilities - labels) ** 2)),
+        "brier_decomposition": {
+            "reliability": float(reliability),
+            "resolution": float(resolution),
+            "uncertainty": float(uncertainty),
+        },
         "expected_calibration_error": float(ece),
         "calibration_bins": bins,
     }
 
 
+def update_time_bucket(time_acc, name, actual, errors, nll):
+    bucket = time_acc["horizon_buckets"][name]
+    bucket["targets"] += int(actual.numel())
+    bucket["actual"].append(actual.detach().cpu().numpy())
+    bucket["errors"].append(errors.detach().cpu().numpy())
+    bucket["nll"].append(nll.detach().cpu().numpy())
+
+
+def summarize_time_buckets(time_acc):
+    summary = {}
+    for name, bucket in time_acc["horizon_buckets"].items():
+        if not bucket["actual"]:
+            summary[name] = {"targets": 0}
+            continue
+        actual = np.concatenate(bucket["actual"])
+        errors = np.concatenate(bucket["errors"])
+        nll = np.concatenate(bucket["nll"])
+        summary[name] = {
+            "targets": int(actual.size),
+            "actual_median_days": float(np.median(actual)),
+            "model_mae_days": float(errors.mean()),
+            "model_median_absolute_error_days": float(np.median(errors)),
+            "model_p95_absolute_error_days": float(np.quantile(errors, 0.95)),
+            "model_nll": float(nll.mean()),
+        }
+    return summary
+
+
 def evaluate_batch(
     model,
     tensors,
+    windows,
     clinical_vocab_mask,
+    train_token_counts,
     unigram_log_probs,
     unigram_top1_token,
     stats,
     time_acc,
+    patient_acc,
     evaluate_time,
     autocast_context_factory,
 ):
     x, age, targets, target_age, token_types, target_types, repeated = tensors
+    patient_ids, sex_tokens, patient_lengths, visit_density = collate_metadata(
+        windows,
+        targets.shape[1],
+        targets.device,
+    )
     with autocast_context_factory():
         logits, loss, _ = model(
             x,
@@ -505,6 +821,13 @@ def evaluate_batch(
         clinical_mask,
         "clinical_only",
     )
+    update_patient_clinical(
+        patient_acc,
+        clinical_logits,
+        targets,
+        clinical_mask,
+        patient_ids,
+    )
 
     for token_type, name in CLINICAL_TYPES.items():
         type_mask = clinical_mask & (target_types == token_type)
@@ -530,6 +853,29 @@ def evaluate_batch(
         clinical_mask & repeated,
         "repeated_clinical",
     )
+    group_masks = {
+        "frequency": frequency_bucket_masks(targets, train_token_counts),
+        "age": range_masks(target_age, AGE_GROUPS),
+        "sex": {
+            f"sex_token_{int(token)}": sex_tokens == int(token)
+            for token in sorted(
+                int(token)
+                for token in torch.unique(sex_tokens.detach().cpu())
+                if int(token) >= 0
+            )
+        },
+        "sequence_length": range_masks(patient_lengths, SEQUENCE_LENGTH_BUCKETS),
+        "visit_density": range_masks(visit_density, VISIT_DENSITY_BUCKETS),
+    }
+    for group_name, masks in group_masks.items():
+        update_group_accuracy(
+            stats,
+            clinical_logits,
+            targets,
+            clinical_mask,
+            masks,
+            f"stratified_{group_name}",
+        )
 
     if evaluate_time:
         attention_mask = build_attention_mask(
@@ -561,11 +907,19 @@ def evaluate_batch(
             same_day_probabilities = torch.sigmoid(
                 loss["same_day_logits"].float()
             )
+            same_day_prob = same_day_probabilities[clinical_mask]
+            same_day_labels = same_day_mask[clinical_mask]
             time_acc["same_day_probabilities"].append(
-                same_day_probabilities[clinical_mask].detach().cpu().numpy()
+                same_day_prob.detach().cpu().numpy()
             )
             time_acc["same_day_labels"].append(
-                same_day_mask[clinical_mask].detach().cpu().numpy()
+                same_day_labels.detach().cpu().numpy()
+            )
+            update_patient_same_day(
+                patient_acc,
+                patient_ids[clinical_mask],
+                same_day_labels,
+                same_day_prob,
             )
         actual = actual_dt[different_day_mask]
         if actual.numel():
@@ -580,6 +934,24 @@ def evaluate_batch(
             time_acc["errors"].append(errors.detach().cpu().numpy())
             time_acc["actual"].append(actual.detach().cpu().numpy())
             time_acc["nll"].append(nll.detach().cpu().numpy())
+            update_patient_time(
+                patient_acc,
+                patient_ids[different_day_mask],
+                errors,
+                nll,
+            )
+            for name, lower, upper in TIME_HORIZON_BUCKETS:
+                horizon_mask = actual >= lower
+                if upper is not None:
+                    horizon_mask &= actual <= upper
+                if horizon_mask.any():
+                    update_time_bucket(
+                        time_acc,
+                        name,
+                        actual[horizon_mask],
+                        errors[horizon_mask],
+                        nll[horizon_mask],
+                    )
 
     stats["batches"] += 1
     stats["objective_model_targets"] += int(loss["n_targets"])
@@ -608,6 +980,7 @@ def summarize_waiting_time(time_acc, baseline):
             "baseline_mean_gap_days": None,
             "baseline_median_gap_days": None,
             "beats_baseline": None,
+            "horizon_buckets": summarize_time_buckets(time_acc),
         }
     errors = np.concatenate(time_acc["errors"])
     actual = np.concatenate(time_acc["actual"])
@@ -655,6 +1028,7 @@ def summarize_waiting_time(time_acc, baseline):
             and nll_gain > 0
             and mae_gain > 0
         ),
+        "horizon_buckets": summarize_time_buckets(time_acc),
     }
 
 
@@ -679,6 +1053,10 @@ def main():
         train_data,
         output_mask,
     )
+    train_token_counts = build_train_token_counts(
+        train_data,
+        model.config.vocab_size,
+    )
     evaluate_time = (
         float(checkpoint.get("config", {}).get("loss_dt_weight", 1.0)) != 0
     )
@@ -695,12 +1073,36 @@ def main():
         )
 
     stats = defaultdict(float)
+    patient_acc = defaultdict(
+        lambda: {
+            "clinical_ce_sum": 0.0,
+            "clinical_count": 0,
+            "clinical_top1": 0,
+            "clinical_top5": 0,
+            "clinical_top10": 0,
+            "time_count": 0,
+            "time_error_sum": 0.0,
+            "time_nll_sum": 0.0,
+            "same_day_count": 0,
+            "same_day_positive": 0,
+            "same_day_brier_sum": 0.0,
+        }
+    )
     time_acc = {
         "errors": [],
         "actual": [],
         "nll": [],
         "same_day_probabilities": [],
         "same_day_labels": [],
+        "horizon_buckets": {
+            name: {
+                "targets": 0,
+                "actual": [],
+                "errors": [],
+                "nll": [],
+            }
+            for name, _, _ in TIME_HORIZON_BUCKETS
+        },
     }
     if args.device.startswith("cuda") and args.dtype != "float32":
         autocast_context_factory = lambda: torch.amp.autocast(
@@ -726,11 +1128,14 @@ def main():
             evaluate_batch(
                 model,
                 collate(buffer, args.device),
+                buffer,
                 output_mask,
+                train_token_counts,
                 unigram_log_probs,
                 unigram_top1_token,
                 stats,
                 time_acc,
+                patient_acc,
                 evaluate_time,
                 autocast_context_factory,
             )
@@ -739,11 +1144,14 @@ def main():
             evaluate_batch(
                 model,
                 collate(buffer, args.device),
+                buffer,
                 output_mask,
+                train_token_counts,
                 unigram_log_probs,
                 unigram_top1_token,
                 stats,
                 time_acc,
+                patient_acc,
                 evaluate_time,
                 autocast_context_factory,
             )
@@ -775,8 +1183,46 @@ def main():
             name: finalize_accuracy(stats, f"type_{name}")
             for name in CLINICAL_TYPES.values()
         },
+        "stratified_clinical_only_softmax": {
+            "token_frequency": finalize_group_accuracy(
+                stats,
+                "stratified_frequency",
+                [name for name, _, _ in FREQUENCY_BUCKETS],
+            ),
+            "age_group": finalize_group_accuracy(
+                stats,
+                "stratified_age",
+                [name for name, _, _ in AGE_GROUPS],
+            ),
+            "sex": finalize_group_accuracy(
+                stats,
+                "stratified_sex",
+                observed_group_names(stats, "stratified_sex"),
+            ),
+            "visit_density": finalize_group_accuracy(
+                stats,
+                "stratified_visit_density",
+                [name for name, _, _ in VISIT_DENSITY_BUCKETS],
+            ),
+            "sequence_length": finalize_group_accuracy(
+                stats,
+                "stratified_sequence_length",
+                [name for name, _, _ in SEQUENCE_LENGTH_BUCKETS],
+            ),
+            "calendar_year": {
+                "status": (
+                    "not_available_from age-only binary events; provide an "
+                    "event-date sidecar to enable calendar-year stratification"
+                ),
+            },
+        },
         "clinical_waiting_time": waiting_time,
         "clinical_same_day": summarize_same_day(time_acc),
+        "patient_level_bootstrap_ci": summarize_patient_bootstrap(
+            patient_acc,
+            args.bootstrap_samples,
+            args.bootstrap_seed,
+        ),
         "evaluated_batches": int(stats["batches"]),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
