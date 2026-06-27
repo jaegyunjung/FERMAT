@@ -95,7 +95,10 @@ def connect(args):
         application_name=APPLICATION_NAME,
     )
     with conn.cursor() as cur:
-        cur.execute("SET statement_timeout = %s", (args.statement_timeout,))
+        cur.execute(
+            "SELECT set_config('statement_timeout', %s, false)",
+            (args.statement_timeout,),
+        )
     return conn
 
 
