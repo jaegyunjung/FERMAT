@@ -158,6 +158,9 @@ def load_candidate_concepts(data_dir: Path, max_concepts: int, min_train_patient
 
     registry = pd.read_csv(registry_path)
     registry = registry.loc[registry["token_type"] == "DX"].copy()
+    registry = registry.loc[
+        registry["token_key"].astype(str).str.match(r"^DX:\d+$")
+    ].copy()
     registry["condition_concept_id"] = (
         registry["token_key"].str.removeprefix("DX:").astype(np.int64)
     )
