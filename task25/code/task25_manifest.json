@@ -1,0 +1,11 @@
+{
+  "name": "task25_generation_smoke_20260704",
+  "files": [
+    "task25/code/run_snuh_task25_generation_smoke.py",
+    "task25/code/model.py"
+  ],
+  "zip": "/Users/user/workspace/FERMAT/task25/zips/task25_generation_smoke_20260704.zip",
+  "sha256": "34db7c45687f43d49db90c47f88d561dd697976caef8a4867bec0e5c43c5580b",
+  "standalone": true,
+  "note": "includes model.py because checkpoint loading requires Fermat/FermatConfig"
+}

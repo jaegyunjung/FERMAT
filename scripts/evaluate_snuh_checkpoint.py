@@ -61,7 +61,8 @@ SEQUENCE_LENGTH_BUCKETS = [
     ("seq_000_127", 0, 127),
     ("seq_128_511", 128, 511),
     ("seq_512_1023", 512, 1023),
-    ("seq_1024_plus", 1024, None),
+    ("seq_1024_2048", 1024, 2048),
+    ("seq_2049_plus", 2049, None),
 ]
 VISIT_DENSITY_BUCKETS = [
     ("density_000_004_per_year", 0, 4),

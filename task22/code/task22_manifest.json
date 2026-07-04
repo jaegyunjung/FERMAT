@@ -1,0 +1,10 @@
+{
+  "name": "task22_bag_of_codes_lightgbm_20260704",
+  "files": [
+    "task22/code/run_snuh_task22_bag_of_codes_lightgbm.py"
+  ],
+  "zip": "/Users/user/workspace/FERMAT/task22/zips/task22_bag_of_codes_lightgbm_20260704.zip",
+  "sha256": "0266ddcc62768e553a1e27b11032720ce96699647e715fc18abf3c814d0c1c16",
+  "standalone": true,
+  "fix": "drop label age_at_index before baseline feature merge"
+}

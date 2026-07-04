@@ -1,0 +1,9 @@
+{
+  "name": "task24_sensitivity_20260704",
+  "files": [
+    "task24/code/run_snuh_task24_sensitivity.py"
+  ],
+  "zip": "/Users/user/workspace/FERMAT/task24/zips/task24_sensitivity_20260704.zip",
+  "sha256": "6be0214cc964b85ce9c85e45ba2832f53e93d92ef1d1a34004f37f60584f9194",
+  "standalone": true
+}

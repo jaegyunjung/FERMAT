@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a versioned Pod bundle for SNUH disease-risk benchmark setup."""
+"""Build a versioned Pod bundle for Task 21 context-length scaling work."""
 
 from __future__ import annotations
 
@@ -12,17 +12,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = [
-    "model.py",
     "utils.py",
-    "scripts/build_snuh_task19_disease_risk_candidates.py",
-    "scripts/build_snuh_task19_phenotype_group_counts.py",
-    "scripts/build_snuh_task19_patient_labels.py",
-    "scripts/build_snuh_task19_baseline_features.py",
-    "scripts/run_snuh_task19_baseline_models.py",
-    "scripts/extract_snuh_task19_fermat_embeddings.py",
-    "scripts/run_snuh_task19_embedding_models.py",
-    "scripts/run_snuh_task19_prediction_ci.py",
-    "scripts/run_snuh_task19_lightgbm_ci.py",
+    "model.py",
+    "train.py",
+    "configurator.py",
+    "config/train_fermat_snuh_full_two_stage_benchmark.py",
+    "config/train_fermat_snuh_full_two_stage_train.py",
+    "scripts/evaluate_snuh_checkpoint.py",
+    "scripts/profile_snuh_task21_sequence_lengths.py",
+    "scripts/run_snuh_task21_block_pilot.py",
 ]
 
 
@@ -39,8 +37,8 @@ def main():
         digest.update((ROOT / relative_path).read_bytes())
     content_hash = digest.hexdigest()[:12]
     state = f"{commit}{'_dirty' if dirty else ''}"
-    bundle_id = f"snuh_task19_disease_risk_{state}_{content_hash}"
-    output = ROOT / "dist" / "task19_disease_risk" / f"{bundle_id}.zip"
+    bundle_id = f"snuh_task21_context_length_{state}_{content_hash}"
+    output = ROOT / "dist" / "task21_context_length" / f"{bundle_id}.zip"
     output.parent.mkdir(parents=True, exist_ok=True)
     manifest = {
         "bundle_id": bundle_id,
@@ -48,9 +46,9 @@ def main():
         "dirty": dirty,
         "content_hash": content_hash,
         "files": FILES,
-        "pod_task_dir": "/home/khdp-user/workspace/fermat-data/task19",
+        "pod_task_dir": "/home/khdp-user/workspace/fermat-data/task21",
         "pod_extract_command": (
-            "TASK_DIR=/home/khdp-user/workspace/fermat-data/task19\n"
+            "TASK_DIR=/home/khdp-user/workspace/fermat-data/task21\n"
             "mkdir -p \"$TASK_DIR\"/code \"$TASK_DIR\"/outputs \"$TASK_DIR\"/logs \"$TASK_DIR\"/zips\n"
             "cd \"$TASK_DIR\"/code\n"
             f"unzip -o \"$TASK_DIR\"/zips/{output.name} -d {bundle_id}-code\n"
@@ -60,10 +58,7 @@ def main():
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
         for relative_path in FILES:
             archive.write(ROOT / relative_path, relative_path)
-        archive.writestr(
-            "bundle_manifest.json",
-            json.dumps(manifest, indent=2) + "\n",
-        )
+        archive.writestr("bundle_manifest.json", json.dumps(manifest, indent=2) + "\n")
     print(output)
     print(manifest["pod_extract_command"])
 

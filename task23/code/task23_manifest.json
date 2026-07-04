@@ -1,0 +1,8 @@
+{
+  "created_at": "2026-07-04T01:34:18+0900",
+  "task": "task23",
+  "purpose": "31-phenotype Cox survival benchmark for Task19 disease-risk labels",
+  "script": "code/run_snuh_task19_cox_survival_models.py",
+  "comparison": "cox_baseline vs cox_fermat_baseline",
+  "expected_embedding": "FERMAT-2048 embedding parquet"
+}
