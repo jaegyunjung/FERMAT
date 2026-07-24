@@ -1,0 +1,6 @@
+intervention_id,operation,token_key,occurrence,days_before_index,require_absent
+add_hba1c_q10_30d,add,LAB:3004410:8554:Q10,last,30,true
+add_hba1c_q10_365d,add,LAB:3004410:8554:Q10,last,365,true
+delete_last_hba1c_q10,delete,LAB:3004410:8554:Q10,last,,false
+move_last_hba1c_q10_to_30d,move,LAB:3004410:8554:Q10,last,30,false
+move_last_hba1c_q10_to_365d,move,LAB:3004410:8554:Q10,last,365,false

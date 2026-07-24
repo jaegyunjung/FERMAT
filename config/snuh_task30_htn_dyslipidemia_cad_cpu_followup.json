@@ -1,0 +1,25 @@
+{
+  "analysis_name": "task30_htn_dyslipidemia_cad_order_adjustment",
+  "pathway_id": "hypertension_dyslipidemia_to_cad",
+  "index_date": "2018-01-01",
+  "horizons_years": [1, 3, 5],
+  "order_reference": "hypertension_before_dyslipidemia",
+  "minimum_model_patients": 300,
+  "minimum_model_events": 20,
+  "common_support_quantiles": [0.05, 0.95],
+  "adjustment_numeric": [
+    "age_at_index",
+    "log1p_dx_rows",
+    "log1p_rx_rows",
+    "log1p_px_rows",
+    "log1p_clinical_active_days",
+    "log1p_clinical_unique_concepts"
+  ],
+  "adjustment_categorical": ["gender_concept_id"],
+  "model_scopes": ["test", "all"],
+  "analysis_cohorts": [
+    "all_order_groups",
+    "non_same_day",
+    "non_same_day_common_support"
+  ]
+}

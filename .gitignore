@@ -25,6 +25,7 @@ build/
 .env
 .venv/
 *.egg
+.Rhistory
 
 # IDE
 .vscode/
@@ -35,6 +36,9 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local scratch files
+tmp/
 
 # Jupyter
 .ipynb_checkpoints/

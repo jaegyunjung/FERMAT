@@ -215,6 +215,7 @@ class FermatConfig:
     bias: bool = True
     t_min: float = 1.0
     log_rate_init: float = None
+    use_global_log_rate: bool = True
     decoupled_time_head: bool = False
     two_stage_time_head: bool = False
     mask_ties: bool = False
@@ -272,7 +273,7 @@ class Fermat(nn.Module):
             # shared hidden state, so the time loss no longer reshapes the token
             # logits at the output layer. The transformer body stays shared.
             self.time_head = nn.Linear(config.n_embd, 1, bias=True)
-        else:
+        elif config.use_global_log_rate:
             # Option B (coupled): the rate is the summed token mass shifted by a
             # learnable global scalar.
             self.log_rate = nn.Parameter(torch.tensor(log_rate_init, dtype=torch.float32))
@@ -366,7 +367,9 @@ class Fermat(nn.Module):
                 if self.config.decoupled_time_head:
                     lse = self.time_head(x).squeeze(-1)
                 else:
-                    lse = torch.logsumexp(logits, -1) + self.log_rate
+                    lse = torch.logsumexp(logits, -1)
+                    if self.config.use_global_log_rate:
+                        lse = lse + self.log_rate
                 lse = -torch.log(torch.exp(-lse) + self.config.t_min)
                 dt = align_time_deltas(
                     age,
@@ -493,7 +496,8 @@ class Fermat(nn.Module):
                  no_repeat=True, termination_tokens=None, token_type_lookup=None,
                  top_k=None, temperature=1.0, allowed_token_mask=None,
                  same_day_no_repeat=False, same_day_repeat_penalty=0.0,
-                 same_day_temperature=1.0, same_day_prob_cap=1.0):
+                 same_day_temperature=1.0, same_day_prob_cap=1.0,
+                 return_final_logits=True):
         if termination_tokens is None:
             warnings.warn('Set termination_tokens for your vocabulary.')
             termination_tokens = []
@@ -582,7 +586,9 @@ class Fermat(nn.Module):
                 idx_next = torch.multinomial(probs, num_samples=1)
                 age_next = age[..., [-1]] + wait[:, None]
             else:
-                rate_logits = logits + self.log_rate
+                rate_logits = logits
+                if self.config.use_global_log_rate:
+                    rate_logits = rate_logits + self.log_rate
                 if top_k is not None and top_k > 0 and top_k < rate_logits.size(-1):
                     values, _ = torch.topk(rate_logits, top_k, dim=-1)
                     threshold = values[:, [-1]]
@@ -613,14 +619,21 @@ class Fermat(nn.Module):
             pad = (torch.cumsum(torch.cumsum(torch.isin(idx, termination_tokens), 1).bool().int(), 1) > 1) + (age > max_age)
         else:
             pad = age > max_age
-        logits, _, _ = self(
-            idx,
-            age,
-            token_type,
-            return_attention=False,
-        )
+        if return_final_logits:
+            logits, _, _ = self(
+                idx,
+                age,
+                token_type,
+                return_attention=False,
+            )
+        else:
+            # Rollout evaluation only needs the generated tokens and times.
+            # Skipping this pass avoids one full attention computation over the
+            # complete prefix + generated trajectory, which can be much longer
+            # than the training block size.
+            logits = None
         idx[pad] = 0; age[pad] = mask_time; token_type[pad] = TokenType.PAD
-        if no_repeat:
+        if no_repeat and logits is not None:
             fill = idx + 0; fill[fill == 1] = 0
             logits = torch.stack([logits[:, j].scatter_(1, fill[:, :j+1], -torch.inf) for j in range(fill.shape[1])]).transpose(0, 1)
         return idx, age, token_type, logits

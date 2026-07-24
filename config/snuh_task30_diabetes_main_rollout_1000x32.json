@@ -1,0 +1,48 @@
+{
+  "analysis_name": "task30_diabetes_main_population_rollout_1000x32",
+  "purpose": "Validate population risk curves, preserve individual rollout curves, and create the baseline system for a later small-patient perturbation analysis.",
+  "outcomes": [
+    "diabetes"
+  ],
+  "index_date": "2018-01-01",
+  "horizon_days": 1826,
+  "landmark_days": [
+    0,
+    365,
+    1095,
+    1826
+  ],
+  "split": "test",
+  "cohort_rule": "Exact validated diabetes Cox modelable test cohort identified by person_id membership in cox_test_predictions.parquet.",
+  "expected_sampling_frame_patients": 39712,
+  "future_outcome_labels_loaded_for_sampling": false,
+  "sampling": "simple_random_without_replacement",
+  "patients": 1000,
+  "rollouts_per_patient": 32,
+  "rollout_batch_size": 8,
+  "total_trajectories": 32000,
+  "max_new_tokens": 2048,
+  "top_k": 50,
+  "temperature": 1.0,
+  "same_day_repeat_penalty": 1.0,
+  "same_day_temperature": 1.0,
+  "same_day_probability_cap": 1.0,
+  "random_seed": 42,
+  "primary_estimand": "Cause-specific diabetes risk. Observed data use Kaplan-Meier 1-S(t), Cox uses cause-specific risk, and rollout treats generated death and token-cap end as censoring.",
+  "sensitivity_estimand": "Generated competing-risk cumulative incidence. A generated death before diabetes remains a non-diabetes outcome in the denominator.",
+  "runtime_basis": {
+    "benchmark_output": "/home/khdp-user/workspace/fermat-data/task30/outputs/diabetes_rollout_speed_benchmark_20260716_074006",
+    "batch_size": 8,
+    "measured_seconds_per_trajectory": 2.5608,
+    "planned_generation_hours": 22.7626666667
+  },
+  "output_size_basis": {
+    "measured_raw_bytes_per_trajectory": 1148.421875,
+    "estimated_raw_megabytes": 36.7495
+  },
+  "stage_boundary": {
+    "included": "Population curve comparison and saved individual baseline curves.",
+    "deferred": "Selection of individual patients, perturbation definitions, and high-rollout paired perturbation runs.",
+    "no_causal_claim": true
+  }
+}

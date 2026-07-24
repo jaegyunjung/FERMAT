@@ -1,0 +1,66 @@
+{
+  "analysis_name": "task30_five_pathway_fermat_cox_continuous_shift",
+  "index_date": "2018-01-01",
+  "horizon": "5y",
+  "horizon_days": 1826,
+  "split": "test",
+  "block_size": 2048,
+  "shift_days": [-360, -270, -180, -90, 0, 90, 180, 270, 360],
+  "patients_per_pathway": 128,
+  "embedding_batch_size": 64,
+  "max_attention_cells": 16777216,
+  "embedding_check_patients": 16,
+  "embedding_check_atol": 0.02,
+  "curve_step_days_for_patient_output": 30,
+  "pathways": [
+    {
+      "pathway_id": "diabetes_to_ckd",
+      "source_a": "diabetes",
+      "source_b": null,
+      "target": "chronic_kidney_disease"
+    },
+    {
+      "pathway_id": "chronic_hepatitis_b_to_hcc",
+      "source_a": "chronic_hepatitis_b",
+      "source_b": null,
+      "target": "hepatocellular_carcinoma"
+    },
+    {
+      "pathway_id": "hypertension_to_cad",
+      "source_a": "hypertension",
+      "source_b": null,
+      "target": "coronary_artery_disease"
+    },
+    {
+      "pathway_id": "hypertension_to_stroke",
+      "source_a": "hypertension",
+      "source_b": null,
+      "target": "ischemic_stroke"
+    },
+    {
+      "pathway_id": "hypertension_dyslipidemia_to_cad",
+      "source_a": "hypertension",
+      "source_b": "dyslipidemia",
+      "target": "coronary_artery_disease"
+    }
+  ],
+  "cox_model": "embedding_only_cox_fitted_once_per_unique_target",
+  "edit_definition": "Move every visible DX token on the first recorded source-diagnosis day while preserving the exact same set of 2048 visible row identities.",
+  "future_rollout_raw_output_contract": {
+    "applies_when_rollout_is_added": true,
+    "save_before_summary": true,
+    "required_event_fields": [
+      "person_id",
+      "pathway_id",
+      "source_role",
+      "shift_days",
+      "rollout_index",
+      "generated_position",
+      "generated_model_token_id",
+      "generated_stored_token_id",
+      "generated_token_type_id",
+      "generated_absolute_age_days",
+      "generated_day_from_index"
+    ]
+  }
+}

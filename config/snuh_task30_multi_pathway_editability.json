@@ -1,0 +1,41 @@
+{
+  "analysis_name": "task30_multi_pathway_same_patient_editability",
+  "index_date": "2018-01-01",
+  "split": "test",
+  "block_size": 2048,
+  "paired_shift_days": [-365, 365],
+  "gpu_sample_patients_per_pathway": 128,
+  "planned_rollouts_per_patient_arm": 16,
+  "random_seed": 42,
+  "pathways": [
+    {
+      "pathway_id": "chronic_hepatitis_b_to_hcc",
+      "source_a": "chronic_hepatitis_b",
+      "source_b": null,
+      "target": "hepatocellular_carcinoma",
+      "preferred_family": "source_a_paired_shift"
+    },
+    {
+      "pathway_id": "hypertension_to_cad",
+      "source_a": "hypertension",
+      "source_b": null,
+      "target": "coronary_artery_disease",
+      "preferred_family": "source_a_paired_shift"
+    },
+    {
+      "pathway_id": "hypertension_to_stroke",
+      "source_a": "hypertension",
+      "source_b": null,
+      "target": "ischemic_stroke",
+      "preferred_family": "source_a_paired_shift"
+    },
+    {
+      "pathway_id": "hypertension_dyslipidemia_to_cad",
+      "source_a": "hypertension",
+      "source_b": "dyslipidemia",
+      "target": "coronary_artery_disease",
+      "preferred_family": "joint_timing_set"
+    }
+  ],
+  "selection_boundary": "Future target events, event times, and observed target incidence are not read or used for eligibility, ranking, or sampling."
+}

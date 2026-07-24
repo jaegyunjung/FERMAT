@@ -1,0 +1,56 @@
+{
+  "analysis_name": "task30_continuous_diagnosis_time_shift_ranges",
+  "index_date": "2018-01-01",
+  "split": "test",
+  "block_size": 2048,
+  "maximum_recommended_range_days": 1095,
+  "minimum_coverage_fraction": 0.80,
+  "minimum_supported_patients": 128,
+  "dense_grid_step_days": 30,
+  "initial_rollout_grid_step_days": 90,
+  "initial_rollout_maximum_range_days": 365,
+  "random_seed": 42,
+  "gpu_sample_patients_per_pathway": 128,
+  "diabetes_gpu_sample_strata": {
+    "measured_no_abnormality": 64,
+    "recent_abnormality": 64
+  },
+  "pathways": [
+    {
+      "pathway_id": "diabetes_to_ckd",
+      "source_a": "diabetes",
+      "source_b": null,
+      "target": "chronic_kidney_disease",
+      "preferred_family": "source_a_paired_shift"
+    },
+    {
+      "pathway_id": "chronic_hepatitis_b_to_hcc",
+      "source_a": "chronic_hepatitis_b",
+      "source_b": null,
+      "target": "hepatocellular_carcinoma",
+      "preferred_family": "source_a_paired_shift"
+    },
+    {
+      "pathway_id": "hypertension_to_cad",
+      "source_a": "hypertension",
+      "source_b": null,
+      "target": "coronary_artery_disease",
+      "preferred_family": "source_a_paired_shift"
+    },
+    {
+      "pathway_id": "hypertension_to_stroke",
+      "source_a": "hypertension",
+      "source_b": null,
+      "target": "ischemic_stroke",
+      "preferred_family": "source_a_paired_shift"
+    },
+    {
+      "pathway_id": "hypertension_dyslipidemia_to_cad",
+      "source_a": "hypertension",
+      "source_b": "dyslipidemia",
+      "target": "coronary_artery_disease",
+      "preferred_family": "joint_timing_set"
+    }
+  ],
+  "selection_boundary": "Future target events, event times, and observed target incidence are not read or used. A stable range keeps the exact same set of row identities in the model-visible 2048-record context."
+}

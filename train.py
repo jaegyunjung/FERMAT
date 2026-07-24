@@ -74,6 +74,7 @@ compile = False
 # FERMAT specific
 token_dropout = 0.0
 t_min = 0.0
+use_global_log_rate = True
 decoupled_time_head = False
 two_stage_time_head = False
 mask_ties = True
@@ -183,6 +184,7 @@ model_args = dict(
     n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
     bias=bias, vocab_size=vocab_size, n_token_types=n_token_types,
     dropout=dropout, token_dropout=token_dropout, t_min=t_min,
+    use_global_log_rate=use_global_log_rate,
     decoupled_time_head=decoupled_time_head,
     two_stage_time_head=two_stage_time_head,
     mask_ties=mask_ties, ignore_tokens=ignore_tokens,

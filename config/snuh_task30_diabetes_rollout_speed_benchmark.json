@@ -1,0 +1,48 @@
+{
+  "analysis_name": "task30_diabetes_rollout_speed_benchmark",
+  "purpose": "Measure FERMAT rollout runtime, GPU memory, horizon completion, and diabetes token hit rate before selecting the main Task 30 run size.",
+  "outcomes": [
+    "diabetes"
+  ],
+  "index_date": "2018-01-01",
+  "horizon_days": 1826,
+  "split": "test",
+  "cohort_rule": "Exact validated diabetes Cox modelable test cohort identified only by person_id membership in cox_test_predictions.parquet.",
+  "expected_sampling_frame_patients": 39712,
+  "future_outcome_labels_loaded_for_sampling": false,
+  "sampling": "simple_random_without_replacement",
+  "patients": 4,
+  "rollouts_per_patient_per_batch_size": 16,
+  "batch_sizes": [
+    4,
+    8
+  ],
+  "measured_trajectories": 128,
+  "warmup": {
+    "patients": 1,
+    "rollouts": 4,
+    "batch_size": 4,
+    "included_in_runtime_comparison": false,
+    "included_in_hit_rate": false
+  },
+  "max_new_tokens": 2048,
+  "top_k": 50,
+  "temperature": 1.0,
+  "same_day_repeat_penalty": 1.0,
+  "same_day_temperature": 1.0,
+  "same_day_probability_cap": 1.0,
+  "random_seed": 42,
+  "runtime_basis": {
+    "source": "stopped Task 30 diabetes rollout Pod run",
+    "measured_trajectories": 1200,
+    "measured_seconds": 2419,
+    "seconds_per_trajectory": 2.0158333333,
+    "expected_measured_generation_seconds": 258.0266666624,
+    "expected_measured_generation_minutes": 4.3004444444
+  },
+  "benchmark_rationale": {
+    "patients": "Four outcome-blind patients provide repeated timing across different prefix lengths while keeping the benchmark short.",
+    "rollouts": "Sixteen futures are exactly divisible by both batch sizes and give four batch-4 calls versus two batch-8 calls per patient.",
+    "claim_boundary": "Technical benchmark only. Do not report its hit rate as a calibrated risk estimate or compare it with observed or Cox curves."
+  }
+}

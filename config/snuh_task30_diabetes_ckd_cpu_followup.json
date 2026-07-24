@@ -1,0 +1,39 @@
+{
+  "analysis_name": "task30_diabetes_ckd_adjusted_and_renal_sensitivity",
+  "pathway_id": "diabetes_to_ckd",
+  "index_date": "2018-01-01",
+  "horizon_years": 5,
+  "recency_reference": "0001_180d",
+  "minimum_model_patients": 500,
+  "minimum_model_events": 50,
+  "adjustment_numeric": [
+    "age_at_index",
+    "log1p_dx_rows",
+    "log1p_rx_rows",
+    "log1p_px_rows",
+    "log1p_clinical_active_days",
+    "log1p_clinical_unique_concepts"
+  ],
+  "adjustment_categorical": [
+    "gender_concept_id"
+  ],
+  "renal_screen": {
+    "egfr_cutoff": 60.0,
+    "recent_days": 730,
+    "creatinine_male_cutoff": 1.3,
+    "creatinine_female_cutoff": 1.1,
+    "creatinine_other_cutoff": 1.2,
+    "male_gender_concept_id": 8507,
+    "female_gender_concept_id": 8532,
+    "interpretation": "Screening definition only. A single abnormal value is not a CKD diagnosis."
+  },
+  "analysis_cohorts": [
+    "full",
+    "exclude_any_known_renal_abnormality",
+    "measured_no_renal_abnormality"
+  ],
+  "model_scopes": [
+    "test",
+    "all"
+  ]
+}

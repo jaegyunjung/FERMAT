@@ -1,0 +1,18 @@
+{
+  "analysis_name": "task30_diabetes_ckd_same_patient_editability",
+  "pathway_id": "diabetes_to_ckd",
+  "phenotype": "diabetes",
+  "index_date": "2018-01-01",
+  "split": "test",
+  "block_size": 2048,
+  "onset_window_days": 30,
+  "shift_days": [-1095, -365, 365, 1095],
+  "patient_chunk_size": 250,
+  "minimum_visible_diabetes_patients": 500,
+  "interpretation": {
+    "negative_shift": "Move the selected historical records earlier.",
+    "positive_shift": "Move the selected historical records later.",
+    "nearby_records": "RX, LAB, and PX counts describe records near the first diabetes diagnosis; they are not assumed to be diabetes-specific.",
+    "selection_rule": "Cross-patient association between recorded diabetes duration and CKD is not used as a feasibility gate."
+  }
+}

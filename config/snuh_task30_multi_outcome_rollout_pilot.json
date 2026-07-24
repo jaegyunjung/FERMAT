@@ -1,0 +1,61 @@
+{
+  "analysis_name": "task30_multi_outcome_rollout_pilot",
+  "purpose": "Measure shared-rollout hit rates and runtime before selecting the final Task 30 rollout outcome.",
+  "primary_outcome": "diabetes",
+  "backup_outcome": "chronic_kidney_disease",
+  "rollout_feasibility_comparator": "dyslipidemia",
+  "outcomes": [
+    "diabetes",
+    "chronic_kidney_disease",
+    "dyslipidemia"
+  ],
+  "index_date": "2018-01-01",
+  "horizon_days": 1826,
+  "split": "test",
+  "cohort_rule": "Common modelable cohort with pre-index washout and no prior record of any configured outcome.",
+  "future_outcome_labels_used_for_sampling": false,
+  "sampling": "simple_random_without_replacement",
+  "patients": 160,
+  "rollouts_per_patient": 60,
+  "total_trajectories": 9600,
+  "patient_chunk_size": 5,
+  "rollout_batch_size": 8,
+  "max_new_tokens": 2048,
+  "top_k": 50,
+  "temperature": 1.0,
+  "same_day_repeat_penalty": 1.0,
+  "same_day_temperature": 1.0,
+  "same_day_probability_cap": 1.0,
+  "random_seed": 42,
+  "batch_size_benchmark": {
+    "enabled": true,
+    "patients": 2,
+    "rollouts_per_patient": 16,
+    "batch_sizes": [4, 8],
+    "included_in_main_results": false
+  },
+  "runtime_basis": {
+    "source": "stopped Task 30 diabetes rollout Pod run",
+    "measured_patients_per_chunk": 20,
+    "measured_rollouts_per_patient": 60,
+    "measured_trajectories_per_chunk": 1200,
+    "measured_seconds_per_chunk": 2419,
+    "planned_main_seconds": 19352,
+    "planned_main_hours": 5.3755555556,
+    "planned_raw_chunks": 32,
+    "planned_seconds_per_raw_chunk": 604.75,
+    "planned_minutes_per_raw_chunk": 10.0791666667,
+    "batch_benchmark_trajectories": 64,
+    "planned_total_trajectories_including_benchmark": 9664,
+    "planned_generation_seconds_including_benchmark": 19481.0133333333,
+    "planned_generation_hours_including_benchmark": 5.4113925926
+  },
+  "monte_carlo_reference": {
+    "per_patient_probability_resolution": 0.0166666667,
+    "binomial_standard_error_if_true_risk_0_01": 0.0128452326,
+    "binomial_standard_error_if_true_risk_0_03": 0.0220227155,
+    "binomial_standard_error_if_true_risk_0_05": 0.0281365717,
+    "interpretation": "Sixty futures are adequate for cohort-level hit-rate feasibility, but not for a stable low-risk individual curve."
+  },
+  "claim_boundary": "Benchmark and pilot only. Do not interpret as a calibrated risk curve or causal result."
+}

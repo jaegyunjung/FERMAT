@@ -1,0 +1,24 @@
+{
+  "analysis_name": "task30_diabetes_ckd_paired_pilot_selection",
+  "strategy": "first_diabetes_day_dx",
+  "required_shift_days": [-365, 365],
+  "require_technical_feasible": true,
+  "require_anchor_visible": true,
+  "require_all_moved_rows_visible": true,
+  "pilot_strata": {
+    "measured_no_abnormality": 64,
+    "recent_abnormality": 64
+  },
+  "random_seed": 42,
+  "planned_arms": [
+    {"arm": "original", "shift_days": 0},
+    {"arm": "first_diabetes_day_earlier_365d", "shift_days": -365},
+    {"arm": "first_diabetes_day_later_365d", "shift_days": 365}
+  ],
+  "planned_rollouts_per_patient_arm": 16,
+  "minimum_baseline_ckd_hits_to_continue": {
+    "measured_no_abnormality": 5,
+    "recent_abnormality": 10
+  },
+  "selection_boundary": "Future CKD event_type is not used for eligibility, ranking, or sampling."
+}

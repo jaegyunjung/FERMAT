@@ -1,0 +1,17 @@
+{
+  "pathway_id": "hypertension_to_cad",
+  "condition_variable": "source_recency_days",
+  "condition_split_days": 730,
+  "minimum_group_patients": 200,
+  "minimum_group_events": 30,
+  "adjustment_sets": {
+    "base": {
+      "numeric": ["age_at_index"],
+      "categorical": ["gender_concept_id"]
+    },
+    "extended": {
+      "numeric": ["age_at_index", "log1p_dx_rows", "log1p_rx_rows", "log1p_px_rows", "log1p_clinical_active_days", "log1p_clinical_unique_concepts"],
+      "categorical": ["gender_concept_id"]
+    }
+  }
+}
