@@ -1,0 +1,44 @@
+{
+  "stages": [
+    {
+      "name": "event_only",
+      "updates": 100000,
+      "selected_update": 76000,
+      "loss": "loss_ce"
+    },
+    {
+      "name": "event_and_time",
+      "updates": 100000,
+      "selected_update": 93000,
+      "loss": "loss_ce + 0.3 * (loss_same_day + loss_dt)"
+    }
+  ],
+  "batch_size": 8,
+  "gradient_accumulation_steps": 16,
+  "block_size": 512,
+  "optimizer": "AdamW",
+  "learning_rate": 0.0002,
+  "min_learning_rate": 2e-05,
+  "weight_decay": 0.1,
+  "betas": [
+    0.9,
+    0.99
+  ],
+  "grad_clip": 1.0,
+  "warmup_updates": 2000,
+  "seed": 42,
+  "dropout": 0.1,
+  "clinical_time_target_types": [
+    1,
+    2,
+    3,
+    6
+  ],
+  "excluded_target_types": [
+    0,
+    7,
+    8,
+    4,
+    9
+  ]
+}

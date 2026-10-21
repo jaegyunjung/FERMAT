@@ -1,0 +1,14 @@
+{
+  "release": "fermat-snuh-20261021",
+  "checkpoint_step": 93000,
+  "checkpoint_sha256": "57a8df9503bb6fbeac0a24f586fb01867e321b82418622ccef7a7cb5cbec976b",
+  "unique_parameters": 65221122,
+  "source_model_sha256": "96db469bd6c8b857baba97b7010ed2f3511accdd9c2248cd74bcfa4d3b77b901",
+  "source_inference_sha256": "d5d9ff99ffa2dd2e197cc4e091aad1f46c420e92e851f912d94958ab0618dab7",
+  "validation_objective": 4.1976882089725684,
+  "original_parameter_dtype": "bfloat16",
+  "loaded_parameter_dtype": "float32",
+  "source_training_commit": "5b5e24d2adc96d557189b580cfabf5fe663f836f",
+  "training_source_note": "Model snapshot is exact. Source checkout also had local training and ETL modifications; the commit alone does not reproduce the run.",
+  "torch_version": "2.12.1+cu132"
+}

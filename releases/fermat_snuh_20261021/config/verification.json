@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "device": "cpu",
+  "checkpoint_parameter_tensors": "exactly equal after original FP32 loading",
+  "adapter_distribution_prefixes": 3,
+  "adapter_max_absolute_error": 0,
+  "embedding_parity": "bitwise exact on synthetic prefixes",
+  "head_logits_parity": "bitwise exact on synthetic prefix",
+  "normalization_export": "mean and sd only; no training indices",
+  "unit_tests_passed": 6,
+  "finetuning_optimizer_steps": 1,
+  "finetuning_loss": 7.5017547607421875,
+  "source_model_sha256": "96db469bd6c8b857baba97b7010ed2f3511accdd9c2248cd74bcfa4d3b77b901",
+  "scope": "Packaging and implementation parity. No new downstream cohort evaluation."
+}

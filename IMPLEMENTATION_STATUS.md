@@ -1,5 +1,9 @@
 # FERMAT Implementation Status Report
 
+> Historical report (2026-05-19). For the current SNUH model and completed work,
+> see [the 2026-10-21 release](releases/fermat_snuh_20261021/README.md) and
+> [progress report](releases/fermat_snuh_20261021/docs/PROGRESS.md).
+
 **Foundation model for Exploring Real-world Multimodal health data using Autoregressive Trajectory modeling**
 
 Date: 2026-05-19

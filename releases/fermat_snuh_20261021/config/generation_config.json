@@ -1,0 +1,21 @@
+{
+  "adapter_version": "observed-history-two-date-branches-v1",
+  "temperature": 1.0,
+  "top_k": null,
+  "no_repeat": false,
+  "same_day_probability_cap": 1.0,
+  "allowed_output_types": [
+    1,
+    2,
+    3,
+    6
+  ],
+  "context_length": 512,
+  "time_unit": "days",
+  "same_day_gap": 0,
+  "positive_gap_min": 1,
+  "positive_gap_max": 29200,
+  "death_type": 6,
+  "analysis_day_convention": "For disease evaluation only: floor(raw_offset_days + 1). Raw generated ages remain continuous.",
+  "path_cap_policy": "A path stopped by max_new_tokens is incomplete, never a negative outcome."
+}

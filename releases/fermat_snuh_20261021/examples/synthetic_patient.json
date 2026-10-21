@@ -1,0 +1,35 @@
+{
+  "note": "Fabricated software-test fixture. Arbitrary vocabulary entries; not a real patient or clinically coherent case.",
+  "events": [
+    {
+      "age_days": 0,
+      "token_key": "SEX:F"
+    },
+    {
+      "age_days": 18250,
+      "token_key": "DX:4029305"
+    },
+    {
+      "age_days": 18250,
+      "token_key": "RX:42481573"
+    },
+    {
+      "age_days": 18300,
+      "token_key": "PX:36713260"
+    },
+    {
+      "age_days": 18400,
+      "token_key": "DX:4029305"
+    },
+    {
+      "age_days": 18400,
+      "token_key": "RX:42481573"
+    },
+    {
+      "age_days": 18400,
+      "measurement_concept_id": 1002070,
+      "unit_concept_id": 8980,
+      "value_as_number": 24.0
+    }
+  ]
+}

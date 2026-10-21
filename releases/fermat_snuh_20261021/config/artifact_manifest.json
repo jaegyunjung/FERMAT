@@ -1,0 +1,26 @@
+{
+  "artifacts/head_classes.npy": {
+    "bytes": 139808,
+    "sha256": "1703f7373bc968d341c714092cb93ad548dac3fd3b48f4714628a93b21932468"
+  },
+  "artifacts/head_standardization.npz": {
+    "bytes": 5618,
+    "sha256": "ff9b9c941f4f9372eda3004e67bf046285f84ca87b6b7e9a6e8d003681965a86"
+  },
+  "artifacts/lab_cutpoints.json": {
+    "bytes": 129534,
+    "sha256": "c6f8107ba50a4f47f606811b4a2e97558917b4d96419f65093492a5018bab821"
+  },
+  "artifacts/model.pt": {
+    "bytes": 135705676,
+    "sha256": "fccf4a76f2d44a86ac121c52e5c444be0e63904f64e47fb4f804e21458dbd865"
+  },
+  "artifacts/next_record_head.pt": {
+    "bytes": 44769389,
+    "sha256": "022a338304c55b7ff1c9b43591bff54719a22c508064f68084e8ea3260551ae3"
+  },
+  "artifacts/token_registry.csv": {
+    "bytes": 603283,
+    "sha256": "54cbdc2f80f245283ebb62d6dbd2c2291416e686a21618cd8609989aed08588a"
+  }
+}

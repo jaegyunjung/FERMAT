@@ -1,0 +1,11 @@
+{
+  "architecture": "linear",
+  "seed": 20260910,
+  "n_train": 100000,
+  "input_features": 640,
+  "output_classes": 17460,
+  "validation_recall": 0.6228172351283445,
+  "validation_bce": 18.01284654369058,
+  "standardization": "(last_token_embedding - train_mean) / train_sd",
+  "test_recall_at_10": 0.6341648808386835
+}

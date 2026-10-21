@@ -1,5 +1,9 @@
 # FERMAT Token Specification v0.1
 
+> Historical synthetic-data specification. The current SNUH checkpoint uses
+> [the 2026-10-21 input specification](../releases/fermat_snuh_20261021/docs/INPUT_SPEC.md).
+> Its vocabulary and LAB target policy differ from this document.
+
 This document defines how OMOP CDM events are converted into FERMAT's
 4-column event sequence. It is the **mapping rule layer** that the
 existing FERMAT README's "token schema" leaves to implementation.

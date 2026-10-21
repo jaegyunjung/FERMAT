@@ -1,0 +1,8 @@
+{
+  "python": "3.12.3",
+  "torch": "2.12.1+cu132",
+  "numpy": "2.5.2",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "device": "cpu",
+  "threads": 2
+}

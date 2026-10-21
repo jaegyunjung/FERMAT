@@ -1,0 +1,4 @@
+disease,eligible_n,paired_supported_n,eligible_missing_five_year_estimate,all_missing_five_year_estimate,observed_supported_n,actual_events_supported,unresolved_paths,all_generated_paths,capped_paths_with_disease_hit,horizon_riskset_median,max_clinical_weight
+chronic_kidney_disease,1950,1825,125,131,1088,23,72108,99950,325,9.0,1.711886454300668
+fatty_liver,1924,1800,124,139,1074,45,72037,99950,89,10.0,1.7185584580450581
+diabetes,1756,1634,122,160,966,57,67400,99950,503,8.0,1.7534368023914566
