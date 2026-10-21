@@ -1,0 +1,20 @@
+{
+  "status": "PASS",
+  "checks": [
+    {
+      "split": "val",
+      "bundle_labels_independently_reconstructed": 256,
+      "both_model_bundle_scores_recomputed": true,
+      "patient_mean_joint_score_recomputed": true
+    },
+    {
+      "split": "test",
+      "bundle_labels_independently_reconstructed": 256,
+      "both_model_bundle_scores_recomputed": true,
+      "patient_mean_joint_score_recomputed": true
+    }
+  ],
+  "weights_unchanged": true,
+  "validation_selection_preceded_test_completion": true,
+  "original_delivery_archive_sha256": "9b6dba3ff587cdff6a1336a4153a81bbc626a251062f5bc5d2ae2e9bd829f5c3"
+}

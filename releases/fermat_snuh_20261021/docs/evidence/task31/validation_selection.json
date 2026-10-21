@@ -1,0 +1,12 @@
+{
+  "selected": "FERMAT",
+  "criteria": {
+    "joint_nll_upper_below_zero": false,
+    "marginal_event_mean_not_worse": false,
+    "bundle_cap_aware_mean_not_worse": false
+  },
+  "protocol_sha256": "4e12606401fe67d59bdadcc0660a81f182dd40b8831f8105a77273f48bd0ae5e",
+  "validation_results_sha256": "efa82dd4d64ae65e90a95e53e9a450c6de78f05537f35f28a3f5a2b3386ba435",
+  "test_results_used": false,
+  "rule": "Promote Task31 only if VAL paired joint-NLL difference Task31-FERMAT has bootstrap 95% upper<0, VAL marginal-event-NLL mean difference<=0, and VAL generated-bundle Recall@10 worst-case cap-aware mean difference lower bound>=0. Otherwise retain FERMAT as default. These are selection guards, not formal equivalence/noninferiority tests."
+}

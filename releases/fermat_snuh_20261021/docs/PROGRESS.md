@@ -15,7 +15,7 @@ long-term risk evaluation, not the sole purpose of the model.
 | Corrected joint generation | Same/different-day branches aligned with the training mask, without changing foundation weights |
 | Corrected disease generation extension | Completed 1,999 patients × 50 paths = 99,950 paths; reused 19,990 from the first 10 paths and added 79,960; completed 2026-10-20 |
 | ETHOS disease comparison | Existing outputs evaluated with explicit END/token-cap handling; termination semantics substantially affect conclusions |
-| Task 31 ablation | Separate timing-head ablation finished 100k updates; not promoted as the default joint model |
+| Task 31 ablation | Completed matched frozen-checkpoint comparison without retraining; retained original FERMAT for joint event/time use, while Task 31 improved direct next-record item selection; see [comparison](TASK31_COMPARISON.md) |
 | Collaborator handoff | Model-only weights, exact architecture, corrected inference, frozen registry/lab bins, selected next-record head, synthetic examples and verification |
 
 ## Five-year disease risk comparison
@@ -57,7 +57,9 @@ Samsung Life performance result exists in this release.
 For the manuscript, keep a versioned separation between historical next-record-day
 results, corrected generation, head scaling, and the later ETHOS comparison.
 Next-record-day 71.00% must not be labeled as newly measured performance of the
-corrected generator. This handoff performs no new model training or long generation.
+corrected generator. The subsequent Task 31 comparison used a separate bounded
+256-patient, 10-path generation evaluation per split. It performed no new model
+training or five-year generation.
 
 ## Aggregate evidence
 

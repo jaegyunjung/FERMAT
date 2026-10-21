@@ -1,0 +1,61 @@
+{
+  "version": "task31-comparison-v1",
+  "created_utc": "2026-10-21T09:48:59.046269+00:00",
+  "purpose": "Choose collaborator default model without retraining; internal post-manuscript comparison",
+  "checkpoints": {
+    "FERMAT": {
+      "path": "/home/fermat/fermat-data/out/snuh_task16_main_10l10h640_b512_ce_then_time_v2_resumable/stage2_time/ckpt.pt",
+      "sha256": "57a8df9503bb6fbeac0a24f586fb01867e321b82418622ccef7a7cb5cbec976b"
+    },
+    "Task31": {
+      "path": "/home/fermat/fermat-data/out/task31_sameday_ablation_stage2_v1/ckpt.pt",
+      "sha256": "db27ee53c4c0a03570e395d390654a38ab328a982452b067802fc216b2384786"
+    }
+  },
+  "cohort": "Reuse existing fixed val=2000/test=1999 baseline-alive patients, identical source prefixes in both arms",
+  "observed": "First up to 8 clinical target transitions in first 64 post-index source events, at or before death and five-year horizon; full observed prefix before each target, max 512",
+  "absent_outcomes": "Report missing follow-up; do not fabricate negatives. Patient-average metrics across available transitions.",
+  "inference": "Both arms use observed-history same/different-day event branches. FERMAT time head reads different-day branch; Task31 time head reads plain history as trained.",
+  "arithmetic": "Same BF16 backbone, FP32 event log-softmax, FP64 log time probabilities; no top-k, temperature=1, no repeat penalty.",
+  "primary": "Patient-mean joint negative log probability of observed event token and integer-day gap (lower better)",
+  "day_probability": "Integer-day bin mass of each actual sampler: FERMAT p0 plus conditional clamp(Exp,1,29200); Task31 p0 plus conditional clamp(1+Exp,1,29200). No disease-analysis +1 shift in next-transition likelihood.",
+  "secondary": [
+    "marginal_event_nll",
+    "event_top1",
+    "event_top5",
+    "same_day_brier",
+    "same_day_logloss",
+    "day_nll",
+    "baseline_next_record_expected_tie_recall_at_10",
+    "generated_next_record_expected_tie_recall_at_10"
+  ],
+  "bundles": {
+    "patients_each_split": 256,
+    "paths_each_patient": 10,
+    "cap_each_path": 256,
+    "stop": "First future DX/RX/PX day complete, death, horizon, or explicit unresolved cap",
+    "day_convention": "floor(raw generated age - index_age + 1), exactly inherited next-record-day definition",
+    "ranking": "Token presence frequency across 10 paths, all 17460 DX/RX/PX candidates, expected Recall@10 across ties",
+    "paired_randomness": "Same per-patient/path uniform bank seeds, independent of labels; no reranking/tuning after results",
+    "cap_policy": "Never exclude or call capped paths complete. If any path unresolved, patient recall is bounded [0,1]; overall paired difference bound combines resolved patient differences and worst-case unresolved bounds.",
+    "selection_sha256": "bb6833ffad695b913f29aff7f4c352d17619fc293e66fe00c759a5938b9e883f"
+  },
+  "selection_rule": "Promote Task31 only if VAL paired joint-NLL difference Task31-FERMAT has bootstrap 95% upper<0, VAL marginal-event-NLL mean difference<=0, and VAL generated-bundle Recall@10 worst-case cap-aware mean difference lower bound>=0. Otherwise retain FERMAT as default. These are selection guards, not formal equivalence/noninferiority tests.",
+  "uncertainty": "5000 paired patient bootstrap replicates, fixed fitted checkpoints and sampled paths, seed 20261021. Test results do not select model; report any validation/test disagreement.",
+  "stop": "Exactly specified cohorts, 10 paths, 256 cap. No outcome-driven sample expansion, no additional training, no five-year generation. Numerical errors are logged; other patients continue; missing cases block a complete scientific claim until repaired.",
+  "estimated_runtime": {
+    "measured_compute_minutes": [
+      25,
+      35
+    ],
+    "including_validation_and_reporting_minutes": [
+      45,
+      60
+    ],
+    "benchmark_files": [
+      "benchmark.json",
+      "generation_benchmark.json"
+    ]
+  },
+  "existing_package": "Preserve exports/FERMAT_SNUH_20261021.zip unless a separately versioned replacement is supported."
+}

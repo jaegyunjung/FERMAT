@@ -1,0 +1,58 @@
+{
+  "val": {
+    "event_weighted_actual_same_day": 0.6746207099720135,
+    "patient_joint_nll_difference_median": 0.9588370371616677,
+    "fraction_patients_with_lower_FERMAT_joint_nll": 0.8290460878885316,
+    "patient_joint_nll_difference_quantiles": {
+      "0.0": -9.507239600925946,
+      "0.25": 0.26213256677059693,
+      "0.5": 0.9588370371616677,
+      "0.75": 1.8977726846689877,
+      "0.95": 53.032366607730566,
+      "0.99": 248.8386900443823,
+      "1.0": 2848.0609054656093
+    },
+    "models": {
+      "FERMAT": {
+        "event_weighted_mean_same_day_probability": 0.7772660091162872,
+        "mean_probability_when_actual_same_day": 0.9112225950553217,
+        "mean_probability_when_actual_different_day": 0.4995289499941603,
+        "patient_joint_nll_median": 4.216386304484644
+      },
+      "Task31": {
+        "event_weighted_mean_same_day_probability": 0.40364057384422947,
+        "mean_probability_when_actual_same_day": 0.526137177052681,
+        "mean_probability_when_actual_different_day": 0.1496639135025778,
+        "patient_joint_nll_median": 5.348222724370219
+      }
+    }
+  },
+  "test": {
+    "event_weighted_actual_same_day": 0.6728222483814008,
+    "patient_joint_nll_difference_median": 0.9238699047273045,
+    "fraction_patients_with_lower_FERMAT_joint_nll": 0.8425577646426652,
+    "patient_joint_nll_difference_quantiles": {
+      "0.0": -4.249667957776017,
+      "0.25": 0.2793602143487641,
+      "0.5": 0.9238699047273045,
+      "0.75": 1.9094393927500968,
+      "0.95": 52.10544701555297,
+      "0.99": 225.20340959285954,
+      "1.0": 2793.2151997134033
+    },
+    "models": {
+      "FERMAT": {
+        "event_weighted_mean_same_day_probability": 0.7769339727561579,
+        "mean_probability_when_actual_same_day": 0.9127498510355393,
+        "mean_probability_when_actual_different_day": 0.49763642230305677,
+        "patient_joint_nll_median": 4.166825785163975
+      },
+      "Task31": {
+        "event_weighted_mean_same_day_probability": 0.40091416266838126,
+        "mean_probability_when_actual_same_day": 0.5234286166218606,
+        "mean_probability_when_actual_different_day": 0.14897022711529645,
+        "patient_joint_nll_median": 5.324442665415312
+      }
+    }
+  }
+}

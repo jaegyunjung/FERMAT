@@ -1,0 +1,112 @@
+{
+  "phase": "val",
+  "status": "VERIFIED",
+  "protocol_sha256": "4e12606401fe67d59bdadcc0660a81f182dd40b8831f8105a77273f48bd0ae5e",
+  "observed_events": 13578,
+  "observed_patients": 1866,
+  "paired": [
+    {
+      "metric": "joint_nll",
+      "patients": 1866,
+      "FERMAT": 4.628926554218307,
+      "Task31": 16.638129851708438,
+      "Task31_minus_FERMAT": 12.009203297490133,
+      "ci_low": 8.931262180716153,
+      "ci_high": 16.205415376525636
+    },
+    {
+      "metric": "event_nll",
+      "patients": 1866,
+      "FERMAT": 2.310488751142958,
+      "Task31": 2.5513008711609184,
+      "Task31_minus_FERMAT": 0.2408121200179606,
+      "ci_low": 0.2189210042162408,
+      "ci_high": 0.26171253895666935
+    },
+    {
+      "metric": "day_nll",
+      "patients": 1866,
+      "FERMAT": 2.5597932322704975,
+      "Task31": 14.559934087376543,
+      "Task31_minus_FERMAT": 12.000140855106045,
+      "ci_low": 8.92266144650337,
+      "ci_high": 16.19400127312095
+    },
+    {
+      "metric": "same_day_brier",
+      "patients": 1866,
+      "FERMAT": 0.15275131570601544,
+      "Task31": 0.2913320065807618,
+      "Task31_minus_FERMAT": 0.13858069087474628,
+      "ci_low": 0.12840225260373497,
+      "ci_high": 0.1486460872941677
+    },
+    {
+      "metric": "same_day_logloss",
+      "patients": 1866,
+      "FERMAT": 0.6877686109346003,
+      "Task31": 1.1114974637829376,
+      "Task31_minus_FERMAT": 0.4237288528483373,
+      "ci_low": 0.3800179126537764,
+      "ci_high": 0.46834731759396775
+    },
+    {
+      "metric": "event_top1",
+      "patients": 1866,
+      "FERMAT": 0.48165607614964523,
+      "Task31": 0.4027292910733425,
+      "Task31_minus_FERMAT": -0.07892678507630276,
+      "ci_low": -0.08785226228755166,
+      "ci_high": -0.06992036377787986
+    },
+    {
+      "metric": "event_top5",
+      "patients": 1866,
+      "FERMAT": 0.7876901189200226,
+      "Task31": 0.7606077425611187,
+      "Task31_minus_FERMAT": -0.02708237635890369,
+      "ci_low": -0.03268008663808503,
+      "ci_high": -0.021576535624968113
+    },
+    {
+      "metric": "baseline_next_record_recall_at_10",
+      "patients": 1867,
+      "FERMAT": 0.6920536962115339,
+      "Task31": 0.7160983568373442,
+      "Task31_minus_FERMAT": 0.02404466062581024,
+      "ci_low": 0.016205776728213207,
+      "ci_high": 0.03207845235948807
+    }
+  ],
+  "bundle": {
+    "patients": 256,
+    "paths_per_patient": 10,
+    "FERMAT": {
+      "recall_lower": 0.6120393989343695,
+      "recall_upper": 0.6120393989343695,
+      "capped_paths": 0,
+      "affected_patients": 0,
+      "active_seconds": 333.98511425200036
+    },
+    "Task31": {
+      "recall_lower": 0.571603949598264,
+      "recall_upper": 0.571603949598264,
+      "capped_paths": 0,
+      "affected_patients": 0,
+      "active_seconds": 148.7833616310005
+    },
+    "delta_lower": -0.040435449336105586,
+    "delta_upper": -0.040435449336105586,
+    "conservative_95_interval": [
+      -0.07129593255803007,
+      -0.00940591606950579
+    ],
+    "interpretation": "Recall is an identification interval when any path is capped. The 95% interval adds paired patient resampling; it is not a single completed-path score.",
+    "paired_fully_resolved_diagnostic": {
+      "patients": 256,
+      "FERMAT": 0.6120393989343695,
+      "Task31": 0.571603949598264,
+      "note": "Diagnostic subset only; not the selection criterion"
+    }
+  }
+}

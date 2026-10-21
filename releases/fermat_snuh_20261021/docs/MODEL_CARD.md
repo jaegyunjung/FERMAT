@@ -34,8 +34,16 @@ The subsequent Task 31 ablation completed 100,000 updates and achieved CE
 2.6134053610592685 and total objective 3.0856635315887377, but removed the separate
 same-day head and changed the waiting-time objective/target positions. Its total
 loss is not comparable to 4.1976882. Its slightly better event CE alone does not
-establish better joint event/time generation or downstream performance. It is
-therefore an experimental candidate, not the default handoff checkpoint.
+establish better joint event/time generation or downstream performance.
+
+The matched frozen-checkpoint comparison completed on 2026-10-21 retained the
+93,000-update FERMAT as the default. On 1,861 evaluable test patients, patient-mean
+joint event/day NLL was 4.5678 for FERMAT versus 17.1734 for Task 31 (lower is
+better), and next-token top-1 accuracy was 47.88% versus 40.23%. Task 31 did better
+at directly selecting ten next-record items without generating paths: 73.20%
+versus 69.89% Recall@10 on 1,862 patients. This is a task-specific advantage, not
+an embedding-head evaluation. See [the full comparison](TASK31_COMPARISON.md)
+for validation selection, uncertainty, generation results and date conventions.
 
 ## What changed in the corrected release
 
