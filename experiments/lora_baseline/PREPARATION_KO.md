@@ -5,7 +5,8 @@
 v1 결과는 [RUN_RESULTS_KO.md](RUN_RESULTS_KO.md), LoRA 속도·메모리·ETA는
 [LORA_BENCHMARK_KO.md](LORA_BENCHMARK_KO.md)에 있다.
 체크포인트 저장·재개 및 CUDA 재로딩 검증은 [CHECKPOINT_RESUME_KO.md](CHECKPOINT_RESUME_KO.md)를 따른다.
-본 실험은 독립 검토가 끝날 때까지 시작하지 않는다.
+독립 검토 후 본 실험 시작 승인을 받았다. 실행 조건과 A/C 통제군은
+[RECORD_MAIN_PLAN_KO.md](RECORD_MAIN_PLAN_KO.md)에 고정한다.
 
 ## 1. 논문과 실행 경로 대조
 

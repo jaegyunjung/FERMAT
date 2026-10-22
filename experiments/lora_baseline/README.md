@@ -22,6 +22,7 @@ metrics.py                 Recall@K / F1 / precision / hit, weighted AUROC and B
 common.py                  model, accumulation, checkpoint and provenance plumbing
 checkpointing.py           atomic epoch transactions, checksum/contract validation and RNG restoration
 audit_record_resume.py     bounded real CUDA resume/reload audit using validation only
+run_record_suite.py        fixed A/C/LoRA seed queue with artifact checks and fail-stop behavior
 gates.py                   target-content and experiment-identity verification
 recipes.py                 audited v1 preprocessing, seed/order and selection
 tracking.py                aggregate-only W&B and durable local JSONL (optional)
@@ -160,3 +161,8 @@ Use `--validation-only` with LoRA or experimental head-only for bounded diagnost
 It never evaluates test or issues a gate, and cannot be resumed as a full run.
 `predict.py --split validation --reference-scores RUN/validation_scores.pt`
 compares independent reload with the live-model scores at the same batch size.
+
+For the reviewed full record suite, see RECORD_MAIN_PLAN_KO.md. Experimental
+head-only supports `--optimizer-batch-size` independently of extraction/scoring
+batch size. Historical v1 batch 256 is unchanged. Freeze the execution checkout
+before starting; do not modify it during the run or resume from changed sources.

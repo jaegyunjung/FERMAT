@@ -74,6 +74,8 @@ def main():
     parser.add_argument('--resume', type=Path, help='Verified last_training.json from a prior run; use a new output directory')
     parser.add_argument('--stop-after-epoch', type=int, help='Pause after a committed epoch, before test evaluation')
     parser.add_argument('--validation-only', action='store_true', help='Diagnostic run: save validation predictions; never score test or issue a gate')
+    parser.add_argument('--optimizer-batch-size', type=int,
+                        help='Experimental head_only training batch; extraction/scoring still use --batch-size')
     parser.add_argument('--classes', type=Path, default=None,
                         help='int64 .npy of predicted token IDs; defaults to <data>/classes.npy, then the release head classes')
     parser.add_argument('--baseline-recall', type=Path, default=None,
@@ -83,6 +85,10 @@ def main():
     cfg = common.resolve_defaults(args, dict(
         head_only=dict(epochs=60, patience=10, lr_head=1e-3, weight_decay=0.01, batch=256),
         lora=dict(epochs=20, patience=5, lr_head=1e-3, weight_decay=0.01, batch=args.batch_size)))
+    if args.optimizer_batch_size is not None:
+        if args.arm != 'head_only' or args.recipe != 'experimental' or args.optimizer_batch_size < 1:
+            raise ValueError('--optimizer-batch-size requires experimental head_only and a positive value')
+        cfg['batch'] = args.optimizer_batch_size
     resamples = args.bootstrap_resamples or 5000
     configure_recipe(args, cfg, 'record')
     if args.stop_after_epoch is not None and args.stop_after_epoch < 1:

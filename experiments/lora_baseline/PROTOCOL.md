@@ -83,6 +83,7 @@ order.
 | Head | linear 640→17,460, random initialisation, unweighted multilabel BCE (v1 Appendix A) |
 | `head_only` recipe | cached frozen embeddings; batch 256; ≤60 epochs; stop after 10 epochs without validation improvement (v1) |
 | `lora` recipe | batch 32 prefixes (gradient accumulation allowed); ≤20 epochs; stop after 5 epochs without improvement |
+| Schedule control C (added before full experiments) | `head_only --recipe experimental --optimizer-batch-size 32`; ≤20 epochs, patience 5, warmup 100, clip 1.0, seeds 1/2/3. A retains the original head schedule at seeds 1/2/3. See RECORD_MAIN_PLAN_KO.md for fixed order, inference boundaries and limitations |
 | Selection | validation Recall@10, validation BCE as tie-breaker; the test split is scored once per run |
 | Seeds | historical candidates: 20260908, 20260909, 20260910; the saved selected v1 head uses 20260909 (pass explicitly). New comparisons: seeds 1, 2, 3; use `--recipe experimental` for new head-only seeds and `--recipe lora` for LoRA. Only historical recipe runs issue real gates |
 | Secondary | both arms repeated with the **same 100,000 patient IDs** used in the head-scaling evidence, loaded from that experiment's saved list via `--train-patient-ids` (a random re-draw is not the same cohort; `--train-subset` refuses a size larger than the pool instead of silently using all patients) |

@@ -349,6 +349,39 @@ class PipelineSmokeTests(unittest.TestCase):
         for name in ('summary.json', 'gate.json', 'test_scores.pt', 'test_patient_metrics.csv'):
             self.assertFalse((out / name).exists())
 
+    def test_experimental_control_uses_explicit_optimizer_batch(self):
+        from types import SimpleNamespace
+        from run_record_suite import verify_run
+        out = self.root / 'matched_control'
+        baseline = self.root / 'suite_baseline.csv'
+        ids = np.load(self.data / 'test/patient_id.npy')
+        baseline.write_text('patient_id,recall_at_10\n' + ''.join(f'{int(pid)},0\n' for pid in ids))
+        self.invoke(['train_record.py'] + self.common_args(out, 'head_only') +
+                    ['--recipe', 'experimental', '--optimizer-batch-size', '8',
+                     '--warmup-steps', '100', '--grad-clip', '1', '--baseline-recall', str(baseline),
+                     '--baseline-label', 'generation50', '--bootstrap-resamples', '5000'])
+        log = json.loads((out / 'summary.json').read_text())
+        self.assertEqual(log['fingerprint']['resolved']['batch'], 8)
+        self.assertEqual(log['summary']['optimizer_steps'], 10)  # 40 / 8 * 2 epochs
+        self.assertEqual(log['fingerprint']['warmup_steps'], 100)
+        self.assertEqual(log['fingerprint']['grad_clip'], 1.)
+        self.assertFalse((out / 'gate.json').exists())
+        gate = self.gate_for(out / 'summary.json', ['test.recall_at_10'], self.root / 'suite_gate.json')
+        # Only this synthetic fixture replaces disabled tracking with a successful fake delivery.
+        (out / 'tracking/tracking.json').write_text(json.dumps(dict(connected=True, success=True, run_id='synthetic')))
+        job = dict(batch=8, epochs=2, patience=2, warmup=100, clip=1., seed=log['fingerprint']['arguments']['seed'])
+        args = SimpleNamespace(gate=gate, data=self.data, expected_commit=log['fingerprint']['git_commit'], baseline_recall=baseline)
+        self.assertTrue(verify_run(out, job, args)['passed'])
+        log['summary']['test']['recall_at_10'] += .1
+        (out / 'summary.json').write_text(json.dumps(log))
+        with self.assertRaisesRegex(ValueError, 'Summary metric differs'):
+            verify_run(out, job, args)
+        for recipe, arm, size in [('v1', 'head_only', '8'), ('lora', 'lora', '8'),
+                                  ('experimental', 'head_only', '0')]:
+            error = self.invoke(['train_record.py'] + self.common_args(self.root / 'invalid_control', arm) +
+                                ['--recipe', recipe, '--optimizer-batch-size', size], expect_failure=True)
+            self.assertIn('--optimizer-batch-size requires', error)
+
     def test_training_selection_is_exact(self):
         out = self.root / 'record_toolarge'
         message = self.invoke(['train_record.py'] + self.common_args(out, 'head_only') + ['--train-subset', '41'],

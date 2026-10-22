@@ -18,7 +18,7 @@ python experiments/lora_baseline/audit_v1.py \
   --reference-dir /path/to/original/scripts --out /tmp/v1_audit.json
 ```
 
-The suite contains 52 tests, including both task pipelines, gate issuance and
+The suite contains 55 tests, including both task pipelines, gate issuance and
 rejection, checkpoint reload in separate processes, unchanged frozen weights,
 partial/unequal gradient accumulation, historical seed/order and preprocessing,
 eligibility validation, changed data, modified target files, output protection,
@@ -32,7 +32,7 @@ original inference-pool mapping/content integrity, and Windows-worktree revision
 lookup from WSL. The bounded benchmark integration test verifies actual adapter
 updates, unchanged frozen weights, and absence of test outputs/reproduction gates.
 Runtime projection tests include the final partial batch and evaluation costs.
-The suite passed in 64.969 seconds. New checks include atomic-write/publish
+The suite passed in 72.174 seconds. New checks include atomic-write/publish
 failures, checksum/contract rejection, RNG roundtrip, and uninterrupted versus
 resumed head/LoRA training including partial gradient accumulation. Parameters,
 optimizer, RNG, epoch metrics and validation predictions agree exactly; a
@@ -42,6 +42,11 @@ count agrees with the committed state after both uninterrupted and resumed runs.
 The release model configuration is hashed separately from the weights; changing
 dropout with unchanged weights changes the resume contract.
 These results are from torch 2.12.1, not the other agent's torch 2.14.1 environment.
+
+The reviewed full-suite additions verify experimental optimizer batch override,
+rejection of this override for v1/LoRA, resolved update counts, the result integrity
+checker (including rejection of a corrupted summary), fixed A/C/LoRA queue order,
+matched C/LoRA schedules, and patient-ID pairing for secondary contrasts.
 
 The original review's weighted gradient (-0.4) and trailing accumulation (-2)
 regressions remain covered. The formerly accepted alternate-target gate is now
