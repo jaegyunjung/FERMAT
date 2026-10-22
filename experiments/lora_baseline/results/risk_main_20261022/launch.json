@@ -1,0 +1,134 @@
+{
+  "status": "launched_not_completed",
+  "started": "2026-10-22T21:31:38.858577+09:00",
+  "execution_commit": "95713c679f6a11de1d0201f6bcfecdc70b39788b",
+  "launcher_commit": "ad0a581",
+  "launcher_sha256": "e732f8cf7122ab38706902ddb0720fa770b55e2a5ff32c47a67574680ab6bdf8",
+  "plan": [
+    {
+      "name": "C_ckd_seed1",
+      "group": "C",
+      "disease": "ckd",
+      "seed": 1
+    },
+    {
+      "name": "C_fatty_liver_seed1",
+      "group": "C",
+      "disease": "fatty_liver",
+      "seed": 1
+    },
+    {
+      "name": "C_diabetes_seed1",
+      "group": "C",
+      "disease": "diabetes",
+      "seed": 1
+    },
+    {
+      "name": "C_ckd_seed2",
+      "group": "C",
+      "disease": "ckd",
+      "seed": 2
+    },
+    {
+      "name": "C_fatty_liver_seed2",
+      "group": "C",
+      "disease": "fatty_liver",
+      "seed": 2
+    },
+    {
+      "name": "C_diabetes_seed2",
+      "group": "C",
+      "disease": "diabetes",
+      "seed": 2
+    },
+    {
+      "name": "C_ckd_seed3",
+      "group": "C",
+      "disease": "ckd",
+      "seed": 3
+    },
+    {
+      "name": "C_fatty_liver_seed3",
+      "group": "C",
+      "disease": "fatty_liver",
+      "seed": 3
+    },
+    {
+      "name": "C_diabetes_seed3",
+      "group": "C",
+      "disease": "diabetes",
+      "seed": 3
+    },
+    {
+      "name": "lora_ckd_seed1",
+      "group": "lora",
+      "disease": "ckd",
+      "seed": 1
+    },
+    {
+      "name": "lora_fatty_liver_seed1",
+      "group": "lora",
+      "disease": "fatty_liver",
+      "seed": 1
+    },
+    {
+      "name": "lora_diabetes_seed1",
+      "group": "lora",
+      "disease": "diabetes",
+      "seed": 1
+    },
+    {
+      "name": "lora_ckd_seed2",
+      "group": "lora",
+      "disease": "ckd",
+      "seed": 2
+    },
+    {
+      "name": "lora_fatty_liver_seed2",
+      "group": "lora",
+      "disease": "fatty_liver",
+      "seed": 2
+    },
+    {
+      "name": "lora_diabetes_seed2",
+      "group": "lora",
+      "disease": "diabetes",
+      "seed": 2
+    },
+    {
+      "name": "lora_ckd_seed3",
+      "group": "lora",
+      "disease": "ckd",
+      "seed": 3
+    },
+    {
+      "name": "lora_fatty_liver_seed3",
+      "group": "lora",
+      "disease": "fatty_liver",
+      "seed": 3
+    },
+    {
+      "name": "lora_diabetes_seed3",
+      "group": "lora",
+      "disease": "diabetes",
+      "seed": 3
+    }
+  ],
+  "initial_eta_hours": [
+    12,
+    13
+  ],
+  "private_output": "/home/fermat/fermat-data/restricted/lora_baseline_20261022/risk_main_01",
+  "checkpoint_policy": "Immutable epoch checkpoints; manual resume into a fresh directory; no automatic retries",
+  "comparison": "Primary seed 1 minus saved fixed-C10 probabilities; 2000 paired patient bootstrap, fixed weights; seeds 2/3 sensitivity",
+  "monitoring": "W&B aggregates, runtime GPU/host guard, per-run checkpoint/metric and source integrity; seed-1 LoRA independent reload before seeds 2/3",
+  "initial_observation": {
+    "run": "C_ckd_seed1",
+    "epoch_seen": 2,
+    "optimizer_steps_seen": 9254,
+    "epoch1_checkpoint_sha256_verified": true,
+    "wandb_remote_state": "running",
+    "wandb_run_id": "hltbd0di",
+    "wandb_url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/hltbd0di"
+  }
+}

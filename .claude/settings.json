@@ -1,0 +1,13 @@
+{
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
+  "env": {
+    "GIT_AUTHOR_NAME": "jaegyunjung",
+    "GIT_AUTHOR_EMAIL": "jaegyun.jung@snu.ac.kr",
+    "GIT_COMMITTER_NAME": "jaegyunjung",
+    "GIT_COMMITTER_EMAIL": "jaegyun.jung@snu.ac.kr"
+  }
+}

@@ -1,0 +1,799 @@
+{
+  "status": "RISK_PREFLIGHT_COMPLETED_MAIN_NOT_STARTED",
+  "source_sha256": {
+    "core": "4a09a88093a59d100876dc0e0cf7a3325dcd13be88e6cfcd08292c7b25f6bc96",
+    "fixed_manifest": "0936e632c2f2d50f6dfc836576d925d767d56238927a5a4ec015d40c2d967e37",
+    "scores": "044425138cfd99f4e4aab20c377a3f2dede4fb385f4020f49a4b60f75bb9b51f",
+    "preindex": "085391bd433179b107ed6513c9e5831a620b2dbad22c28fbfb16617e1e32fe9d",
+    "outcomes": "f0b1c50b28bcccf3537048102f1418e16fb10fa648db198599fbe288dd11c1c9",
+    "embeddings": "0112d446ebd3263e6a8c80ea5024960a68032a816d77d55f83a462c3a2cf89a0",
+    "test_outcomes": "5646bf99532210f1ecd3fc90a7e2f6bdbf906c5f3904be173d047080068c3c9a",
+    "metrics": "4e58cb4e3ef9fd37f3b1dd73620198b01de14a1fc4eb30efb0d0aa5c04fcbe01"
+  },
+  "preparation_script_sha256": "00856bb1fa3984738b0b9f3068dc9af3850f917cc5ffb8ad1346cfdd1793f99f",
+  "environment": {
+    "numpy": "2.5.2",
+    "pandas": "3.0.5",
+    "torch": "2.12.1+cu132",
+    "sklearn": "1.9.0"
+  },
+  "weight_provenance": "reconstructed_original_ipcw_function; no saved weight arrays to compare",
+  "split_counts": {
+    "train": 263245,
+    "validation": 56338,
+    "test": 10000
+  },
+  "diseases": {
+    "ckd": {
+      "counts": {
+        "train": {
+          "eligible": 256536,
+          "observed": 148048,
+          "cases": 4288
+        },
+        "validation": {
+          "eligible": 54858,
+          "observed": 31925,
+          "cases": 956
+        },
+        "test": {
+          "eligible": 9741,
+          "observed": 5665,
+          "cases": 155
+        }
+      },
+      "model_sha256": "f3fd455344600903fc043c59843fe46e7fa01049aefb24cb7fa82e3e084114a8",
+      "clinical_stat_max_errors": {
+        "median": 0.0,
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "fp32_features_max_error": 0.0,
+      "probability_max_error": 1.887379141862766e-15,
+      "published_metrics_replayed": {
+        "auroc": 0.8705996312225279,
+        "brier": 0.02040012204750361
+      },
+      "metric_max_errors": {
+        "auroc": 0.0,
+        "brier": 6.938893903907228e-18
+      }
+    },
+    "fatty_liver": {
+      "counts": {
+        "train": {
+          "eligible": 253697,
+          "observed": 145782,
+          "cases": 4667
+        },
+        "validation": {
+          "eligible": 54319,
+          "observed": 31461,
+          "cases": 977
+        },
+        "test": {
+          "eligible": 9632,
+          "observed": 5578,
+          "cases": 168
+        }
+      },
+      "model_sha256": "c6fc20b5fd93fe35ae71f2304eda651297095995919e44b636b9238bdfa7ecaf",
+      "clinical_stat_max_errors": {
+        "median": 0.0,
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "fp32_features_max_error": 0.0,
+      "probability_max_error": 1.2212453270876722e-15,
+      "published_metrics_replayed": {
+        "auroc": 0.7519826422992202,
+        "brier": 0.027252460886648698
+      },
+      "metric_max_errors": {
+        "auroc": 0.0,
+        "brier": 9.71445146547012e-17
+      }
+    },
+    "diabetes": {
+      "counts": {
+        "train": {
+          "eligible": 235670,
+          "observed": 133947,
+          "cases": 7005
+        },
+        "validation": {
+          "eligible": 50477,
+          "observed": 28974,
+          "cases": 1500
+        },
+        "test": {
+          "eligible": 8858,
+          "observed": 5082,
+          "cases": 280
+        }
+      },
+      "model_sha256": "87a30ec0d970d2c472334db2cade074c324ecc83af2a3ba3a59b78c752ac880d",
+      "clinical_stat_max_errors": {
+        "median": 0.0,
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "fp32_features_max_error": 0.0,
+      "probability_max_error": 1.5543122344752192e-15,
+      "published_metrics_replayed": {
+        "auroc": 0.7840186599844072,
+        "brier": 0.04518499927209847
+      },
+      "metric_max_errors": {
+        "auroc": 2.220446049250313e-16,
+        "brier": 6.938893903907228e-17
+      }
+    }
+  },
+  "risk_training_dataset_ready": true,
+  "cuda_parity_verified": true,
+  "gate_issued": true,
+  "array_sha256": {
+    "test/baseline_probability_ckd.npy": "a2c82da988e8c36b145a8a0ab67c872272b7b025969c349772dd0abe85dbea60",
+    "test/baseline_probability_diabetes.npy": "2108e89b82bb61cc4224cf1bd5daad77bc336328624399686f5cc3d5671f5538",
+    "test/baseline_probability_fatty_liver.npy": "58177c1ca8b1cc0aad6e7cae0a9589cfef182aa473b3e37061ccce1138d89dc6",
+    "test/clinical.npy": "444810d060d5d79e16eeaebb0902867b31e037cb60fa5de9073ea0c2d8dd73b2",
+    "test/eligible_ckd.npy": "6dc01932dc1cc790d642d5954fed841f5873910900e63f8b12133755651acba0",
+    "test/eligible_diabetes.npy": "7216898e71a67e5b35b1e482d3b64d73eeed377e5e564f1b38852333b80bb77d",
+    "test/eligible_fatty_liver.npy": "34248b9f3f3f3c01e80a4233e4b1d7e0c413e4af4ed01f52f0f8f61ff8346b19",
+    "test/outcome_ckd.npy": "3373ccc6a6b76ea8b7f03f8446a6510789af325842ea97bc6775af7a033224f2",
+    "test/outcome_diabetes.npy": "eb84c3c54a8eecde7b322a9100725f5f66a65e3656e30c9e47847222f42bc63d",
+    "test/outcome_fatty_liver.npy": "a8cd18d88395e8b7d4cbd64d5ed9d07b7471a05c2c6650c90c9a79fe8b07718d",
+    "test/patient_id.npy": "fb5204bfd9ab05a7038dbffb34868826505a02041957bfe062fbdb59a5adbbe1",
+    "test/weight_ckd.npy": "374c71445ca6a3031101f1dc2305a81567a9181ffdbd586a81c1b5a26b87446d",
+    "test/weight_diabetes.npy": "3bedc3b44c62b0036aec5920988611e85ba3c3a5ea6afce99457c16ecbcf20a5",
+    "test/weight_fatty_liver.npy": "385f5e6e4947dc7d47bd6f5af7f27c7a1a29a8965a04f551474bd44f0f6a4d81",
+    "train/clinical.npy": "2199089fb2d8459ec8ea475e7df3b3efd66684fb414a67460034365a11e5be87",
+    "train/eligible_ckd.npy": "bc836f5d679047ff51a0e7333590108c47a424f3398b873d18cf3a0b8229973d",
+    "train/eligible_diabetes.npy": "a8964056901b89ee19d8f51cd0d2ba7de0f13922225c543c6bfb72238a84e42b",
+    "train/eligible_fatty_liver.npy": "c307e14efd494421296633e6e940a5a11b3ca5b01b02e3f297c3ac7905510127",
+    "train/outcome_ckd.npy": "a37a63f3050f9cf5051993e5c61d72b8f41a74cf8fe46e6f7898d2382482cf01",
+    "train/outcome_diabetes.npy": "5575e31098208c3e1b32cedfa8d26018e4e5e4397ca55a3b965152876375510b",
+    "train/outcome_fatty_liver.npy": "e8a92261d5f66571db48ae6a73ffe308085078da73e10677363e5085ac545092",
+    "train/patient_id.npy": "5a6adbfa90c7ffbc44027c5ec1abc489b6990fa0adeaf89baab91053c85d22b7",
+    "train/weight_ckd.npy": "54d7284c55e5ffb354355092a7acba7e173ba54ce702e286ca7cb9fd6e92ffd5",
+    "train/weight_diabetes.npy": "3b2e2b6274cd681bd5660129cb686bc80541b711c9a56f76bc46ba1ca599f510",
+    "train/weight_fatty_liver.npy": "58bd363ff3be3d55f31f2f0c5660dce2fce65a57d8f961407ae62176970dfc61",
+    "validation/clinical.npy": "84b2eeb86adfa6a315385f2630d7c961ea2d907728ab45175d9632e838430436",
+    "validation/eligible_ckd.npy": "0092b751dfd587be97e7b5b2d2cc4ba9091f1a55fba547df3d729afcb1609ffb",
+    "validation/eligible_diabetes.npy": "ef3f7dd9f8112b4cc311b32660a23f43e577efd20f6797c9b13ed1bdea75734e",
+    "validation/eligible_fatty_liver.npy": "afece12e16661fb3e8bab9d0f21d55f4faaa592b645267e0e3cfb4253c0c9597",
+    "validation/outcome_ckd.npy": "453cbdbbe20e8268cf12408f85d10a2089e757d7577936f1d7af088b8220d904",
+    "validation/outcome_diabetes.npy": "f6566e476dec0b5d4506f419281b83c4d51135d797b953abd3fd494c15a6ebfa",
+    "validation/outcome_fatty_liver.npy": "68cc7b2e3d996646d0b59a6caa797259a5954ad179ec762a16509614a393ff3c",
+    "validation/patient_id.npy": "5225a1286210445441d433f1a13ebcf83e98850ed4296ff5e7738486633d349e",
+    "validation/weight_ckd.npy": "4ce92ba12f8829c65230f11c0decbd33dae8fe626753ebca43018aa205125847",
+    "validation/weight_diabetes.npy": "00337475d677281754a15ed9d04005a2dd1c023e0b12eb6eb1316fc2d717ef53",
+    "validation/weight_fatty_liver.npy": "9484af9ff3350467ba2d4dca4f9719caec1d73c931e8757ee60f6cb06f57297b"
+  },
+  "independent_readback": {
+    "array_hashes_verified": 36,
+    "splits_disjoint": true,
+    "metrics": {
+      "ckd": {
+        "auroc": 0.8705996312225267,
+        "brier": 0.02040012204750361
+      },
+      "fatty_liver": {
+        "auroc": 0.7519826422992205,
+        "brier": 0.027252460886648698
+      },
+      "diabetes": {
+        "auroc": 0.7840186599844075,
+        "brier": 0.04518499927209847
+      }
+    }
+  },
+  "cuda_preflight": {
+    "status": "completed",
+    "main_experiment_started": false,
+    "execution_commit": "95713c679f6a11de1d0201f6bcfecdc70b39788b",
+    "cpu_tests_passed": 59,
+    "gates": {
+      "ckd": {
+        "gate_passed": true,
+        "test": {
+          "weighted_auroc": 0.8705996312225267,
+          "weighted_brier": 0.020400122058436013,
+          "observed": 5665,
+          "cases": 155,
+          "mean_probability": 0.031206453195506023
+        },
+        "reference_audit": {
+          "preprocessing_exact": true,
+          "fp32_features_exact": true,
+          "maximum_probability_error": 1.3322676295501878e-15,
+          "model_sha256": "f3fd455344600903fc043c59843fe46e7fa01049aefb24cb7fa82e3e084114a8"
+        },
+        "new_fit_max_probability_error": 8.264361955889754e-08,
+        "elapsed_seconds": 86.43983925700013,
+        "tracking": {
+          "mode": "online",
+          "connected": true,
+          "run_id": "swxig767",
+          "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/swxig767",
+          "finished": true,
+          "success": true
+        }
+      },
+      "fatty_liver": {
+        "gate_passed": true,
+        "test": {
+          "weighted_auroc": 0.7519826422992205,
+          "weighted_brier": 0.027252460895305163,
+          "observed": 5578,
+          "cases": 168,
+          "mean_probability": 0.03256665738256519
+        },
+        "reference_audit": {
+          "preprocessing_exact": true,
+          "fp32_features_exact": true,
+          "maximum_probability_error": 1.3322676295501878e-15,
+          "model_sha256": "c6fc20b5fd93fe35ae71f2304eda651297095995919e44b636b9238bdfa7ecaf"
+        },
+        "new_fit_max_probability_error": 5.536871966471679e-08,
+        "elapsed_seconds": 88.89254773099992,
+        "tracking": {
+          "mode": "online",
+          "connected": true,
+          "run_id": "qbevqurl",
+          "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/qbevqurl",
+          "finished": true,
+          "success": true
+        }
+      },
+      "diabetes": {
+        "gate_passed": true,
+        "test": {
+          "weighted_auroc": 0.7840186599844075,
+          "weighted_brier": 0.045184999271437355,
+          "observed": 5082,
+          "cases": 280,
+          "mean_probability": 0.05375287221053515
+        },
+        "reference_audit": {
+          "preprocessing_exact": true,
+          "fp32_features_exact": true,
+          "maximum_probability_error": 1.4432899320127035e-15,
+          "model_sha256": "87a30ec0d970d2c472334db2cade074c324ecc83af2a3ba3a59b78c752ac880d"
+        },
+        "new_fit_max_probability_error": 7.63663955960503e-08,
+        "elapsed_seconds": 74.3479681880001,
+        "tracking": {
+          "mode": "online",
+          "connected": true,
+          "run_id": "psq4qonk",
+          "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/psq4qonk",
+          "finished": true,
+          "success": true
+        }
+      }
+    },
+    "embeddings": {
+      "parity_exact": true,
+      "maximum_absolute_error": 0.0,
+      "patients": 329583,
+      "model_sha256": "fccf4a76f2d44a86ac121c52e5c444be0e63904f64e47fb4f804e21458dbd865",
+      "bf16": true,
+      "batch_size": 64,
+      "embeddings_sha256": "5a3652c7fc903153759f38c770d65be591e4b0625391724c5a5136d55809a860",
+      "seconds": 1104.526739292
+    },
+    "prefix_export": {
+      "status": "EXPORTED_NOT_CUDA_VERIFIED",
+      "patients": 329583,
+      "seconds": 88.91014537699999,
+      "bytes": 7622184301
+    },
+    "resume_audit": {
+      "passed": true,
+      "checks": {
+        "current_state": true,
+        "optimizer": true,
+        "best_state": true,
+        "best": true,
+        "since_best": true,
+        "optimizer_steps": true,
+        "rng": true,
+        "contract": true,
+        "epoch_metrics": true,
+        "validation_scores": true,
+        "no_test_outputs": true
+      },
+      "disease": "ckd",
+      "epochs": 2,
+      "train_subset": 128,
+      "validation_patients": 31925,
+      "maximum_absolute_error": 0.0,
+      "durations": {
+        "uninterrupted": 422.7951936060001,
+        "paused": 146.25628060100007,
+        "resumed": 251.30974698599994,
+        "reload": 109.9474566619997
+      },
+      "code_sha256": {
+        "train_risk.py": "e71bd767919157d25315f921e4b768b10abb56a37d36410aaf26c655ce876e5b",
+        "risk_cache.py": "c2ced4c2476f9326dcce2f609d067de005da69298043a5c694e6a90baff8e8b8",
+        "common.py": "fb9d11610dba25f65d02130d69a3c9f88fc1ac1ca4a22b07c22e49613e944118",
+        "checkpointing.py": "b1e75f4665982c2dc90e629132bce154bdac44880982f29b80d7849676517e59",
+        "data.py": "27d093b15301d480811f5c50b30f3ae061b7433c31a18895d5cff26e7df40a9a",
+        "recipes.py": "09aee3b1fb1e256aa8bff0a149f5b9305a56f5cf962c6ea1d149b1a1c80f5be0",
+        "lora.py": "a7d90efdcb3b6d9f7fc8cea0aa5fa3b3e1627332886dadad5c8e5d05ab89f806",
+        "metrics.py": "d970cfca03738e18f26e59b8827be577351fa0a21774bfebec9a1dfd8b4bc405",
+        "release/__init__.py": "df2c9b02396f14a121ae116e295d41dfa74488e9cd20c1119d0d12d5ff08a1ca",
+        "release/inference.py": "2f23ad1ae26056fce64cb1cb9978ca865d3718f7a0d9e7dc74bf88235dbda694",
+        "release/loader.py": "c3dc55985d0cdb8e2a18217347b2afd483c7eed915a4ce9a22f49b33efa4a8ed",
+        "release/model.py": "f4a98b26285a61151c59507d7b7e2af813a0789c68c9d1d2dae945ae73351ab2",
+        "release/tokenization.py": "79e8ffaf66c7bd99084578245dc25e746f7144b3ed2eb6c688abeafa452b7230"
+      },
+      "run_ids": {
+        "uninterrupted": "iei3hh19",
+        "paused": "4royvwdu",
+        "resumed": "ad1n8di1"
+      },
+      "reload": {
+        "patient_order_exact": true,
+        "probabilities_exact": true,
+        "maximum_absolute_error": 0.0,
+        "passed": true
+      }
+    },
+    "phases": [
+      {
+        "name": "gate_ckd",
+        "status": "completed",
+        "seconds": 103.04131792699991
+      },
+      {
+        "name": "gate_fatty_liver",
+        "status": "completed",
+        "seconds": 107.92025684300006
+      },
+      {
+        "name": "gate_diabetes",
+        "status": "completed",
+        "seconds": 95.57770780200008
+      },
+      {
+        "name": "resume_audit",
+        "status": "completed",
+        "seconds": 933.6954610339999
+      },
+      {
+        "name": "benchmark_ckd",
+        "status": "completed",
+        "seconds": 168.5800087079997
+      },
+      {
+        "name": "benchmark_fatty_liver",
+        "status": "completed",
+        "seconds": 163.6232767030001
+      },
+      {
+        "name": "benchmark_diabetes",
+        "status": "completed",
+        "seconds": 156.40004736900028
+      }
+    ],
+    "source_sha256": {
+      "audit_record_embeddings.py": "6d773f8a89f6f9890c52f8125e066253f2478ccdbe2a70b69b4b80a92cd9d767",
+      "audit_record_resume.py": "22bffbce4a541a1670ae1b1ee85fcc195aeff27113c4216cad0eb16699e071ec",
+      "audit_record_ties.py": "53a24a17f6d113f955a943e675e820200d5d2e88d72d2d6db3eece04e7956ab9",
+      "audit_risk_resume.py": "98fdfb75ef00906ff23faacc212df856ceaa4b679e61905b0b5aade1f28c95cc",
+      "audit_v1.py": "e09e6a6fcc3eb9ace39ff418f43b48ef0028f7193b7a6ed612732a29b134bb8c",
+      "benchmarking.py": "413e799608240a6208f142b015616e9501830f14f0f41fa76e9000010f3040fd",
+      "check_gate.py": "4f8b22f463e4978f0e78b34230b3b33384b3d07029dd7c31ac7a56beb4211175",
+      "checkpointing.py": "b1e75f4665982c2dc90e629132bce154bdac44880982f29b80d7849676517e59",
+      "common.py": "fb9d11610dba25f65d02130d69a3c9f88fc1ac1ca4a22b07c22e49613e944118",
+      "data.py": "27d093b15301d480811f5c50b30f3ae061b7433c31a18895d5cff26e7df40a9a",
+      "gates.py": "352d11e576a567e945c258337d0475aa9f74d30335da9999505758ed95a8f1d8",
+      "lora.py": "a7d90efdcb3b6d9f7fc8cea0aa5fa3b3e1627332886dadad5c8e5d05ab89f806",
+      "make_synthetic_dataset.py": "a5c8a1a56bb12efa2ee9a64f750ca7ff30a705fad8dad64aaaa281e63257659f",
+      "metrics.py": "d970cfca03738e18f26e59b8827be577351fa0a21774bfebec9a1dfd8b4bc405",
+      "predict.py": "c2f9931784193494e09838eaeab717520c8ddb438c0acaca763bf39cc3c54e00",
+      "prepare_record_v1.py": "b2d6ab1351034480d56f0bed51a7b390046fa18e41aeb11c79a34b3908003d57",
+      "prepare_risk_baselines.py": "5d491fe1ec79f353b37c7984a8051415d587fdbc4ae8b01422052620bb1e8fbc",
+      "prepare_risk_outcomes.py": "e6363bdbb954c455901fdf784ad15e0fcc8c313f22a5cb3c846bfc501861ba27",
+      "prepare_risk_prefixes.py": "b532abc8ca0291d6c5ba33efa428ea66d513e6022cdfdd3ed626fd5b6ef9954e",
+      "recipes.py": "09aee3b1fb1e256aa8bff0a149f5b9305a56f5cf962c6ea1d149b1a1c80f5be0",
+      "risk_cache.py": "c2ced4c2476f9326dcce2f609d067de005da69298043a5c694e6a90baff8e8b8",
+      "run_record_suite.py": "00eaebfb767533824693fbe98a00a1224ed09006f893d66eb927d7730da13bb4",
+      "run_risk_preflight.py": "23e42836f17b510761469e533d709545a29c4b5eabc41eb32ec392aa366b594b",
+      "runtime_guard.py": "a8cdc3ab6b3da4f5abec43bf74f7e882ad64ba0748a79bcc09d09300633d6a13",
+      "tracking.py": "ba1830addaff65e086412e7055892eba4e04186f0c29279f3e04a4073565cf99",
+      "train_record.py": "47ea378ca8f79d7f19a1fe9a583380dac7d432cba0167f1da9f45489da3ec49a",
+      "train_risk.py": "e71bd767919157d25315f921e4b768b10abb56a37d36410aaf26c655ce876e5b"
+    },
+    "wandb_remote_audit": [
+      {
+        "phase": "risk_cache_01",
+        "run_id": "57ia0bcy",
+        "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/57ia0bcy",
+        "state": "finished",
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ]
+      },
+      {
+        "phase": "risk_preflight_01/benchmark_ckd",
+        "run_id": "sz2t647p",
+        "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/sz2t647p",
+        "state": "finished",
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ]
+      },
+      {
+        "phase": "risk_preflight_01/benchmark_diabetes",
+        "run_id": "yh325imo",
+        "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/yh325imo",
+        "state": "finished",
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ]
+      },
+      {
+        "phase": "risk_preflight_01/benchmark_fatty_liver",
+        "run_id": "gs9ptkg6",
+        "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/gs9ptkg6",
+        "state": "finished",
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ]
+      },
+      {
+        "phase": "risk_preflight_01/gate_ckd",
+        "run_id": "swxig767",
+        "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/swxig767",
+        "state": "finished",
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ]
+      },
+      {
+        "phase": "risk_preflight_01/gate_diabetes",
+        "run_id": "psq4qonk",
+        "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/psq4qonk",
+        "state": "finished",
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ]
+      },
+      {
+        "phase": "risk_preflight_01/gate_fatty_liver",
+        "run_id": "qbevqurl",
+        "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/qbevqurl",
+        "state": "finished",
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ]
+      },
+      {
+        "phase": "risk_preflight_01/resume_audit/paused",
+        "run_id": "4royvwdu",
+        "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/4royvwdu",
+        "state": "finished",
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ]
+      },
+      {
+        "phase": "risk_preflight_01/resume_audit/resumed",
+        "run_id": "ad1n8di1",
+        "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/ad1n8di1",
+        "state": "finished",
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ]
+      },
+      {
+        "phase": "risk_preflight_01/resume_audit/uninterrupted",
+        "run_id": "iei3hh19",
+        "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/iei3hh19",
+        "state": "finished",
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ]
+      }
+    ],
+    "pilot_sequence_width_audit": {
+      "ckd": {
+        "train_patients": 148048,
+        "batches": 4627,
+        "pilot_batches": 128,
+        "pilot_min_batch_width": 512,
+        "pilot_max_batch_width": 512,
+        "full_min_batch_width": 512,
+        "fraction_full_width": 1.0
+      },
+      "fatty_liver": {
+        "train_patients": 145782,
+        "batches": 4556,
+        "pilot_batches": 128,
+        "pilot_min_batch_width": 512,
+        "pilot_max_batch_width": 512,
+        "full_min_batch_width": 512,
+        "fraction_full_width": 1.0
+      },
+      "diabetes": {
+        "train_patients": 133947,
+        "batches": 4186,
+        "pilot_batches": 128,
+        "pilot_min_batch_width": 512,
+        "pilot_max_batch_width": 512,
+        "full_min_batch_width": 512,
+        "fraction_full_width": 1.0
+      }
+    },
+    "free_disk_gib": 767.4188804626465,
+    "benchmarks": {
+      "ckd": {
+        "benchmark_only": true,
+        "test_evaluated": false,
+        "steps": 128,
+        "patients_processed": 4096,
+        "batch_size": 32,
+        "excluded_startup_steps": 10,
+        "steady_step_mean_seconds": 0.2728984386101852,
+        "steady_step_median_seconds": 0.23582945249995646,
+        "steady_step_p10_p90_seconds": [
+          0.22546748459981245,
+          0.30326516570007694
+        ],
+        "steady_patients_per_second": 117.25974015450333,
+        "training_seconds": 40.37208977300179,
+        "validation_seconds": 103.11421715300003,
+        "training_peak_cuda_memory": {
+          "allocated_bytes": 15536054272,
+          "reserved_bytes": 15921577984
+        },
+        "overall_peak_cuda_memory": {
+          "allocated_bytes": 15536054272,
+          "reserved_bytes": 15921577984
+        },
+        "eta": {
+          "batches_per_epoch": 4627,
+          "training_seconds_per_epoch": 1262.701075449327,
+          "validation_seconds_per_epoch": 103.11421715300003,
+          "seconds_per_epoch": 1365.815292602327,
+          "test_seconds_estimated": 32.2988933916993,
+          "scenarios": [
+            {
+              "epochs": 1,
+              "one_seed_seconds": 1416.294381490024,
+              "three_seeds_seconds": 4248.883144470072
+            },
+            {
+              "epochs": 2,
+              "one_seed_seconds": 2782.1096740923513,
+              "three_seeds_seconds": 8346.329022277054
+            },
+            {
+              "epochs": 3,
+              "one_seed_seconds": 4147.924966694679,
+              "three_seeds_seconds": 12443.774900084038
+            }
+          ],
+          "exclusions": "Checkpoint/serialization, bootstrap, network finish and other GPU contention; use 15-25% scheduling reserve. No early-stop prediction."
+        },
+        "adapter_tensors_changed": 40,
+        "audit": {
+          "frozen_base_unchanged": true,
+          "base_parameters": 65221122,
+          "adapter_parameters": 307200,
+          "adapter_fraction_of_base": 0.004710130561691349,
+          "head_parameters": 645,
+          "trained_parameters_total": 307845
+        },
+        "optimizer_steps": 128,
+        "elapsed_seconds": 161.7588339429999,
+        "tracking": {
+          "mode": "online",
+          "connected": true,
+          "run_id": "sz2t647p",
+          "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/sz2t647p",
+          "finished": true,
+          "success": true
+        }
+      },
+      "fatty_liver": {
+        "benchmark_only": true,
+        "test_evaluated": false,
+        "steps": 128,
+        "patients_processed": 4096,
+        "batch_size": 32,
+        "excluded_startup_steps": 10,
+        "steady_step_mean_seconds": 0.2699380230932378,
+        "steady_step_median_seconds": 0.23810570549994736,
+        "steady_step_p10_p90_seconds": [
+          0.23436874610001723,
+          0.3049748018998798
+        ],
+        "steady_patients_per_second": 118.54572999131382,
+        "training_seconds": 37.74434588000213,
+        "validation_seconds": 101.29180201200006,
+        "training_peak_cuda_memory": {
+          "allocated_bytes": 15536054272,
+          "reserved_bytes": 15921577984
+        },
+        "overall_peak_cuda_memory": {
+          "allocated_bytes": 15536054272,
+          "reserved_bytes": 15921577984
+        },
+        "eta": {
+          "batches_per_epoch": 4556,
+          "training_seconds_per_epoch": 1229.8376332127914,
+          "validation_seconds_per_epoch": 101.29180201200006,
+          "seconds_per_epoch": 1331.1294352247915,
+          "test_seconds_estimated": 32.19598932392488,
+          "scenarios": [
+            {
+              "epochs": 1,
+              "one_seed_seconds": 1381.345978826714,
+              "three_seeds_seconds": 4144.037936480142
+            },
+            {
+              "epochs": 2,
+              "one_seed_seconds": 2712.4754140515056,
+              "three_seeds_seconds": 8137.426242154517
+            },
+            {
+              "epochs": 3,
+              "one_seed_seconds": 4043.604849276297,
+              "three_seeds_seconds": 12130.814547828892
+            }
+          ],
+          "exclusions": "Checkpoint/serialization, bootstrap, network finish and other GPU contention; use 15-25% scheduling reserve. No early-stop prediction."
+        },
+        "adapter_tensors_changed": 40,
+        "audit": {
+          "frozen_base_unchanged": true,
+          "base_parameters": 65221122,
+          "adapter_parameters": 307200,
+          "adapter_fraction_of_base": 0.004710130561691349,
+          "head_parameters": 645,
+          "trained_parameters_total": 307845
+        },
+        "optimizer_steps": 128,
+        "elapsed_seconds": 157.15575259599973,
+        "tracking": {
+          "mode": "online",
+          "connected": true,
+          "run_id": "gs9ptkg6",
+          "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/gs9ptkg6",
+          "finished": true,
+          "success": true
+        }
+      },
+      "diabetes": {
+        "benchmark_only": true,
+        "test_evaluated": false,
+        "steps": 128,
+        "patients_processed": 4096,
+        "batch_size": 32,
+        "excluded_startup_steps": 10,
+        "steady_step_mean_seconds": 0.2644677751779755,
+        "steady_step_median_seconds": 0.23737020049998137,
+        "steady_step_p10_p90_seconds": [
+          0.23298593280023852,
+          0.30219681459980163
+        ],
+        "steady_patients_per_second": 120.99772828075318,
+        "training_seconds": 36.41323935000173,
+        "validation_seconds": 95.13286881300019,
+        "training_peak_cuda_memory": {
+          "allocated_bytes": 15536054272,
+          "reserved_bytes": 15921577984
+        },
+        "overall_peak_cuda_memory": {
+          "allocated_bytes": 15536054272,
+          "reserved_bytes": 15921577984
+        },
+        "eta": {
+          "batches_per_epoch": 4186,
+          "training_seconds_per_epoch": 1107.0621068950054,
+          "validation_seconds_per_epoch": 95.13286881300019,
+          "seconds_per_epoch": 1202.1949757080056,
+          "test_seconds_estimated": 32.83387478877621,
+          "scenarios": [
+            {
+              "epochs": 1,
+              "one_seed_seconds": 1252.8018693227798,
+              "three_seeds_seconds": 3758.4056079683396
+            },
+            {
+              "epochs": 2,
+              "one_seed_seconds": 2454.996845030785,
+              "three_seeds_seconds": 7364.9905350923555
+            },
+            {
+              "epochs": 3,
+              "one_seed_seconds": 3657.1918207387907,
+              "three_seeds_seconds": 10971.575462216373
+            }
+          ],
+          "exclusions": "Checkpoint/serialization, bootstrap, network finish and other GPU contention; use 15-25% scheduling reserve. No early-stop prediction."
+        },
+        "adapter_tensors_changed": 40,
+        "audit": {
+          "frozen_base_unchanged": true,
+          "base_parameters": 65221122,
+          "adapter_parameters": 307200,
+          "adapter_fraction_of_base": 0.004710130561691349,
+          "head_parameters": 645,
+          "trained_parameters_total": 307845
+        },
+        "optimizer_steps": 128,
+        "elapsed_seconds": 149.4174370159999,
+        "tracking": {
+          "mode": "online",
+          "connected": true,
+          "run_id": "yh325imo",
+          "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/yh325imo",
+          "finished": true,
+          "success": true
+        }
+      }
+    },
+    "schedule_eta": {
+      "maximum_epochs": 3,
+      "seeds": [
+        1,
+        2,
+        3
+      ],
+      "lora_runs": 9,
+      "lora_base_seconds": 35546.1649101293,
+      "lora_with_15_to_25_percent_reserve_seconds": [
+        40878.089646648696,
+        44432.706137661626
+      ],
+      "matched_head_control_budget_seconds": 1800,
+      "matched_head_control_budget_measured": false,
+      "total_budget_seconds": [
+        42678.089646648696,
+        46232.706137661626
+      ],
+      "shared_cache_already_complete": true,
+      "note": "Measured 128-step means and full validation; no early-stop prediction. Reserve covers checkpoints/bootstrap/network/variation. Additional 30 minutes is an unmeasured C-control allowance."
+    }
+  },
+  "outcomes_stage_status": "OUTCOMES_PREPARED_NOT_TRAINING_READY",
+  "main_experiment_started": false,
+  "outcomes_elapsed_seconds": 2.960243251999998,
+  "historical_timing_proxy": {
+    "basis": "record pilot timing; bootstrap timing uses baseline versus itself, not LoRA",
+    "diseases": {
+      "ckd": {
+        "train_steps_per_epoch": 4627,
+        "proxy_epoch_seconds": 1467.088059203535,
+        "bootstrap_2000_seconds": 35.8621415000016
+      },
+      "fatty_liver": {
+        "train_steps_per_epoch": 4556,
+        "proxy_epoch_seconds": 1444.6699099753614,
+        "bootstrap_2000_seconds": 33.91184649999843
+      },
+      "diabetes": {
+        "train_steps_per_epoch": 4186,
+        "proxy_epoch_seconds": 1327.5926859635779,
+        "bootstrap_2000_seconds": 30.412393000000293
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "passed": true,
+  "execution_commit": "24a8912e28e2486f7f107716681fcd27be7dfeaa",
+  "torch": "2.12.1+cu132",
+  "gpu": "NVIDIA GeForce RTX 5090",
+  "free_gib": 799.2285614013672,
+  "gate_identity": {
+    "dataset_content_sha256": "5eb20ab9b04a1619711733dca0db67332cd3d0ecfbcccce233f8f7343b2b983e",
+    "dataset_hash_seconds": 0.22938817199997175,
+    "precision": "bf16",
+    "protocol_version": "2026-10-22.5",
+    "task": "record",
+    "disease": null,
+    "smoke": false,
+    "model_sha256": "fccf4a76f2d44a86ac121c52e5c444be0e63904f64e47fb4f804e21458dbd865",
+    "dataset_metadata_sha256": "4cd2a0391dcaacd7c0d018aca487554a322c7f5d9b889f70ba0bc4abd31f45ce",
+    "validation_patient_ids_sha256": "605bb8560a436c110cd42f6180c2411c45b82549d5c3495b858d20a62f4ce6c4",
+    "test_patient_ids_sha256": "22baead3c3c08db7495753b5a8344a8d2534f77c05f973831812a9a8416ac9af",
+    "label_definition_sha256": "ad373c328ac438101af6d3cdfe0422b989942e73c046296e64b50ceac6aaa140",
+    "training_selection": "all",
+    "n_train": 18474,
+    "train_patient_ids_sha256": "c77be73d0c055c257bdcc92f164f3bfb466f11918740dea4581252f149ffb3e4"
+  },
+  "counts": {
+    "train": 18474,
+    "validation": 1867,
+    "test": 1862,
+    "preprocessing_train": 19992,
+    "embedding_pool": 23991
+  },
+  "baseline_recall_at_10": 70.99542032734969,
+  "cuda_probe_max_absolute_error": 0.0,
+  "cuda_probe_patients": 32,
+  "launch_time_kst": "2026-10-22T18:02:21+09:00",
+  "status": "queue_launched; results pending",
+  "execution_snapshot": "C:/Users/HP/.codex/runtimes/fermat-record-24a8912",
+  "suite_directory": "/home/fermat/fermat-data/restricted/lora_baseline_20261022/record_main_suite_01",
+  "cpu_tests": {
+    "passed": 55,
+    "seconds": 72.174,
+    "torch": "2.12.1+cu132"
+  }
+}

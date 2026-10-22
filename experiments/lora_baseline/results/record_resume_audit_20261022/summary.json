@@ -1,0 +1,148 @@
+{
+  "passed": true,
+  "checks": {
+    "current_state": true,
+    "optimizer": true,
+    "best_state": true,
+    "best": true,
+    "since_best": true,
+    "optimizer_steps": true,
+    "rng": true,
+    "contract": true,
+    "epoch_metrics": true,
+    "validation_scores": true,
+    "no_test_outputs": true
+  },
+  "train_subset": 128,
+  "epochs": 2,
+  "optimizer_steps": 8,
+  "validation_patients": 1867,
+  "validation_max_absolute_error": 0.0,
+  "code_sha256": {
+    "train_record.py": "f3a17f9ef5c6b7fca58863609ef82f976677e5176a29be0b096a40c75b399b83",
+    "common.py": "08549f775cdfdaebdb1eff33912ebb7157017a41e365de7e187a1601fd4f553a",
+    "checkpointing.py": "d781331c81d85d739b91215a337ddeb0c85b7e3e55ec32a707a733b5abf4d74a",
+    "data.py": "fe2bf6f9a785e6882564ed9a3f74280075a58255cd69c47bfd6c4dad9af1675b",
+    "recipes.py": "da231f5a8571999d1548d0f5b229c9e0474b5fd6a9f40920504a6c198ea7331d",
+    "lora.py": "a7d90efdcb3b6d9f7fc8cea0aa5fa3b3e1627332886dadad5c8e5d05ab89f806",
+    "metrics.py": "d970cfca03738e18f26e59b8827be577351fa0a21774bfebec9a1dfd8b4bc405",
+    "release/__init__.py": "df2c9b02396f14a121ae116e295d41dfa74488e9cd20c1119d0d12d5ff08a1ca",
+    "release/inference.py": "2f23ad1ae26056fce64cb1cb9978ca865d3718f7a0d9e7dc74bf88235dbda694",
+    "release/loader.py": "c3dc55985d0cdb8e2a18217347b2afd483c7eed915a4ce9a22f49b33efa4a8ed",
+    "release/model.py": "f4a98b26285a61151c59507d7b7e2af813a0789c68c9d1d2dae945ae73351ab2",
+    "release/tokenization.py": "79e8ffaf66c7bd99084578245dc25e746f7144b3ed2eb6c688abeafa452b7230"
+  },
+  "durations": {
+    "uninterrupted": 118.28297945100007,
+    "paused": 98.71169353599998,
+    "resumed": 110.40909547299998,
+    "reload": 15.553506334000076
+  },
+  "run_ids": {
+    "uninterrupted": "eq1zp219",
+    "paused": "8yd6erl0",
+    "resumed": "ciyav8e2"
+  },
+  "reload": {
+    "patient_order_exact": true,
+    "top10_exact": true,
+    "logits_allclose": true,
+    "logits_exact": true,
+    "maximum_absolute_error": 0.0,
+    "rtol": 1e-05,
+    "atol": 1e-05,
+    "passed": true
+  },
+  "artifact_sha256": {
+    "last_training.json": "ae1cd4da3b1b62130c830a61a9b91992caf0232c47964620eea5d110755535ae",
+    "trainable_state.pt": "04f0b45aaa571324c9eda41548dc5167f4681a6cf2bef0025551f63e0d842836"
+  },
+  "execution_commit": "70c974c62071ace72168e5a6d746be9fb56daff1",
+  "wandb_verification": {
+    "uninterrupted": {
+      "id": "eq1zp219",
+      "state": "finished",
+      "config": {
+        "commit": "70c974c62071ace72168e5a6d746be9fb56daff1",
+        "validation_only": true,
+        "resumed": false,
+        "arm": "lora",
+        "recipe": "lora",
+        "seed": 1
+      },
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ],
+      "optimizer_steps": 8
+    },
+    "paused": {
+      "id": "8yd6erl0",
+      "state": "finished",
+      "config": {
+        "commit": "70c974c62071ace72168e5a6d746be9fb56daff1",
+        "validation_only": true,
+        "resumed": false,
+        "arm": "lora",
+        "recipe": "lora",
+        "seed": 1
+      },
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ],
+      "optimizer_steps": 4
+    },
+    "resumed": {
+      "id": "ciyav8e2",
+      "state": "finished",
+      "config": {
+        "commit": "70c974c62071ace72168e5a6d746be9fb56daff1",
+        "validation_only": true,
+        "resumed": true,
+        "arm": "lora",
+        "recipe": "lora",
+        "seed": 1
+      },
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ],
+      "optimizer_steps": 8
+    }
+  },
+  "environment": {
+    "gpu": "RTX 5090 32GB",
+    "torch": "2.12.1+cu132",
+    "precision": "BF16",
+    "batch_size": 32,
+    "seed": 1,
+    "driver": "616.92",
+    "power_limit_w": 400,
+    "max_clock_mhz": 1500
+  },
+  "checkpoint_bytes": {
+    "uninterrupted": [
+      184356681,
+      184356745
+    ],
+    "paused": [
+      184356681
+    ],
+    "resumed": [
+      184356873
+    ]
+  },
+  "checkpoint_commit_seconds": {
+    "uninterrupted": [
+      0.3275594619999538,
+      0.29445390599994425
+    ],
+    "paused": [
+      0.34869659599985425
+    ],
+    "resumed": [
+      0.32115587399994183
+    ]
+  }
+}

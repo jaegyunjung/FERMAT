@@ -1,0 +1,1217 @@
+{
+  "status": "COMPLETED_AND_AUDITED",
+  "started": "2026-10-22T21:31:41+0900",
+  "finished": "2026-10-23T08:09:04+0900",
+  "wall_seconds": 38243.0,
+  "training_commit": "95713c679f6a11de1d0201f6bcfecdc70b39788b",
+  "runs": {
+    "C_ckd_seed1": {
+      "disease": "ckd",
+      "group": "C",
+      "seed": 1,
+      "selected_epoch": 2,
+      "completed_epochs": 3,
+      "test": {
+        "weighted_auroc": 0.8567676051838982,
+        "weighted_brier": 0.02071699138185779,
+        "observed": 5665,
+        "cases": 155,
+        "mean_probability": 0.02569523218185461
+      },
+      "elapsed_seconds": 118.75988881500001,
+      "epoch_seconds": [
+        24.023526780999987,
+        24.807638343999997,
+        27.733588216000015
+      ],
+      "checkpoint_sha256": "fc4040eed71047c39ef1b6baec8073b496235c17e30c3d12c257a9fad3cba6f3",
+      "predictions_sha256": "0c4a2c12295b60f2aec47773bb819fcfde2c624d4d59453c6f592532f2e025e3",
+      "independent_reload_exact": null
+    },
+    "C_fatty_liver_seed1": {
+      "disease": "fatty_liver",
+      "group": "C",
+      "seed": 1,
+      "selected_epoch": 2,
+      "completed_epochs": 3,
+      "test": {
+        "weighted_auroc": 0.7402167670136277,
+        "weighted_brier": 0.027339322767216935,
+        "observed": 5578,
+        "cases": 168,
+        "mean_probability": 0.030147507845939055
+      },
+      "elapsed_seconds": 105.27248747800002,
+      "epoch_seconds": [
+        29.427178382000022,
+        24.49954077999996,
+        17.156877195999982
+      ],
+      "checkpoint_sha256": "9142ef173ca3f5f4e8006dd42510a66d543a7eb4d1a10ad19ec26d944f204249",
+      "predictions_sha256": "c33662e628ca32cffde47dbbe32144432fbdf3370223cbe6d6eeffa3d07633fd",
+      "independent_reload_exact": null
+    },
+    "C_diabetes_seed1": {
+      "disease": "diabetes",
+      "group": "C",
+      "seed": 1,
+      "selected_epoch": 1,
+      "completed_epochs": 2,
+      "test": {
+        "weighted_auroc": 0.7661353915200949,
+        "weighted_brier": 0.045819097540836365,
+        "observed": 5082,
+        "cases": 280,
+        "mean_probability": 0.05238520664629432
+      },
+      "elapsed_seconds": 60.02320805900001,
+      "epoch_seconds": [
+        18.935725175000016,
+        14.627002490000052
+      ],
+      "checkpoint_sha256": "88eec0bbba47b4fbc42f9f2c601c4fd1cdf53856cb440940504f44414f77df8d",
+      "predictions_sha256": "c5fe58c4b4c531e59e98b5ec21060daa9ba3cf2ce6e77fe07f22596b0fab9e71",
+      "independent_reload_exact": null
+    },
+    "C_ckd_seed2": {
+      "disease": "ckd",
+      "group": "C",
+      "seed": 2,
+      "selected_epoch": 1,
+      "completed_epochs": 2,
+      "test": {
+        "weighted_auroc": 0.853421133390215,
+        "weighted_brier": 0.02106657121135116,
+        "observed": 5665,
+        "cases": 155,
+        "mean_probability": 0.0367332342562381
+      },
+      "elapsed_seconds": 74.114563525,
+      "epoch_seconds": [
+        24.128958522999994,
+        19.908378921999997
+      ],
+      "checkpoint_sha256": "7c9852368efb49643b19350cc396b2ba6963088aa1d6fb8603dd7836df0737b3",
+      "predictions_sha256": "bc1f09cf5af8babbc6dd22dce3f8fbcd9f052e76c16e222f863852617b34a377",
+      "independent_reload_exact": null
+    },
+    "C_fatty_liver_seed2": {
+      "disease": "fatty_liver",
+      "group": "C",
+      "seed": 2,
+      "selected_epoch": 2,
+      "completed_epochs": 3,
+      "test": {
+        "weighted_auroc": 0.7364983436942653,
+        "weighted_brier": 0.027875690068037928,
+        "observed": 5578,
+        "cases": 168,
+        "mean_probability": 0.031845722194111414
+      },
+      "elapsed_seconds": 91.60459747499999,
+      "epoch_seconds": [
+        21.715348804999962,
+        23.167300412999907,
+        19.223417359999985
+      ],
+      "checkpoint_sha256": "aa44d409e435cc378bcb5b845c3884561c85d9290502eec99d8894d5cdecbf64",
+      "predictions_sha256": "8c70d45a872d7c982648295df26d0187612d6146294085a48d1bd1a1c7af7d4e",
+      "independent_reload_exact": null
+    },
+    "C_diabetes_seed2": {
+      "disease": "diabetes",
+      "group": "C",
+      "seed": 2,
+      "selected_epoch": 2,
+      "completed_epochs": 3,
+      "test": {
+        "weighted_auroc": 0.7755052082672382,
+        "weighted_brier": 0.04510131685634499,
+        "observed": 5082,
+        "cases": 280,
+        "mean_probability": 0.05027940429675079
+      },
+      "elapsed_seconds": 82.07706306199998,
+      "epoch_seconds": [
+        18.761361049000016,
+        14.581383404999997,
+        19.080657316000043
+      ],
+      "checkpoint_sha256": "d8609b570e4556adf2bcf5f1248ab4fa1bcada0990f3584612c876a9197b745f",
+      "predictions_sha256": "29c718bdb5d6b29ea639d22a1f29538f6860373cc29ae2608a8cc2c56d82d694",
+      "independent_reload_exact": null
+    },
+    "C_ckd_seed3": {
+      "disease": "ckd",
+      "group": "C",
+      "seed": 3,
+      "selected_epoch": 2,
+      "completed_epochs": 3,
+      "test": {
+        "weighted_auroc": 0.860654225441407,
+        "weighted_brier": 0.020593225555697793,
+        "observed": 5665,
+        "cases": 155,
+        "mean_probability": 0.0328496391212927
+      },
+      "elapsed_seconds": 100.81194467599994,
+      "epoch_seconds": [
+        29.507799507999948,
+        16.843460829000037,
+        20.072376110999926
+      ],
+      "checkpoint_sha256": "e636f376dff3df8997faa4975fdbc9274275c3cb8dc02ff402c51f47ec905850",
+      "predictions_sha256": "2ca989521a5ac289679fd4134ba68225c59bb65884b10aaad8cf0df049e48600",
+      "independent_reload_exact": null
+    },
+    "C_fatty_liver_seed3": {
+      "disease": "fatty_liver",
+      "group": "C",
+      "seed": 3,
+      "selected_epoch": 2,
+      "completed_epochs": 3,
+      "test": {
+        "weighted_auroc": 0.7307756151454146,
+        "weighted_brier": 0.027450017790679508,
+        "observed": 5578,
+        "cases": 168,
+        "mean_probability": 0.032681674745998104
+      },
+      "elapsed_seconds": 104.547464182,
+      "epoch_seconds": [
+        29.067705737999972,
+        18.401095476000023,
+        24.562642854999922
+      ],
+      "checkpoint_sha256": "a63e5e75ed49bd1d05808b430cc6cfdc88b77df920da3ec2246475ef9cdba3d2",
+      "predictions_sha256": "05713544496663cd81d8b4a7c4e3e4d9def668dfc83d9f9286eee99f993cdde6",
+      "independent_reload_exact": null
+    },
+    "C_diabetes_seed3": {
+      "disease": "diabetes",
+      "group": "C",
+      "seed": 3,
+      "selected_epoch": 2,
+      "completed_epochs": 3,
+      "test": {
+        "weighted_auroc": 0.7783568465301686,
+        "weighted_brier": 0.04569639225430648,
+        "observed": 5082,
+        "cases": 280,
+        "mean_probability": 0.05805893010008437
+      },
+      "elapsed_seconds": 129.90947680800002,
+      "epoch_seconds": [
+        29.63039240799992,
+        32.06005909599992,
+        29.85830976400007
+      ],
+      "checkpoint_sha256": "4836d0b21d5371edf87def94b8f7adacb6f08f4c5d920bba7daab55fd507abd4",
+      "predictions_sha256": "43bb81df18ac8da6cc296f2b30c2436e288b3c4811cd4fef757b9911f08f2c73",
+      "independent_reload_exact": null
+    },
+    "lora_ckd_seed1": {
+      "disease": "ckd",
+      "group": "lora",
+      "seed": 1,
+      "selected_epoch": 1,
+      "completed_epochs": 2,
+      "test": {
+        "weighted_auroc": 0.9016229047686077,
+        "weighted_brier": 0.019142651489240218,
+        "observed": 5665,
+        "cases": 155,
+        "mean_probability": 0.03136486584465244
+      },
+      "elapsed_seconds": 2727.932557872,
+      "epoch_seconds": [
+        1344.7019757010003,
+        1289.769331554
+      ],
+      "checkpoint_sha256": "7c396953c59dfc892d12f54fe77238ad8be81ab921534c042dd9676fa8c7eea5",
+      "predictions_sha256": "a534a74e3507daec01594c8763e75b6eb30b37a1efa2a6009d59ec1fe3538ff3",
+      "independent_reload_exact": true,
+      "contrasts": {
+        "minus_saved_v1": {
+          "auroc": {
+            "point": 0.031023273546081587,
+            "ci_low": 0.01105006460907652,
+            "ci_high": 0.05106588570361998,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 1
+          },
+          "brier": {
+            "point": -0.0012574705582633905,
+            "ci_low": -0.00229256039229506,
+            "ci_high": -0.00021449597800627548,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 1
+          }
+        },
+        "minus_refit_v1": {
+          "auroc": {
+            "point": 0.031023273546081587,
+            "ci_low": 0.01105006460907652,
+            "ci_high": 0.05106588570361998,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 1
+          },
+          "brier": {
+            "point": -0.0012574705691957948,
+            "ci_low": -0.0022925603917474334,
+            "ci_high": -0.00021449593550106207,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 1
+          }
+        },
+        "minus_matched_C": {
+          "auroc": {
+            "point": 0.044855299584709796,
+            "ci_low": 0.02204648357680549,
+            "ci_high": 0.06840042204582314,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 1
+          },
+          "brier": {
+            "point": -0.0015743398926175711,
+            "ci_low": -0.00288578152890429,
+            "ci_high": -0.00027540623044790497,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 1
+          }
+        }
+      }
+    },
+    "lora_fatty_liver_seed1": {
+      "disease": "fatty_liver",
+      "group": "lora",
+      "seed": 1,
+      "selected_epoch": 1,
+      "completed_epochs": 2,
+      "test": {
+        "weighted_auroc": 0.7902525290262088,
+        "weighted_brier": 0.02762898695897783,
+        "observed": 5578,
+        "cases": 168,
+        "mean_probability": 0.038712206596047176
+      },
+      "elapsed_seconds": 2610.1616684530004,
+      "epoch_seconds": [
+        1267.1292404229994,
+        1265.466541404
+      ],
+      "checkpoint_sha256": "ad04da88a9c4841e42e08db3f09dcb021de831f270e6784c22af1fd9fd8aa334",
+      "predictions_sha256": "48085add7403ceb0928db80bc2ddadb70eb7ae030e3b044d82cfdcea483ca3c7",
+      "independent_reload_exact": true,
+      "contrasts": {
+        "minus_saved_v1": {
+          "auroc": {
+            "point": 0.0382698867269885,
+            "ci_low": 0.00905087164408087,
+            "ci_high": 0.0693394847757951,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 1
+          },
+          "brier": {
+            "point": 0.0003765260723291308,
+            "ci_low": -0.0007061134469142957,
+            "ci_high": 0.001472206424237642,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 1
+          }
+        },
+        "minus_refit_v1": {
+          "auroc": {
+            "point": 0.0382698867269885,
+            "ci_low": 0.00905087164408087,
+            "ci_high": 0.0693394847757951,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 1
+          },
+          "brier": {
+            "point": 0.0003765260636726664,
+            "ci_low": -0.0007061133698436569,
+            "ci_high": 0.001472206435553944,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 1
+          }
+        },
+        "minus_matched_C": {
+          "auroc": {
+            "point": 0.0500357620125812,
+            "ci_low": 0.01932797634067543,
+            "ci_high": 0.08309739029330725,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 1
+          },
+          "brier": {
+            "point": 0.00028966419176089386,
+            "ci_low": -0.0009086501534704551,
+            "ci_high": 0.0014956608995528409,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 1
+          }
+        }
+      }
+    },
+    "lora_diabetes_seed1": {
+      "disease": "diabetes",
+      "group": "lora",
+      "seed": 1,
+      "selected_epoch": 2,
+      "completed_epochs": 3,
+      "test": {
+        "weighted_auroc": 0.8516017323747352,
+        "weighted_brier": 0.0421699624536991,
+        "observed": 5082,
+        "cases": 280,
+        "mean_probability": 0.04806631483392416
+      },
+      "elapsed_seconds": 3567.375898771,
+      "epoch_seconds": [
+        1165.3520825249998,
+        1163.2728438080003,
+        1163.5318743830012
+      ],
+      "checkpoint_sha256": "8a44ac7ca3c291c2acc88338078159b4d6b063c8b5d32aefb1c1d399a9b379ec",
+      "predictions_sha256": "3f0e22e5d42b84ca403680dff7f5d17edfc2e5cb990d94264e4173c9759bab73",
+      "independent_reload_exact": true,
+      "contrasts": {
+        "minus_saved_v1": {
+          "auroc": {
+            "point": 0.06758307239032901,
+            "ci_low": 0.04849801731476419,
+            "ci_high": 0.08719849122335632,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 1
+          },
+          "brier": {
+            "point": -0.0030150368183993748,
+            "ci_low": -0.004645136317952694,
+            "ci_high": -0.0014818098264019334,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 1
+          }
+        },
+        "minus_refit_v1": {
+          "auroc": {
+            "point": 0.06758307239032901,
+            "ci_low": 0.04849801731476419,
+            "ci_high": 0.08719849122335632,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 1
+          },
+          "brier": {
+            "point": -0.0030150368177382578,
+            "ci_low": -0.004645136157236634,
+            "ci_high": -0.001481809811716849,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 1
+          }
+        },
+        "minus_matched_C": {
+          "auroc": {
+            "point": 0.08546634085464022,
+            "ci_low": 0.06378483246745928,
+            "ci_high": 0.1079464185407821,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 1
+          },
+          "brier": {
+            "point": -0.0036491350871372674,
+            "ci_low": -0.005474876921912959,
+            "ci_high": -0.0019858633047771758,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 1
+          }
+        }
+      }
+    },
+    "lora_ckd_seed2": {
+      "disease": "ckd",
+      "group": "lora",
+      "seed": 2,
+      "selected_epoch": 1,
+      "completed_epochs": 2,
+      "test": {
+        "weighted_auroc": 0.9003314360484995,
+        "weighted_brier": 0.020756981976633157,
+        "observed": 5665,
+        "cases": 155,
+        "mean_probability": 0.032200968138078635
+      },
+      "elapsed_seconds": 2907.2468206470003,
+      "epoch_seconds": [
+        1328.2795141049992,
+        1501.027848636999
+      ],
+      "checkpoint_sha256": "419bae8de295ddb4922aa403625121a72405015a53953fddb1396d290b2dcdc3",
+      "predictions_sha256": "9f361108721846c6c233bcababd410b0710481816b2204111b8be61d06b10ada",
+      "independent_reload_exact": null,
+      "contrasts": {
+        "minus_saved_v1": {
+          "auroc": {
+            "point": 0.02973180482597304,
+            "ci_low": 0.01382706850701583,
+            "ci_high": 0.04610096943606791,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 2
+          },
+          "brier": {
+            "point": 0.00035685992912954864,
+            "ci_low": -0.000717013986429289,
+            "ci_high": 0.001469698478519854,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 2
+          }
+        },
+        "minus_refit_v1": {
+          "auroc": {
+            "point": 0.02973180482597304,
+            "ci_low": 0.01382706850701583,
+            "ci_high": 0.04610096943606791,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 2
+          },
+          "brier": {
+            "point": 0.00035685991819714435,
+            "ci_low": -0.0007170140344725678,
+            "ci_high": 0.0014696984965724294,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 2
+          }
+        },
+        "minus_matched_C": {
+          "auroc": {
+            "point": 0.046910302658284886,
+            "ci_low": 0.025736823773437646,
+            "ci_high": 0.06890273870074803,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 2
+          },
+          "brier": {
+            "point": -0.00030958923471800445,
+            "ci_low": -0.001336800137031008,
+            "ci_high": 0.0007197840313141836,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 2
+          }
+        }
+      }
+    },
+    "lora_fatty_liver_seed2": {
+      "disease": "fatty_liver",
+      "group": "lora",
+      "seed": 2,
+      "selected_epoch": 2,
+      "completed_epochs": 3,
+      "test": {
+        "weighted_auroc": 0.7801007127459698,
+        "weighted_brier": 0.02746587571167779,
+        "observed": 5578,
+        "cases": 168,
+        "mean_probability": 0.03412432956168879
+      },
+      "elapsed_seconds": 3961.7799565629994,
+      "epoch_seconds": [
+        1303.969785235,
+        1287.7314097910003,
+        1291.435087820999
+      ],
+      "checkpoint_sha256": "6abb48519fb8474f10bd2ae6cfc5d613ba703118a47241b5103b9b59b11bdf8b",
+      "predictions_sha256": "a4746ecfa6a5a46e4be42ff9371862b41f9ac4f13c495adb676f1efa91e07f7a",
+      "independent_reload_exact": null,
+      "contrasts": {
+        "minus_saved_v1": {
+          "auroc": {
+            "point": 0.028118070446749743,
+            "ci_low": -0.0036289121620798944,
+            "ci_high": 0.06198737768490196,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 2
+          },
+          "brier": {
+            "point": 0.00021341482502909223,
+            "ci_low": -0.001011901876541097,
+            "ci_high": 0.0014379745257230632,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 2
+          }
+        },
+        "minus_refit_v1": {
+          "auroc": {
+            "point": 0.028118070446749743,
+            "ci_low": -0.0036289121620798944,
+            "ci_high": 0.06198737768490196,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 2
+          },
+          "brier": {
+            "point": 0.0002134148163726278,
+            "ci_low": -0.001011901897655312,
+            "ci_high": 0.0014379745292510363,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 2
+          }
+        },
+        "minus_matched_C": {
+          "auroc": {
+            "point": 0.04360236905170478,
+            "ci_low": 0.014231463591934094,
+            "ci_high": 0.07271958007865935,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 2
+          },
+          "brier": {
+            "point": -0.00040981435636013724,
+            "ci_low": -0.0016903723497106366,
+            "ci_high": 0.0007889541612854199,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 2
+          }
+        }
+      }
+    },
+    "lora_diabetes_seed2": {
+      "disease": "diabetes",
+      "group": "lora",
+      "seed": 2,
+      "selected_epoch": 2,
+      "completed_epochs": 3,
+      "test": {
+        "weighted_auroc": 0.856809675137205,
+        "weighted_brier": 0.041367199265058635,
+        "observed": 5082,
+        "cases": 280,
+        "mean_probability": 0.04859841038821982
+      },
+      "elapsed_seconds": 4461.532941527999,
+      "epoch_seconds": [
+        1187.000418024003,
+        1252.6132184999988,
+        1923.2115138049994
+      ],
+      "checkpoint_sha256": "763c22c5afde47fe5af74c4f65071dbb69dd7385cb5b78125af568254d0746b7",
+      "predictions_sha256": "653232a81aa681d1739135e704f9d4cfce6b9ea19d3e19608b6e359ba4327a0e",
+      "independent_reload_exact": null,
+      "contrasts": {
+        "minus_saved_v1": {
+          "auroc": {
+            "point": 0.07279101515279862,
+            "ci_low": 0.051263734172584924,
+            "ci_high": 0.09415301124232592,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 2
+          },
+          "brier": {
+            "point": -0.003817800007039837,
+            "ci_low": -0.005578735744097599,
+            "ci_high": -0.0021319769474165287,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 2
+          }
+        },
+        "minus_refit_v1": {
+          "auroc": {
+            "point": 0.07279101515279862,
+            "ci_low": 0.051263734172584924,
+            "ci_high": 0.09415301124232592,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 2
+          },
+          "brier": {
+            "point": -0.00381780000637872,
+            "ci_low": -0.005578735659334964,
+            "ci_high": -0.002131976942331695,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 2
+          }
+        },
+        "minus_matched_C": {
+          "auroc": {
+            "point": 0.08130446686996784,
+            "ci_low": 0.05789251342390411,
+            "ci_high": 0.10348342244800302,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 2
+          },
+          "brier": {
+            "point": -0.0037341175912863553,
+            "ci_low": -0.0055655357924726265,
+            "ci_high": -0.0020272810344789598,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 2
+          }
+        }
+      }
+    },
+    "lora_ckd_seed3": {
+      "disease": "ckd",
+      "group": "lora",
+      "seed": 3,
+      "selected_epoch": 1,
+      "completed_epochs": 2,
+      "test": {
+        "weighted_auroc": 0.9071936228520805,
+        "weighted_brier": 0.020139755450392823,
+        "observed": 5665,
+        "cases": 155,
+        "mean_probability": 0.03493631895002193
+      },
+      "elapsed_seconds": 4393.055496254001,
+      "epoch_seconds": [
+        2163.687827955997,
+        2123.8072353250027
+      ],
+      "checkpoint_sha256": "2760efad60158fdd525ea586685754ae24e57b1bc54a28bc143526d9f5301637",
+      "predictions_sha256": "61c1eab19fc9cfb3bd231d12cf8ac1be54d1776d2ced8084287a485655320135",
+      "independent_reload_exact": null,
+      "contrasts": {
+        "minus_saved_v1": {
+          "auroc": {
+            "point": 0.036593991629554234,
+            "ci_low": 0.021067350987044868,
+            "ci_high": 0.05380487353313864,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 3
+          },
+          "brier": {
+            "point": -0.0002603665971107859,
+            "ci_low": -0.0014974647974422069,
+            "ci_high": 0.0010093802981110396,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 3
+          }
+        },
+        "minus_refit_v1": {
+          "auroc": {
+            "point": 0.036593991629554234,
+            "ci_low": 0.021067350987044868,
+            "ci_high": 0.05380487353313864,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 3
+          },
+          "brier": {
+            "point": -0.0002603666080431902,
+            "ci_low": -0.0014974647786446433,
+            "ci_high": 0.0010093802467793292,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 3
+          }
+        },
+        "minus_matched_C": {
+          "auroc": {
+            "point": 0.04653939741067359,
+            "ci_low": 0.028361663006620415,
+            "ci_high": 0.06674459498162606,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 3
+          },
+          "brier": {
+            "point": -0.00045347010530497056,
+            "ci_low": -0.0016483737385104445,
+            "ci_high": 0.0007651514658574968,
+            "n_patients": 5665,
+            "n_resamples": 2000,
+            "seed": 3
+          }
+        }
+      }
+    },
+    "lora_fatty_liver_seed3": {
+      "disease": "fatty_liver",
+      "group": "lora",
+      "seed": 3,
+      "selected_epoch": 2,
+      "completed_epochs": 3,
+      "test": {
+        "weighted_auroc": 0.7752656870091506,
+        "weighted_brier": 0.027077269843902123,
+        "observed": 5578,
+        "cases": 168,
+        "mean_probability": 0.027084301321234076
+      },
+      "elapsed_seconds": 6423.358342173,
+      "epoch_seconds": [
+        2101.361867956999,
+        2104.329830268998,
+        2107.714770890001
+      ],
+      "checkpoint_sha256": "572500ad636363f8199ce89f415dc78ef78d832ba1457fd650ad524d1a8e6543",
+      "predictions_sha256": "b63e7c256cdeb413644fc408bb4b3bad01425a406fba7cb6570d6b5d54527044",
+      "independent_reload_exact": null,
+      "contrasts": {
+        "minus_saved_v1": {
+          "auroc": {
+            "point": 0.023283044709929923,
+            "ci_low": -0.010488967509810371,
+            "ci_high": 0.05527386235370258,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 3
+          },
+          "brier": {
+            "point": -0.00017519104274657527,
+            "ci_low": -0.0011856485669848589,
+            "ci_high": 0.0008029053665686953,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 3
+          }
+        },
+        "minus_refit_v1": {
+          "auroc": {
+            "point": 0.023283044709929923,
+            "ci_low": -0.010488967509810371,
+            "ci_high": 0.05527386235370258,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 3
+          },
+          "brier": {
+            "point": -0.0001751910514030397,
+            "ci_low": -0.0011856485411567176,
+            "ci_high": 0.0008029054658169825,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 3
+          }
+        },
+        "minus_matched_C": {
+          "auroc": {
+            "point": 0.04449007186373599,
+            "ci_low": 0.01214116273150973,
+            "ci_high": 0.07724574109821243,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 3
+          },
+          "brier": {
+            "point": -0.0003727479467773853,
+            "ci_low": -0.001416734382119872,
+            "ci_high": 0.0006752650883920516,
+            "n_patients": 5578,
+            "n_resamples": 2000,
+            "seed": 3
+          }
+        }
+      }
+    },
+    "lora_diabetes_seed3": {
+      "disease": "diabetes",
+      "group": "lora",
+      "seed": 3,
+      "selected_epoch": 3,
+      "completed_epochs": 3,
+      "test": {
+        "weighted_auroc": 0.8585459060662733,
+        "weighted_brier": 0.04120756638194416,
+        "observed": 5082,
+        "cases": 280,
+        "mean_probability": 0.05441991617508066
+      },
+      "elapsed_seconds": 5909.927890584997,
+      "epoch_seconds": [
+        1926.5432905829985,
+        1943.9567437840014,
+        1935.0448199019957
+      ],
+      "checkpoint_sha256": "af7493b73e0bbcfc3ed8363f4c66a4ec1128296f9b2ff1490c55e931bf21110a",
+      "predictions_sha256": "d1eb62d944c77e3a66a8518fcb74827d13d1edd54a5e269d5c00e72156ca5e01",
+      "independent_reload_exact": null,
+      "contrasts": {
+        "minus_saved_v1": {
+          "auroc": {
+            "point": 0.07452724608186623,
+            "ci_low": 0.05412176555067773,
+            "ci_high": 0.09523339625686224,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 3
+          },
+          "brier": {
+            "point": -0.003977432890154314,
+            "ci_low": -0.006113664112071071,
+            "ci_high": -0.0016992114270502482,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 3
+          }
+        },
+        "minus_refit_v1": {
+          "auroc": {
+            "point": 0.07452724608186623,
+            "ci_low": 0.05412176555067773,
+            "ci_high": 0.09523339625686224,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 3
+          },
+          "brier": {
+            "point": -0.003977432889493197,
+            "ci_low": -0.00611366415043097,
+            "ci_high": -0.0016992113301529295,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 3
+          }
+        },
+        "minus_matched_C": {
+          "auroc": {
+            "point": 0.08018905953610478,
+            "ci_low": 0.059108336440480164,
+            "ci_high": 0.10196089690207737,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 3
+          },
+          "brier": {
+            "point": -0.004488825872362323,
+            "ci_low": -0.006608945367888243,
+            "ci_high": -0.0021812834419981317,
+            "n_patients": 5082,
+            "n_resamples": 2000,
+            "seed": 3
+          }
+        }
+      }
+    }
+  },
+  "diseases": {
+    "ckd": {
+      "observed": 5665,
+      "cases": 155,
+      "baseline": {
+        "weighted_auroc": 0.8705996312225265,
+        "weighted_brier": 0.02040012204750361
+      },
+      "groups": {
+        "C": {
+          "weighted_auroc": {
+            "mean": 0.8569476546718401,
+            "sample_sd": 0.003619905871543554
+          },
+          "weighted_brier": {
+            "mean": 0.02079226271630225,
+            "sample_sd": 0.00024548596247701517
+          }
+        },
+        "lora": {
+          "weighted_auroc": {
+            "mean": 0.9030493212230626,
+            "sample_sd": 0.0036466971162909686
+          },
+          "weighted_brier": {
+            "mean": 0.0200131296387554,
+            "sample_sd": 0.0008145804458500144
+          }
+        }
+      }
+    },
+    "fatty_liver": {
+      "observed": 5578,
+      "cases": 168,
+      "baseline": {
+        "weighted_auroc": 0.7519826422992203,
+        "weighted_brier": 0.027252460886648698
+      },
+      "groups": {
+        "C": {
+          "weighted_auroc": {
+            "mean": 0.7358302419511025,
+            "sample_sd": 0.00475590234383329
+          },
+          "weighted_brier": {
+            "mean": 0.02755501020864479,
+            "sample_sd": 0.0002831784353021018
+          }
+        },
+        "lora": {
+          "weighted_auroc": {
+            "mean": 0.781872976260443,
+            "sample_sd": 0.007648989925775519
+          },
+          "weighted_brier": {
+            "mean": 0.027390710838185915,
+            "sample_sd": 0.00028343475866970215
+          }
+        }
+      }
+    },
+    "diabetes": {
+      "observed": 5082,
+      "cases": 280,
+      "baseline": {
+        "weighted_auroc": 0.7840186599844069,
+        "weighted_brier": 0.04518499927209847
+      },
+      "groups": {
+        "C": {
+          "weighted_auroc": {
+            "mean": 0.7733324821058339,
+            "sample_sd": 0.006393867755134736
+          },
+          "weighted_brier": {
+            "mean": 0.04553893555049594,
+            "sample_sd": 0.00038392282810271333
+          }
+        },
+        "lora": {
+          "weighted_auroc": {
+            "mean": 0.8556524378594045,
+            "sample_sd": 0.003613832543493226
+          },
+          "weighted_brier": {
+            "mean": 0.0415815760335673,
+            "sample_sd": 0.0005157708782875367
+          }
+        }
+      }
+    }
+  },
+  "wandb": [
+    {
+      "name": "C_ckd_seed1",
+      "run_id": "hltbd0di",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/hltbd0di",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "C_fatty_liver_seed1",
+      "run_id": "it9de5od",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/it9de5od",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "C_diabetes_seed1",
+      "run_id": "0bqxvrly",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/0bqxvrly",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "C_ckd_seed2",
+      "run_id": "t896mw89",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/t896mw89",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "C_fatty_liver_seed2",
+      "run_id": "4oopwznz",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/4oopwznz",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "C_diabetes_seed2",
+      "run_id": "wnu32ca0",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/wnu32ca0",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "C_ckd_seed3",
+      "run_id": "muk8auhj",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/muk8auhj",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "C_fatty_liver_seed3",
+      "run_id": "6n5e53dl",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/6n5e53dl",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "C_diabetes_seed3",
+      "run_id": "ge3lkf1r",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/ge3lkf1r",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "lora_ckd_seed1",
+      "run_id": "b09eothi",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/b09eothi",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "lora_fatty_liver_seed1",
+      "run_id": "7x9p4jzq",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/7x9p4jzq",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "lora_diabetes_seed1",
+      "run_id": "nm1cjumr",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/nm1cjumr",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "lora_ckd_seed2",
+      "run_id": "3ug9uyk4",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/3ug9uyk4",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "lora_fatty_liver_seed2",
+      "run_id": "hpj8bg2u",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/hpj8bg2u",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "lora_diabetes_seed2",
+      "run_id": "bt4fqmwc",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/bt4fqmwc",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "lora_ckd_seed3",
+      "run_id": "dpt1bbhg",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/dpt1bbhg",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "lora_fatty_liver_seed3",
+      "run_id": "xme9jk83",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/xme9jk83",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    },
+    {
+      "name": "lora_diabetes_seed3",
+      "run_id": "3b2ymvui",
+      "url": "https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/3b2ymvui",
+      "state": "finished",
+      "files": [
+        "config.yaml",
+        "wandb-summary.json"
+      ]
+    }
+  ],
+  "audit": {
+    "all_18_checkpoints_verified": true,
+    "all_18_test_metrics_verified": true,
+    "all_9_saved_v1_bootstraps_independently_verified": true,
+    "maximum_absolute_bootstrap_difference": 1.2212453270876722e-15,
+    "method": "Independent NumPy weighted positive/negative grouped masses with patient multiplicity counts",
+    "source_hashes_unchanged": true
+  },
+  "interpretation": {
+    "primary_seed": 1,
+    "sensitivity_seeds": [
+      2,
+      3
+    ],
+    "resamples": 2000,
+    "interval": "95% percentile",
+    "fixed_observation_weights": true,
+    "multiplicity_adjusted": false,
+    "refit_uncertainty_included": false,
+    "seeds_pooled_as_patients": false,
+    "C_and_refit_contrasts": "secondary"
+  }
+}
