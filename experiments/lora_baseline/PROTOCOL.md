@@ -156,15 +156,16 @@ either metric, and a gate built with custom targets. Otherwise, as in Section 4.
 5. Cost is reported next to accuracy: GPU-hours per arm, and inference cost per
    patient (one forward pass for both predictor arms versus 50 trajectories).
 
-## 7. Compute and feasibility (estimates, not measured)
+## 7. Compute and feasibility
 
 The record suite is complete; measured runtime is in RECORD_MAIN_PLAN_KO.md.
 The risk task now uses 133,947–148,048 observed patients × ≤3 epochs per disease.
-The record-pilot-based estimate is 10.6 hours for all nine risk LoRA fits,
-or a provisional 12–15 hours including preparation compute and overhead;
-see PREPARATION_KO.md Section 5. A disease-specific CUDA pilot must replace this
-estimate. Shared, identity-checked frozen embedding caching is planned but is
-not yet implemented for the risk trainer.
+Disease-specific 128-step CUDA pilots now provide the runtime projection;
+see PREPARATION_KO.md Section 6 and results/risk_preparation_20261022/summary.json.
+Full training duration remains an estimate, not a measured completed run.
+Shared identity-checked embeddings are implemented and all 329,583 CUDA BF16
+vectors match their original values exactly. The one-time extraction is complete;
+do not charge its 1,104.53 seconds again for every disease or seed.
 
 ## 8. Inputs to prepare locally (not in this repository)
 
@@ -254,7 +255,7 @@ implementation and recipe descriptions; it does not alter official gate targets.
 | Head-only clip/warm-up | absent in both originals | absent; incompatible real v1 overrides rejected |
 | Record architecture search | original included linear and mlp256, three seeds each | this protocol reproduces the linear baseline, not the full architecture search |
 | Record ties | original validation torch.topk, final metrics patient-seeded ties | stable class-order ranking; saved-head audit found 0 changed top-10 sets in 1,862 test patients; no general bound inferred |
-| Embedding extraction | original saved embeddings, token mapping, prefixes and precision | record: all 23,991 CUDA BF16 vectors exactly match saved values using original batch context; risk remains pending |
+| Embedding extraction | original saved embeddings, token mapping, prefixes and precision | record: all 23,991 CUDA BF16 vectors exactly match saved values using original batch context; risk: all 329,583 CUDA BF16 vectors exactly match the originals |
 | LoRA settings | no historical counterpart | new protocol |
 
 Source files in the original local checkout: `scripts/run_next_record_bundle.py`,
@@ -320,9 +321,9 @@ The 18,474-patient gate does not authorize a new 100k export. Even unchanged
 validation/test IDs cannot compensate for a changed training-content hash.
 Expanded-cohort runs are deferred until a protocol amendment defines and tests
 historical-reference versus new-pool compatibility. Do not bypass the check or
-relabel an experimental 100k head as v1. Shared risk embedding caching is also
-deferred; its future key must bind model, prefix content, precision and extraction
-semantics, independently of disease-specific outcomes and eligibility.
+relabel an experimental 100k head as v1. Shared risk embedding caching is implemented in risk_cache.py. Its identity binds
+model, prefix content, patient mapping, precision and original batch/shard extraction
+semantics; disease-specific outcomes and eligibility remain bound to the gate.
 
 Before a risk gate, require exact float64 agreement of the clinical median,
 mean and standard deviation with the saved fixed-C10 transform; FP32 transformed

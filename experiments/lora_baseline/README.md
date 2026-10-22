@@ -22,6 +22,9 @@ metrics.py                 Recall@K / F1 / precision / hit, weighted AUROC and B
 common.py                  model, accumulation, checkpoint and provenance plumbing
 checkpointing.py           atomic epoch transactions, checksum/contract validation and RNG restoration
 audit_record_resume.py     bounded real CUDA resume/reload audit using validation only
+audit_risk_resume.py       risk-specific CUDA resume/reload audit, 128 patients and validation only
+run_risk_preflight.py      C10 gates -> resume audit -> bounded timing pilots; never main LoRA training
+risk_cache.py              original-batch CUDA parity and verified shared risk embeddings
 run_record_suite.py        fixed A/C/LoRA seed queue with artifact checks and fail-stop behavior
 gates.py                   target-content and experiment-identity verification
 recipes.py                 audited v1 preprocessing, seed/order and selection
@@ -33,6 +36,8 @@ audit_record_embeddings.py guarded original-batch/exported-batch CUDA BF16 parit
 audit_record_ties.py        saved-head comparison of seeded and stable tie rules
 prepare_record_v1.py       verify and export saved record prefixes, labels and 50-path baseline outside Git
 prepare_risk_baselines.py  verify published fixed-C10 artifacts and export comparison probabilities outside Git
+prepare_risk_outcomes.py   original-model replay and private clinical/outcome/weight preparation
+prepare_risk_prefixes.py   source-hash verified prefixes and original 64-patient extraction context
 train_record.py            task R: items on the first clinical date after the history
 train_risk.py              task D: five-year disease risk for one disease
 make_synthetic_dataset.py  random fixture for pipeline tests (not patient data)
@@ -62,23 +67,28 @@ python train_record.py --release $R --data $D --out runs/record/lora_s1 --arm lo
     --baseline-recall /path/to/generation50_recall.csv --baseline-label generation50
 python predict.py --release $R --data $D --state runs/record/lora_s1/trainable_state.pt --out runs/record/lora_s1_reload --device cuda --bf16
 
-# Task D, one disease at a time: full-pool reproduction, gate, then both arms on the same 100k list
+# Task D: bounded preparation only, using the full original cohort for each disease.
 E=/path/to/exported/risk_dataset
-python train_risk.py --release $R --data $E --out runs/risk/ckd/head_only_full --arm head_only --disease ckd --device cuda --bf16
-python check_gate.py --summary runs/risk/ckd/head_only_full/summary.json --out runs/risk/ckd/gate.json
-python train_risk.py --release $R --data $E --out runs/risk/ckd/head_only_100k --arm head_only --recipe experimental --disease ckd \
-    --train-patient-ids /path/to/risk_train_100k_ids.npy --device cuda --bf16
-python train_risk.py --release $R --data $E --out runs/risk/ckd/lora_s1 --arm lora --disease ckd --seed 1 --gate runs/risk/ckd/gate.json \
-    --train-patient-ids /path/to/risk_train_100k_ids.npy --device cuda --bf16 \
-    --baseline-probabilities runs/risk/ckd/head_only_100k/test_patient_probabilities.csv --baseline-label head_only
+K=/private/new_risk_cache
+P=/path/to/current_boot_gpu_profile.json
+M=/private/original_fixed_c10/models
+python risk_cache.py --release $R --data $E --out $K --arm head_only --batch-size 64 \
+    --device cuda --bf16 --gpu-profile $P --tracking online --wandb-entity YOUR_ENTITY
+python run_risk_preflight.py --release $R --data $E --embedding-cache $K --fixed-models $M \
+    --gpu-profile $P --out /private/new_risk_preflight --wandb-entity YOUR_ENTITY
+# Review the preflight report and measured ETA before starting the main disease experiment.
 ```
 
 Local source comparison is recorded in PROTOCOL.md Section 12. Actual record
 CUDA BF16 reproduction passed; see RUN_RESULTS_KO.md and results/record_v1_20261022/.
 A 128-step record LoRA timing pilot and all nine A/C/LoRA record experiments are
 complete. See RECORD_MAIN_PLAN_KO.md and results/record_main_20261022/ for final
-results and an independent bootstrap audit. Disease reproduction/LoRA and the
-100k expansion remain pending. Synthetic tests alone do not establish v1 reproduction.
+results and an independent bootstrap audit. All three disease C10 reproduction
+gates passed, and all 329,583 CUDA BF16 embeddings exactly match the originals.
+Disease main LoRA training and the 100k expansion remain pending. Risk runtime
+additions pass 59 CPU tests; measured preparation results are documented in
+PREPARATION_KO.md Section 6. Synthetic tests
+alone do not establish v1 reproduction.
 
 Risk exports require boolean `eligible_<disease>.npy` per split. Preprocessing
 uses all eligible training patients, including censored patients; optimization
@@ -108,8 +118,9 @@ gate. Grid selection requires `--recipe experimental`; it cannot issue a real
 gate. Version .3 introduced the corrected preprocessing. Regenerate old
 gates/checkpoints. Use an empty output directory per run. Prediction reads
 precision/smoke seed from its checkpoint and verifies the base model.
-Record training supports epoch-boundary resume into a new output directory;
-risk training does not yet support resume. See CHECKPOINT_RESUME_KO.md.
+Both record and risk training support epoch-boundary resume into a new output
+directory. Actual CUDA risk uninterrupted/resumed states and independently
+reloaded validation probabilities agree exactly. See CHECKPOINT_RESUME_KO.md.
 Synthetic tests alone do not establish real-data training or replay correctness.
 
 Completed full runs write `summary.json`, a per-patient test CSV and `trainable_state.pt`

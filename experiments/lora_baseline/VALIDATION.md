@@ -1,10 +1,19 @@
 # Refactor validation — 2026-10-22
 
+Latest risk runtime extension: **59 tests passed**, torch 2.12.1+cu132,
+197.501 seconds. This includes both record regression coverage and new risk
+resume/terminal-resume, independent validation probability reload, benchmark
+isolation, matched-head schedule, cache corruption rejection, and original
+column-reduction-order checks. Actual CUDA risk validation is tracked separately
+in PREPARATION_KO.md Section 6. Earlier measurements below are retained as history.
+
 Base commit: `b1dd40c753c5aa9aea1d1a67e309dead531c8d9d`.
 Protocol: `2026-10-22.5`. The automated tests below use synthetic inputs and
 random weights only. Actual CUDA record reproduction is documented separately
 in RUN_RESULTS_KO.md; do not confuse it with the synthetic suite. Disease
-reproduction remains pending. The full record suite completed after review;
+C10 reproduction now passes for all three diseases; disease main LoRA training
+has not started. See PREPARATION_KO.md Section 6 for the actual CUDA evidence.
+The full record suite completed after review;
 final results and an independent bootstrap audit are recorded in RECORD_MAIN_PLAN_KO.md
 and results/record_main_20261022/summary.json.
 Bounded LoRA timing is reported separately in LORA_BENCHMARK_KO.md.
@@ -20,7 +29,7 @@ python experiments/lora_baseline/audit_v1.py \
   --reference-dir /path/to/original/scripts --out /tmp/v1_audit.json
 ```
 
-The suite contains 55 tests, including both task pipelines, gate issuance and
+The earlier 55-test suite below included both task pipelines, gate issuance and
 rejection, checkpoint reload in separate processes, unchanged frozen weights,
 partial/unequal gradient accumulation, historical seed/order and preprocessing,
 eligibility validation, changed data, modified target files, output protection,
