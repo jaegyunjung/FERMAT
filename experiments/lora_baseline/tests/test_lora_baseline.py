@@ -149,16 +149,20 @@ class PipelineSmokeTests(unittest.TestCase):
         cls.root = Path(cls.tmp.name)
         cls.data = cls.root / 'data'
         cls.invoke(['make_synthetic_dataset.py', '--out', str(cls.data), '--patients', '40', '16', '16',
-                 '--max-length', '24', '--n-classes', '30'])
+                    '--max-length', '24', '--n-classes', '30'])
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
     @classmethod
-    def invoke(cls, arguments):
+    def invoke(cls, arguments, expect_failure=False):
         completed = subprocess.run([sys.executable, str(PACKAGE / arguments[0])] + arguments[1:],
                                    capture_output=True, text=True, cwd=PACKAGE)
+        if expect_failure:
+            if completed.returncode == 0:
+                raise AssertionError('expected failure but the command succeeded:\n' + completed.stdout)
+            return completed.stderr + completed.stdout
         if completed.returncode != 0:
             raise AssertionError(completed.stdout + completed.stderr)
         return completed.stdout
@@ -168,32 +172,96 @@ class PipelineSmokeTests(unittest.TestCase):
                 '--smoke-random-init', str(HERE / 'smoke_model_config.json'), '--batch-size', '8',
                 '--epochs', '2', '--patience', '2', '--bootstrap-resamples', '20']
 
-    def test_record_task_both_arms(self):
+    def gate_for(self, summary_path, metric, out):
+        value = json.loads(Path(summary_path).read_text())['summary']
+        for key in metric.split('.'):
+            value = value[key]
+        self.invoke(['check_gate.py', '--summary', str(summary_path), '--metric', metric,
+                     '--expected', str(value), '--tolerance', '1e-9', '--out', str(out)])
+        self.assertTrue(json.loads(Path(out).read_text())['passed'])
+        return out
+
+    def test_record_task_both_arms_with_gate_and_reload(self):
         head = self.root / 'record_head'
         self.invoke(['train_record.py'] + self.common_args(head, 'head_only'))
-        baseline = head / 'test_patient_metrics.csv'
+        head_summary = json.loads((head / 'summary.json').read_text())
+        self.assertEqual(head_summary['fingerprint']['warmup_steps'], 0)
+        self.assertGreater(head_summary['summary']['optimizer_steps'], 0)
+        gate = self.gate_for(head / 'summary.json', 'test.recall_at_10', self.root / 'record_gate.json')
+        failing = self.invoke(['check_gate.py', '--summary', str(head / 'summary.json'), '--metric',
+                               'test.recall_at_10', '--expected', '999', '--tolerance', '0.1',
+                               '--out', str(self.root / 'record_gate_fail.json')], expect_failure=True)
+        self.assertIn('"passed": false', failing)
         lora = self.root / 'record_lora'
+        ungated = self.invoke(['train_record.py'] + self.common_args(lora, 'lora'), expect_failure=True)
+        self.assertIn('requires --gate', ungated)
+        # Five training batches of eight patients with accumulation six: the only
+        # update per epoch comes from the trailing partial accumulation.
         self.invoke(['train_record.py'] + self.common_args(lora, 'lora') +
-                 ['--baseline-recall', str(baseline), '--baseline-label', 'head_only', '--train-subset', '32'])
-        summary = json.loads((lora / 'summary.json').read_text())['summary']
+                    ['--gate', str(gate), '--grad-accum', '6', '--train-subset', '40',
+                     '--baseline-recall', str(head / 'test_patient_metrics.csv'), '--baseline-label', 'head_only'])
+        log = json.loads((lora / 'summary.json').read_text())
+        summary = log['summary']
+        self.assertEqual(summary['optimizer_steps'], len(log['epochs']))
         self.assertTrue(summary['audit']['frozen_base_unchanged'])
-        self.assertEqual(len(summary['lora']['wrapped_modules']), 2 * CONFIG['n_layer'])
+        self.assertEqual(summary['audit']['adapter_parameters'], 2 * CONFIG['n_layer'] * (8 * (4 * CONFIG['n_embd']) + 8 * (2 * CONFIG['n_embd'])) // 2)
+        self.assertEqual(summary['audit']['trained_parameters_total'],
+                         summary['audit']['adapter_parameters'] + summary['audit']['head_parameters'])
         self.assertIn('paired_recall_at_10_minus_head_only', summary)
-        self.assertTrue(0 <= summary['test']['recall_at_10'] <= 100)
-        self.assertTrue((lora / 'trainable_state.pt').exists())
-        state = torch.load(lora / 'trainable_state.pt', weights_only=True)
-        self.assertTrue(state['lora'])
+        # Reload in a separate process and reproduce the test predictions exactly.
+        reload = self.root / 'record_reload'
+        self.invoke(['predict.py', '--state', str(lora / 'trainable_state.pt'), '--data', str(self.data),
+                     '--out', str(reload), '--device', 'cpu', '--smoke-random-init', str(HERE / 'smoke_model_config.json')])
+        a = torch.load(lora / 'test_scores.pt', weights_only=True)
+        b = torch.load(reload / 'test_scores.pt', weights_only=True)
+        torch.testing.assert_close(a['logits'], b['logits'], rtol=1e-5, atol=1e-5)
+        self.assertEqual((lora / 'test_patient_metrics.csv').read_text(), (reload / 'test_patient_metrics.csv').read_text())
 
-    def test_risk_task_both_arms(self):
+    def test_training_selection_is_exact(self):
+        out = self.root / 'record_toolarge'
+        message = self.invoke(['train_record.py'] + self.common_args(out, 'head_only') + ['--train-subset', '41'],
+                              expect_failure=True)
+        self.assertIn('exceeds', message)
+        ids = np.load(self.data / 'train/patient_id.npy')[[3, 1, 7, 20]]
+        listed = self.root / 'listed_ids.npy'
+        np.save(listed, ids)
+        out = self.root / 'record_listed'
+        self.invoke(['train_record.py'] + self.common_args(out, 'head_only') + ['--train-patient-ids', str(listed)])
+        fingerprint = json.loads((out / 'summary.json').read_text())['fingerprint']
+        self.assertEqual(fingerprint['n_train'], 4)
+        self.assertEqual(fingerprint['training_selection'], 'patient_list')
+        np.save(listed, np.append(ids, 99999999))
+        message = self.invoke(['train_record.py'] + self.common_args(out, 'head_only') + ['--train-patient-ids', str(listed)],
+                              expect_failure=True)
+        self.assertIn('not in the training split', message)
+
+    def test_split_overlap_is_rejected(self):
+        from data import PrefixSplit
+        import shutil
+        copy = self.root / 'overlap'
+        shutil.copytree(self.data, copy)
+        np.save(copy / 'validation/patient_id.npy', np.load(copy / 'train/patient_id.npy')[:16])
+        splits = {name: PrefixSplit(copy, name) for name in ('train', 'validation', 'test')}
+        with self.assertRaises(ValueError):
+            common.check_split_overlap(splits)
+
+    def test_risk_task_both_arms_with_gate_and_reload(self):
         head = self.root / 'risk_head'
         self.invoke(['train_risk.py', '--disease', 'ckd'] + self.common_args(head, 'head_only'))
+        gate = self.gate_for(head / 'summary.json', 'test.weighted_brier', self.root / 'risk_gate.json')
         lora = self.root / 'risk_lora'
         self.invoke(['train_risk.py', '--disease', 'ckd'] + self.common_args(lora, 'lora') +
-                 ['--baseline-probabilities', str(head / 'test_patient_probabilities.csv')])
+                    ['--gate', str(gate), '--grad-accum', '2',
+                     '--baseline-probabilities', str(head / 'test_patient_probabilities.csv')])
         summary = json.loads((lora / 'summary.json').read_text())['summary']
         self.assertTrue(summary['audit']['frozen_base_unchanged'])
+        self.assertGreater(summary['optimizer_steps'], 0)
         self.assertIn('auroc', summary['paired_minus_baseline'])
-        self.assertTrue(0 <= summary['test']['weighted_brier'] <= 1)
+        reload = self.root / 'risk_reload'
+        self.invoke(['predict.py', '--state', str(lora / 'trainable_state.pt'), '--data', str(self.data),
+                     '--out', str(reload), '--device', 'cpu', '--smoke-random-init', str(HERE / 'smoke_model_config.json')])
+        self.assertEqual((lora / 'test_patient_probabilities.csv').read_text(),
+                         (reload / 'test_patient_probabilities.csv').read_text())
 
 
 if __name__ == '__main__':

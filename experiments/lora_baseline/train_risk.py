@@ -6,7 +6,8 @@ head_only: frozen hidden state and the four clinical variables -> weighted
            full-batch steps, learning rate 0.03, weight decay 1e-5).
 lora:      LoRA adapters and the same logistic head trained jointly with
            mini-batches; the epoch with the lowest validation weighted BCE is
-           selected and the test split is scored once.
+           selected and the test split is scored once. Requires a passed
+           reproduction gate (--gate) from a head_only run.
 Weights are the supplied clipped inverse observation probabilities; patients
 with unobserved outcomes carry weight zero and never enter a loss or metric.
 """
@@ -21,7 +22,7 @@ from torch.nn import functional as F
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import common  # noqa: E402
-from data import PrefixSplit, fixed_subset, iterate_batches, read_metadata  # noqa: E402
+from data import PrefixSplit, iterate_batches, read_metadata  # noqa: E402
 from metrics import weighted_auroc, weighted_brier, paired_bootstrap  # noqa: E402
 
 parser = common.add_common_arguments(argparse.ArgumentParser(description=__doc__))
@@ -30,12 +31,10 @@ parser.add_argument('--baseline-probabilities', type=Path, default=None,
                     help='CSV with patient_id,probability from a saved arm for the paired bootstrap')
 parser.add_argument('--baseline-label', default='baseline')
 args = parser.parse_args()
-defaults = dict(head_only=dict(epochs=1, patience=1, lr_head=0.03, weight_decay=1e-5, steps=200),
-                lora=dict(epochs=3, patience=1, lr_head=1e-3, weight_decay=0.01))[args.arm]
-epochs = args.epochs or defaults['epochs']
-patience = args.patience or defaults['patience']
-lr_head = args.lr_head or defaults['lr_head']
-weight_decay = defaults['weight_decay'] if args.weight_decay is None else args.weight_decay
+cfg = common.resolve_defaults(args, dict(
+    head_only=dict(epochs=1, patience=1, lr_head=0.03, weight_decay=1e-5, steps=200),
+    lora=dict(epochs=3, patience=1, lr_head=1e-3, weight_decay=0.01)))
+gate = common.require_gate(args)
 resamples = args.bootstrap_resamples or 2000
 common.set_seed(args.seed)
 args.out.mkdir(parents=True, exist_ok=True)
@@ -43,11 +42,27 @@ args.out.mkdir(parents=True, exist_ok=True)
 model, model_info = common.build_model(args)
 splits = {name: PrefixSplit(args.data, name, model.config.block_size, diseases=[args.disease])
           for name in ('train', 'validation', 'test')}
+common.check_split_overlap(splits)
 for name, split in splits.items():
     if split.clinical is None:
         raise ValueError(f'{name}: clinical variables are missing')
 observed = {name: np.flatnonzero(split.outcomes[args.disease][1] > 0) for name, split in splits.items()}
-train_rows = observed['train'][fixed_subset(len(observed['train']), args.train_subset, args.subset_seed)]
+
+
+class ObservedPool:
+    """Restrict training selection to patients with an observed outcome."""
+
+    def __init__(self, split, rows):
+        self.patient_id = split.patient_id[rows]
+        self.rows = rows
+
+    def __len__(self):
+        return len(self.rows)
+
+
+pool = ObservedPool(splits['train'], observed['train'])
+chosen, selection_mode = common.select_training_rows(pool, args)
+train_rows = pool.rows[chosen]
 val_rows, test_rows = observed['validation'], np.arange(len(splits['test']))
 if len(train_rows) == 0 or len(val_rows) == 0:
     raise ValueError('No observed outcomes to train or validate on')
@@ -60,37 +75,43 @@ def outcome(name, rows):
 
 
 # Clinical variables: training-set median imputation, then mean/sd scaling (Appendix A).
-raw_clinical = np.asarray(splits['train'].clinical[train_rows], dtype=np.float64)
-medians = np.nanmedian(raw_clinical, 0)
+medians = np.nanmedian(np.asarray(splits['train'].clinical[train_rows], dtype=np.float64), 0)
 
 
 def clinical(name, rows):
     values = np.asarray(splits[name].clinical[rows], dtype=np.float64)
-    values = np.where(np.isnan(values), medians, values)
-    return values.astype(np.float32)
+    return np.where(np.isnan(values), medians, values).astype(np.float32)
 
 
 clin_mean, clin_sd = common.standardization(clinical('train', train_rows))
 log = dict(fingerprint=common.fingerprint(args, model_info, read_metadata(args.data), dict(
-    disease=args.disease, n_train_observed=len(train_rows), n_validation_observed=len(val_rows),
-    n_test=len(test_rows), n_test_observed=int(len(observed['test'])),
-    train_patient_ids_sha256=__import__('hashlib').sha256(splits['train'].patient_id[train_rows].tobytes()).hexdigest(),
-    epochs=epochs, patience=patience, lr_head=lr_head, weight_decay=weight_decay)), epochs=[])
+    disease=args.disease, n_train_observed=len(train_rows), training_selection=selection_mode,
+    n_validation_observed=len(val_rows), n_test=len(test_rows), n_test_observed=int(len(observed['test'])),
+    train_patient_ids_sha256=common.sha256_of(splits['train'].patient_id[train_rows]),
+    gate=gate, resolved=cfg, warmup_steps=args.warmup_steps, betas=list(args.betas))), epochs=[])
 
 frozen = {name: common.frozen_embeddings(model, splits[name], rows, args)
           for name, rows in (('train', train_rows), ('validation', val_rows), ('test', test_rows))}
 emb_mean, emb_sd = common.standardization(frozen['train'])
-scale = {k: torch.from_numpy(v).to(args.device) for k, v in
-         dict(emb_mean=emb_mean, emb_sd=emb_sd, clin_mean=clin_mean, clin_sd=clin_sd).items()}
+preprocessing = dict(embedding_mean=emb_mean, embedding_sd=emb_sd, clinical_median=medians.astype(np.float32),
+                     clinical_mean=clin_mean, clinical_sd=clin_sd)
+scale = {k: torch.from_numpy(np.asarray(v)).to(args.device) for k, v in preprocessing.items()}
 snapshot, wrapped = common.prepare_adapters(model, args)
 head = torch.nn.Linear(model.config.n_embd + 4, 1).to(args.device)
-optimizer, set_warmup = common.make_optimizer(model, head, args, lr_head, weight_decay)
+y_train, w_train = outcome('train', train_rows)
+common.init_head_bias(head, [float((w_train * y_train).sum() / w_train.sum())], args.head_bias_init)
+optimizer, set_warmup = common.make_optimizer(model, head, args, cfg['lr_head'], cfg['weight_decay'])
+accumulator = common.Accumulator(optimizer, set_warmup, args)
 clinical_t = {name: torch.from_numpy(clinical(name, rows)) for name, rows in
               (('train', train_rows), ('validation', val_rows), ('test', test_rows))}
+state_config = dict(task='risk', arm=args.arm, rank=args.rank, alpha=args.alpha, targets=args.targets,
+                    head_in=model.config.n_embd + 4, head_out=1, disease=args.disease,
+                    head_bias_init=args.head_bias_init)
 
 
 def features(z, c):
-    return torch.cat([(z - scale['emb_mean']) / scale['emb_sd'], (c - scale['clin_mean']) / scale['clin_sd']], 1)
+    return torch.cat([(z - scale['embedding_mean']) / scale['embedding_sd'],
+                      (c - scale['clinical_mean']) / scale['clinical_sd']], 1)
 
 
 def weighted_bce(logits, y, w):
@@ -121,53 +142,48 @@ def validate():
     return bce, weighted_auroc(y, p, w), weighted_brier(y, p, w)
 
 
-y_train, w_train = outcome('train', train_rows)
-best, best_state, since_best, step = None, None, 0, 0
+best, best_state, since_best = None, None, 0
 rng = np.random.default_rng(args.seed)
 if args.arm == 'head_only':
     # Full-batch logistic fit on cached embeddings: the manuscript's recipe, no selection.
-    z = torch.from_numpy(frozen['train']).to(args.device)
-    x = features(z, clinical_t['train'].to(args.device))
+    x = features(torch.from_numpy(frozen['train']).to(args.device), clinical_t['train'].to(args.device))
     y, w = y_train.to(args.device), w_train.to(args.device)
-    for step in range(defaults['steps']):
+    for _ in range(cfg['steps']):
         loss = weighted_bce(head(x).squeeze(1), y, w)
-        optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        optimizer.step()
+        accumulator.backward(loss)
+        accumulator.step()
+    accumulator.end_epoch()
     bce, auroc, brier = validate()
     log['epochs'].append(dict(epoch=1, train_weighted_bce=float(loss.detach()), validation_weighted_bce=bce,
-                              validation_weighted_auroc=auroc, validation_weighted_brier=brier, optimizer_steps=defaults['steps']))
-    best, best_state = (bce, 1), common.trainable_state(model, head)
+                              validation_weighted_auroc=auroc, validation_weighted_brier=brier,
+                              optimizer_steps=accumulator.steps))
+    best = (bce, 1)
+    best_state = common.trainable_state(model, head, preprocessing, dict(state_config, selected_epoch=1))
 else:
-    for epoch in range(1, epochs + 1):
+    for epoch in range(1, cfg['epochs'] + 1):
         model.train()
         head.train()
         losses = []
-        for n_batch, batch_rows in enumerate(iterate_batches(rng.permutation(len(train_rows)), args.batch_size)):
+        for batch_rows in iterate_batches(rng.permutation(len(train_rows)), args.batch_size):
             idx, age, typ = splits['train'].batch(train_rows[batch_rows], args.device)
             with common.autocast(args):
                 z = common.last_hidden(model, idx, age, typ).float()
             logits = head(features(z, clinical_t['train'][batch_rows].to(args.device))).squeeze(1)
             loss = weighted_bce(logits, y_train[batch_rows].to(args.device), w_train[batch_rows].to(args.device))
-            (loss / args.grad_accum).backward()
+            accumulator.backward(loss)
             losses.append(float(loss.detach()))
-            if (n_batch + 1) % args.grad_accum == 0:
-                set_warmup(step)
-                torch.nn.utils.clip_grad_norm_([p for g in optimizer.param_groups for p in g['params']],
-                                               args.grad_clip, error_if_nonfinite=True)
-                optimizer.step()
-                optimizer.zero_grad(set_to_none=True)
-                step += 1
-        optimizer.zero_grad(set_to_none=True)
+        accumulator.end_epoch()
         bce, auroc, brier = validate()
         log['epochs'].append(dict(epoch=epoch, train_weighted_bce=float(np.mean(losses)), validation_weighted_bce=bce,
-                                  validation_weighted_auroc=auroc, validation_weighted_brier=brier, optimizer_steps=step))
+                                  validation_weighted_auroc=auroc, validation_weighted_brier=brier,
+                                  optimizer_steps=accumulator.steps))
         print(json.dumps(log['epochs'][-1]), flush=True)
         if best is None or bce < best[0]:
-            best, best_state, since_best = (bce, epoch), common.trainable_state(model, head), 0
+            best, since_best = (bce, epoch), 0
+            best_state = common.trainable_state(model, head, preprocessing, dict(state_config, selected_epoch=epoch))
         else:
             since_best += 1
-            if since_best >= patience:
+            if since_best >= cfg['patience']:
                 break
 
 common.restore_state(model, head, best_state)
@@ -184,8 +200,9 @@ y_obs, w_obs, p_obs = y_all[mask].astype(np.float64), w_all[mask].astype(np.floa
 summary = dict(arm=args.arm, disease=args.disease, selected=dict(epoch=best[1], validation_weighted_bce=best[0]),
                test=dict(weighted_auroc=weighted_auroc(y_obs, p_obs, w_obs), weighted_brier=weighted_brier(y_obs, p_obs, w_obs),
                          observed=int(mask.sum()), cases=int((y_obs == 1).sum()), mean_probability=float(p_obs.mean())),
+               optimizer_steps=accumulator.steps,
                lora=dict(wrapped_modules=wrapped, rank=args.rank, alpha=args.alpha, targets=args.targets) if wrapped else None,
-               audit=common.finish_audit(model, snapshot, head, args, args.out))
+               audit=common.finish_audit(model, snapshot, head, best_state, args.out))
 if args.baseline_probabilities is not None:
     baseline = common.align_baseline(patient_ids, common.read_baseline_csv(args.baseline_probabilities, 'probability'),
                                      args.baseline_label)[mask]

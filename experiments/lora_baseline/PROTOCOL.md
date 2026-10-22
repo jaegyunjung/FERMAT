@@ -45,14 +45,19 @@ not generators.
 | Method | LoRA (Hu et al., 2021): `y = Wx + (α/r)·BAx`, `B` zero-initialised, `W` frozen |
 | Target modules | `attn.c_attn` (fused q/k/v, 640→1920) and `attn.c_proj` (640→640) in all 10 blocks |
 | Rank / alpha / dropout | r = 8, α = 16, LoRA dropout 0.05 |
-| Trainable adapter parameters | 10 × (8·(640+1920) + 8·(640+640)) = **307,200**, 0.47% of 65,221,122 |
+| Adapter parameters | 10 × (8·(640+1920) + 8·(640+640)) = **307,200**, 0.47% of the 65,221,122 frozen base |
+| Head parameters, trained in both arms | record task: 17,460 × 641 = **11,191,860**; risk task: 645 |
+| Total trained parameters (LoRA arm) | record task **11,499,060**; risk task 307,845. The 0.47% figure describes the adapters only and is never quoted as the total |
 | Base dropout | the release value (0.1) stays active in `model.train()` |
 | Precision | BF16 autocast for the transformer body on CUDA; heads and losses in FP32 |
-| Optimiser | AdamW (β = 0.9, 0.99), gradient clip 1.0, 100 warm-up steps, constant learning rate afterwards |
+| Optimiser | AdamW with PyTorch default betas (0.9, 0.999), gradient clip 1.0; LoRA arm: 100 warm-up steps then constant; head-only arm: no warm-up |
+| Gradient accumulation | the trailing partial accumulation of every epoch is applied; an epoch with zero optimizer updates aborts the run |
+| Head initialisation | output bias = logit of the training-set target prevalence (per item for the record head, weighted prevalence for the risk head), PyTorch default weights; identical in both arms |
 | Learning rates | adapters 2e-4; head 1e-3 (record), 1e-3 (risk, LoRA arm) |
 | Weight decay | 0.01 (record both arms, risk LoRA arm); 1e-5 (risk head-only, as v1) |
 | Head input scale | hidden state standardised with the **frozen** model's training-set mean/sd, computed before injection and held fixed, so both arms feed the head on the same scale |
-| Audit | after training every pre-injection tensor is checked bit-identical (`assert_base_unchanged`); only adapters and head are saved |
+| Audit | after training every pre-injection tensor is checked bit-identical (`assert_base_unchanged`) |
+| Saved state | `trainable_state.pt` holds adapters, head, every standardisation constant (embedding mean/sd; clinical medians, mean/sd), the prediction vocabulary and the run configuration. `predict.py` rebuilds the predictor from this file alone in a separate process and must reproduce the training run's test outputs exactly; the test suite checks this |
 
 Sensitivity settings, run only after the primary analysis and reported as such:
 r = 32 with α = 64; targets `attention_mlp` (adds `mlp.c_fc`, `mlp.c_proj`).
@@ -66,24 +71,31 @@ order.
 
 | Item | Value |
 |---|---|
-| Patients | the v1 cohorts: 18,474 training, 1,867 validation, 1,862 test (same patient IDs; their SHA-256 is written to `summary.json`) |
+| Patients | the v1 cohorts: 18,474 training, 1,867 validation, 1,862 test, supplied as explicit patient-ID lists (`--train-patient-ids`); a listed patient missing from the export aborts the run, and the SHA-256 of the list used is written to `summary.json`. Splits are checked for overlapping patient IDs before training |
 | Prediction vocabulary | the 17,460 DX/RX/PX tokens of the released head (`artifacts/head_classes.npy`) |
 | Head | linear 640→17,460, random initialisation, unweighted multilabel BCE (v1 Appendix A) |
 | `head_only` recipe | cached frozen embeddings; batch 256; ≤60 epochs; stop after 10 epochs without validation improvement (v1) |
 | `lora` recipe | batch 32 prefixes (gradient accumulation allowed); ≤20 epochs; stop after 5 epochs without improvement |
 | Selection | validation Recall@10, validation BCE as tie-breaker; the test split is scored once per run |
 | Seeds | 1, 2, 3 for both arms; seed 1 is the primary run, all three are reported |
-| Secondary | both arms repeated with the fixed 100,000-patient training subset used in the head-scaling evidence (`--train-subset 100000 --subset-seed 20260910`, same subset for both arms) |
+| Secondary | both arms repeated with the **same 100,000 patient IDs** used in the head-scaling evidence, loaded from that experiment's saved list via `--train-patient-ids` (a random re-draw is not the same cohort; `--train-subset` refuses a size larger than the pool instead of silently using all patients) |
 
 Primary contrast: LoRA (seed 1) minus saved generation (50 paths), paired
 patient bootstrap with 5,000 resamples on the 1,862 test patients, conditional
 on fitted predictors and saved paths (v1 Section 2.4). Secondary contrasts:
 LoRA minus `head_only` from this pipeline; LoRA minus the 100k head.
 
-Reproduction gate: `head_only` seed 1 must give test Recall@10 within 1.0
-percentage point of the v1 linear heads (55.68–55.98%). If it does not, the
-cohort export or target definition differs from v1 and the LoRA result is not
-reported until the discrepancy is explained.
+Reproduction gate (enforced by code): `head_only` seed 1 must give test
+Recall@10 within 1.0 percentage point of the v1 linear heads (55.68–55.98%).
+`check_gate.py` writes `gate.json`; `train_record.py --arm lora` refuses to start
+without a passed gate. If the gate fails, the cohort export, target definition or
+head recipe differs from v1 and no LoRA run is made until the discrepancy is
+explained. Before the gate run, the head recipe in this pipeline is diffed
+against the local v1 head-training code (bias initialisation, loss reduction,
+optimizer settings, early-stopping bookkeeping): Appendix A of v1 fixes the
+learning rate, weight decay, batch size, epoch cap and patience, but not those
+details, and a failed gate must be attributable to data rather than to a recipe
+difference.
 
 ## 5. Task D — five-year chronic kidney disease, fatty liver, diabetes
 
@@ -100,7 +112,7 @@ death is a case, death before disease an observed non-case.
 | `head_only` recipe | cached frozen embeddings, full-batch AdamW, 200 steps, learning rate 0.03, weight decay 1e-5, no model selection (v1 Appendix A) |
 | `lora` recipe | batch 32; ≤3 epochs; the epoch with the lowest validation weighted BCE is selected; stop after 1 epoch without improvement |
 | Training-set size | primary: a fixed 100,000-patient subset of observed-outcome training patients, **identical for both arms** (`--train-subset 100000`). `head_only` is additionally fitted on the full pool to confirm agreement with v1 |
-| Seeds | 1 only (one fit per disease per arm); seeds 2–3 if the primary contrast interval is within 0.01 AUROC of zero |
+| Seeds | 1, 2, 3 for the LoRA arm of every disease, fixed in advance and all reported; seed 1 is the primary run. The head-only full-batch fit is deterministic given its initialisation and is run once per training set |
 
 Primary contrast per disease: LoRA minus representation-based logistic
 (`head_only`, same training subset): AUROC difference and Brier difference,
@@ -109,8 +121,10 @@ from v1 Section 2.4, which refitted the observation model inside each resample;
 the fixed-weight interval is the 2026-10-21 analysis standard. Both can be
 reported if the saved per-patient probabilities are run through the v1 tooling.
 
-Reproduction gate: full-pool `head_only` AUROC within 0.01 of v1 (0.871 CKD,
-0.752 fatty liver, 0.784 diabetes) and Brier within 0.002. Otherwise, as above.
+Reproduction gate (enforced by code, per disease): full-pool `head_only` AUROC
+within 0.01 of v1 (0.871 CKD, 0.752 fatty liver, 0.784 diabetes) and weighted
+Brier within 0.002 (0.0204, 0.0273, 0.0452). `train_risk.py --arm lora` refuses
+to start without the disease's passed `gate.json`. Otherwise, as in Section 4.
 
 ## 6. Interpretation rules (fixed)
 
@@ -123,8 +137,10 @@ Reproduction gate: full-pool `head_only` AUROC within 0.01 of v1 (0.871 CKD,
    advantage over generation is reported with the stronger arm; if it does not,
    the frozen head remains the reference and the LoRA result is reported as a
    negative finding with its interval.
-4. No metric from the test split influences any training or selection choice.
-   The sensitivity settings (Section 3) are never promoted to primary.
+4. No metric from the test split influences any training, selection or
+   replication choice: the number of seeds is fixed above and does not depend on
+   any observed interval. The sensitivity settings (Section 3) are never promoted
+   to primary.
 5. Cost is reported next to accuracy: GPU-hours per arm, and inference cost per
    patient (one forward pass for both predictor arms versus 50 trajectories).
 
@@ -148,17 +164,22 @@ per split.
 3. Per-patient Recall@10 of the saved generation arm and of the 100k head as
    `patient_id,recall_at_10` CSVs, and per-patient probabilities of the v1
    representation arm as `patient_id,probability` CSVs, for the paired bootstraps.
-4. Confirm whether the Task 31 "direct selection" targets (first ≤8 clinical
+   The patient-ID lists of the v1 cohorts and of the 100k head-scaling training
+   set as `.npy` files for `--train-patient-ids`.
+4. The local v1 head-training code, to diff its recipe against `train_record.py`
+   / `train_risk.py` before the gate runs (Section 4).
+5. Confirm whether the Task 31 "direct selection" targets (first ≤8 clinical
    events among the first 64 post-index events) equal the v1 target definition;
    if not, do not place the two numbers in one table.
 
 ## 9. Outputs and what enters the repository
 
 Each run writes `summary.json` (arguments, git commit, release model SHA-256,
-dataset provenance, training-patient SHA-256, every epoch's validation metrics,
-selected epoch, test metrics, parameter counts, frozen-base audit, bootstrap
-contrasts), per-patient test CSVs, `test_top10.pt` (record task) and
-`trainable_state.pt` (adapters and head only). Only `summary.json` files with
+dataset provenance, training-patient SHA-256 and selection mode, the gate it ran
+under, every epoch's validation metrics, optimizer update count, selected epoch,
+test metrics, adapter/head/total parameter counts, frozen-base audit, bootstrap
+contrasts), per-patient test CSVs, `test_scores.pt` (record task) and
+`trainable_state.pt` (adapters, head and preprocessing constants). Only `summary.json` files with
 aggregate numbers are committed, under `experiments/lora_baseline/results/`;
 per-patient files stay internal, as for every other evidence folder.
 

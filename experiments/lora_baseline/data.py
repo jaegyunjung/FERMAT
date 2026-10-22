@@ -134,9 +134,15 @@ def class_lookup(classes, vocab_size):
 
 
 def fixed_subset(n, size, seed):
-    """Deterministic patient subset shared by every arm of a comparison."""
-    if size is None or size >= n:
+    """Deterministic patient subset shared by every arm of a comparison.
+
+    A requested size larger than the pool is an error, never a silent fallback
+    to the whole pool: the arms must be trained on exactly the stated cohort.
+    """
+    if size is None:
         return np.arange(n)
+    if size > n:
+        raise ValueError(f'Requested subset of {size} exceeds the {n} available patients')
     return np.sort(np.random.default_rng(seed).choice(n, size=size, replace=False))
 
 
