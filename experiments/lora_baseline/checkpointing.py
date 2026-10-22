@@ -78,12 +78,16 @@ def restore_rng(state, generator):
 def training_contract(args, cfg, identity, diagnostic_hashes=None):
     here = Path(__file__).resolve().parent
     names = ('train_record.py', 'common.py', 'checkpointing.py', 'data.py', 'recipes.py', 'lora.py', 'metrics.py')
+    if identity.get('task') == 'risk':
+        names = ('train_risk.py', 'risk_cache.py', 'common.py', 'checkpointing.py', 'data.py', 'recipes.py', 'lora.py', 'metrics.py')
     code = {name: sha256(here / name) for name in names}
     release_code = here.parents[1] / 'releases/fermat_snuh_20261021/fermat_release'
     code.update({'release/' + f.name: sha256(f) for f in sorted(release_code.glob('*.py'))})
     fields = ('arm', 'recipe', 'seed', 'smoke_seed', 'rank', 'alpha', 'targets', 'lora_dropout',
               'lr_lora', 'batch_size', 'grad_accum', 'warmup_steps', 'grad_clip', 'betas', 'bf16',
               'validation_only')
+    if identity.get('task') == 'risk':
+        fields += ('disease', 'matched_head', 'risk_steps', 'risk_c_values')
     profile = json.loads(args.gpu_profile.read_text(encoding='utf-8-sig')) if args.gpu_profile else None
     model_config = args.smoke_random_init or (args.release / 'config/model_config.json')
     contract = dict(code=code, identity={k: v for k, v in identity.items() if k != 'dataset_hash_seconds'},

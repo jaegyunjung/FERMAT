@@ -117,15 +117,15 @@ death is a case, death before disease an observed non-case.
 | Item | Value |
 |---|---|
 | Patients | v1 eligible training pool (per disease; 235,670–256,536 eligible), v1 validation pool, the v1 10,000-patient test cohort with its disease-specific eligibility |
-| Weights | the v1 clipped inverse observation probabilities, exported as they were used; **not refitted** here |
+| Weights | v1 clipped inverse observation probabilities. Historical arrays were not archived with the supplied manifests; preparation reconstructs them once using the hash-verified original observation-model function and freezes the arrays for all arms. Test AUROC/Brier replay must match the published C10 results within 1e-8. This is not a bitwise comparison to historical weight arrays; full-train C10 refitting remains required. No refitting during training or the fixed-weight bootstrap. |
 | Features | four standardised clinical variables followed by 640 hidden components, matching v1 column order; statistics from all eligible train, optimization only on observed selected train |
 | `head_only` recipe | cached embeddings, full-batch AdamW, 200 steps, lr .03, fixed C=10 and wd=1e-5; no C selection or early stopping. Earlier grid selection is available only with `--recipe experimental` |
 | `lora` recipe | batch 32; ≤3 epochs; the epoch with the lowest validation weighted BCE is selected; stop after 1 epoch without improvement |
-| Training-set size | primary: the same 100,000 observed-outcome training patients for both arms, supplied as a patient-ID list. The reproduction gate is the `head_only` fit on the **full** pool (the v1 predictor); a gate fitted on the full pool is accepted for a LoRA run on any list drawn from that pool, and a gate fitted on a subset is accepted only for the identical list |
+| Training-set size | revised before any disease LoRA outcomes on 2026-10-22: use the full original observed training pool in both arms (CKD 148,048; fatty liver 145,782; diabetes 133,947). This replaces the earlier 100,000-patient proposal so the main comparison directly answers improvement over the published predictor. Preprocessing still uses every eligible training patient, including censored patients. Separate disease-specific full-pool gates are required. |
 | Seeds | 1, 2, 3 for the LoRA arm of every disease, fixed in advance and all reported; seed 1 is the primary run. The head-only full-batch fit is deterministic given its initialisation and is run once per training set |
 
 Primary contrast per disease: LoRA minus representation-based logistic
-(`head_only`, same training subset): AUROC difference and Brier difference,
+(`head_only`, same full training pool): AUROC difference and Brier difference,
 paired patient bootstrap with 2,000 resamples, weights held fixed. This differs
 from v1 Section 2.4, which refitted the observation model inside each resample;
 the fixed-weight interval is the 2026-10-21 analysis standard. Both can be
@@ -158,13 +158,13 @@ either metric, and a gate built with custom targets. Otherwise, as in Section 4.
 
 ## 7. Compute and feasibility (estimates, not measured)
 
-One forward-and-backward pass of the 65M model over a 512-event prefix is small;
-with batch 32 and BF16 on one RTX 5090, the record task (18,474 patients × ≤20
-epochs) is expected to take on the order of one to a few hours per seed, and the
-risk task (100,000 patients × ≤3 epochs) a similar order per disease. These are
-estimates from model size only and must be replaced by measured wall-clock times
-in the results document. The frozen embeddings for `head_only` are cached once
-per split.
+The record suite is complete; measured runtime is in RECORD_MAIN_PLAN_KO.md.
+The risk task now uses 133,947–148,048 observed patients × ≤3 epochs per disease.
+The record-pilot-based estimate is 10.6 hours for all nine risk LoRA fits,
+or a provisional 12–15 hours including preparation compute and overhead;
+see PREPARATION_KO.md Section 5. A disease-specific CUDA pilot must replace this
+estimate. Shared, identity-checked frozen embedding caching is planned but is
+not yet implemented for the risk trainer.
 
 ## 8. Inputs to prepare locally (not in this repository)
 

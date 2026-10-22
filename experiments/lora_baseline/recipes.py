@@ -39,7 +39,9 @@ def record_improved(score, loss, best):
 
 def fit_risk_scaler(values):
     """Fit on all eligible training patients, including censored patients."""
-    x = np.asarray(values, dtype=np.float64)
+    # The original pandas transformer reduces contiguous columns. Preserve that
+    # summation order after NumPy row selection, which otherwise makes a C array.
+    x = np.asfortranarray(values, dtype=np.float64)
     if x.ndim != 2 or not len(x):
         raise ValueError('Risk preprocessing needs a nonempty eligible training cohort')
     with warnings.catch_warnings():

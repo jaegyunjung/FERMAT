@@ -45,10 +45,10 @@ def main():
         common.set_seed(args.smoke_seed)
     checkpoint = torch.load(args.state, map_location='cpu', weights_only=True)
     saved = checkpoint['config']
-    if saved.get('validation_only') and args.split != 'validation':
+    if (saved.get('validation_only') or saved.get('benchmark_only')) and args.split != 'validation':
         raise ValueError('Validation-only checkpoint cannot score the test split')
-    if args.reference_scores is not None and (args.split != 'validation' or saved['task'] != 'record'):
-        raise ValueError('Reference-score audit is restricted to record validation')
+    if args.reference_scores is not None and args.split != 'validation':
+        raise ValueError('Reference-score audit is restricted to validation')
     if args.reference_scores is not None and args.batch_size != saved.get('inference_batch_size', args.batch_size):
         raise ValueError('Reference-score audit requires the original inference batch size')
     if saved.get('protocol_version') != common.PROTOCOL_VERSION:
@@ -67,6 +67,10 @@ def main():
     task = config['task']
     split = PrefixSplit(args.data, args.split, model.config.block_size, diseases=[config['disease']] if task == 'risk' else ())
     rows = np.arange(len(split))
+    if task == 'risk' and args.split == 'validation' and saved.get('risk_validation_observed'):
+        rows = np.flatnonzero(split.outcomes[config['disease']][1] > 0)
+    if args.reference_scores is not None and common.sha256_of(split.patient_id[rows]) != saved.get('validation_patient_ids_sha256'):
+        raise ValueError('Validation patient identity mismatch')
     emb_mean, emb_sd = (pre['embedding_mean'].to(args.device), pre['embedding_sd'].to(args.device))
     outputs = []
     with torch.no_grad():
@@ -113,11 +117,24 @@ def main():
     else:
         p = scores.numpy().astype(np.float64)
         y, w = split.outcomes[config['disease']]
-        with (args.out / 'test_patient_probabilities.csv').open('w', newline='') as stream:
+        y, w = y[rows], w[rows]
+        output = dict(patient_id=torch.from_numpy(patient_ids.copy()), probabilities=scores)
+        torch.save(output, args.out / f'{args.split}_scores.pt')
+        if args.reference_scores is not None:
+            reference = torch.load(args.reference_scores, map_location='cpu', weights_only=True)
+            same_shape = scores.shape == reference['probabilities'].shape
+            report = dict(patient_order_exact=torch.equal(output['patient_id'], reference['patient_id']),
+                          probabilities_exact=torch.equal(scores, reference['probabilities']),
+                          maximum_absolute_error=float((scores-reference['probabilities']).abs().max()) if same_shape else None)
+            report['passed'] = report['patient_order_exact'] and report['probabilities_exact']
+            common.write_json(args.out / 'reload_audit.json', report)
+            if not report['passed']:
+                raise ValueError('Risk validation reload differs')
+        with (args.out / f'{args.split}_patient_probabilities.csv').open('w', newline='') as stream:
             writer = csv.writer(stream)
             writer.writerow(['patient_id', 'probability', 'outcome', 'weight'])
             for row in range(len(patient_ids)):
-                writer.writerow([int(patient_ids[row]), f'{p[row]:.8f}', int(y[row]), f'{w[row]:.6f}'])
+                writer.writerow([int(patient_ids[row]), f'{p[row]:.17g}', int(y[row]), f'{w[row]:.17g}'])
         print(json.dumps(dict(n=len(p), mean_probability=float(p.mean()))))
     guard.check(force=True)
 

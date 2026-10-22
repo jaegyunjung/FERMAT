@@ -488,10 +488,10 @@ class PipelineSmokeTests(unittest.TestCase):
         self.assertFalse(json.loads(Path(incomplete).read_text())['passed'])   # AUROC check missing
         gate = self.gate_for(head / 'summary.json', ['test.weighted_auroc', 'test.weighted_brier'], self.root / 'risk_gate.json')
         lora = self.root / 'risk_lora'
-        wrong_task = self.invoke(['train_risk.py', '--disease', 'ckd'] + self.common_args(lora, 'lora') +
+        wrong_task = self.invoke(['train_risk.py', '--disease', 'ckd'] + self.common_args(self.root / 'risk_wrong_task', 'lora') +
                                  ['--gate', str(self.root / 'record_gate.json')], expect_failure=True)
         self.assertIn('task:', wrong_task)
-        self.invoke(['train_risk.py', '--disease', 'ckd'] + self.common_args(lora, 'head_only') + ['--grad-accum', '2'],
+        self.invoke(['train_risk.py', '--disease', 'ckd'] + self.common_args(self.root / 'risk_wrong_accum', 'head_only') + ['--grad-accum', '2'],
                     expect_failure=True)
         self.invoke(['train_risk.py', '--disease', 'ckd'] + self.common_args(lora, 'lora') +
                     ['--gate', str(gate), '--grad-accum', '2',

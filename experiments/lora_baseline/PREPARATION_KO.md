@@ -61,6 +61,10 @@ WSL 제한 폴더 `PREP=/home/fermat/fermat-data/restricted/lora_baseline_202610
 
 ## 3. 다음 실행 순서와 중단 조건
 
+아래 1번 기록 실험은 완료했다. 현재 작업은 5절의 **질병 전체 코호트 계획**이다.
+2~4번 중 기존 자료의 CPU 확률·지표 replay와 정답/가중치 준비는 완료했지만,
+prefix export, 신규 CUDA 임베딩, C10 재학습 gate는 아직 남아 있다.
+
 1. **기록 LoRA 소량 실행:** 현재 동일 dataset/model/precision의 .5 gate를 먼저 검증한다.
    소량 실행에서 속도·메모리를 측정한 뒤 전체 epoch/seed 소요 시간을 계산한다.
    본 실험 비교 arm과 seed 1, 2, 3을 고정한다. 128-step 측정은 완료했고, LoRA 20 epochs × 3 seeds 예약 예산은 약 3시간 30~45분이다. 18:02 KST에 A/C/LoRA 순차 큐를 시작했다. RECORD_MAIN_PLAN_KO.md의 시작 기록을 참조한다.
@@ -119,3 +123,150 @@ $PY "$CODE/check_gate.py" --summary "$OUT/summary.json" --out "${OUT}_verified_g
 
 `--batch-size 32`는 추출·점수 계산용이다. head 학습 batch 256은 v1 recipe가 고정한다.
 현재 부팅 후 검증한 GPU profile이 필요하며, 재부팅 뒤 예전 profile을 그대로 쓰지 않는다.
+
+## 5. 질병 LoRA 실행 계획과 시작한 준비 — 2026-10-22
+
+목표는 **CKD·지방간·당뇨병 각각에서 LoRA가 기존 frozen embedding 예측보다
+잘 맞히는지 확인하는 것**이다. 신규 생성이나 DB 조회는 필요하지 않다.
+
+### 비교 기준과 학습 범위
+
+| 질환 | 학습 관측 환자 | 검증 관측 환자 | 시험 관측 환자 / 발생 사례 | 기존 AUROC | 기존 Brier |
+|---|---:|---:|---:|---:|---:|
+| CKD | 148,048 | 31,925 | 5,665 / 155 | 0.8705996312 | 0.0204001220 |
+| 지방간 | 145,782 | 31,461 | 5,578 / 168 | 0.7519826423 | 0.0272524609 |
+| 당뇨병 | 133,947 | 28,974 | 5,082 / 280 | 0.7840186600 | 0.0451849993 |
+
+공통 원본 코호트는 train 263,245 / validation 56,338 / test 10,000명이다.
+질환별 기존 질병 보유자와 관측 여부 때문에 위 평가 인원이 다르다.
+각 arm에서는 같은 환자·정답·가중치를 사용한다. 학습에 쓰는 정규화 통계는
+관측 환자만이 아니라 전체 적격 학습 환자에서 계산한다.
+
+이전 100,000명 부분집합 제안은 폐기하고 전체 관측 학습 집단을 사용한다.
+기존 논문 결과와 직접 비교하기 위한 변경이며, 질병 LoRA 결과를 보기 전에 정했다.
+
+- **A: 기존 frozen embedding 예측기.** 임상변수 4개 + 임베딩 640개,
+  C=10, AdamW lr .03, weight decay 1e-5, 전체 배치 200 updates.
+  질환별 1회 재학습하고 저장된 기존 확률과 나란히 보존한다.
+- **B: LoRA + 같은 645-parameter logistic head.** 질환별 seeds 1/2/3,
+  batch 32, rank 8, alpha 16, attention, adapter dropout .05, base dropout .1,
+  adapter lr 2e-4, head lr .001, weight decay .01, warmup 100, clip 1,
+  accumulation 1, 최대 3 epochs, patience 1. 검증 weighted BCE가 가장 낮은
+  epoch를 선택한다. 현재 질병 프로토콜을 유지한다. 시험 결과로 설정을 바꾸지 않는다.
+  학습 파라미터는 adapter 307,200 + head 645 = **307,845개**다.
+- **C: 최적화 일정 대조군.** frozen embedding 위 head만 B의 batch/LR/weight decay/
+  warmup/clip/epoch/선택 규칙으로 학습한다. seeds 1/2/3을 모두 보고한다.
+  현재 risk trainer에는 이 경로가 없어 구현·검증이 필요하다. 주 비교는 B 대 A이며,
+  C는 학습 일정의 차이가 결과에 얼마나 기여하는지 확인한다.
+  B의 transformer dropout 등까지 모두 같은 실험은 아니다.
+
+### 평가와 판정
+
+AUROC는 **올라갈수록**, Brier는 **내려갈수록** 좋다. 각 질환에서 두 지표를
+따로 보고한다. 예를 들어 AUROC만 오르면 “환자 위험도 순위 구분이 좋아졌다”라고
+쓴다. Brier도 내려가면 “발생 확률의 제곱오차도 줄었다”라고 쓴다.
+Brier 하나만으로 보정(calibration) 자체가 좋아졌다고 단정하지 않는다.
+
+1. 주 비교: seed 1 B − 기존 저장 A. 재학습 A와의 차이도 함께 제시한다.
+2. seeds 2/3은 반복 실행의 일관성을 확인한다. 가장 좋은 seed만 선택하지 않는다.
+3. 같은 환자를 짝지어 2,000회 bootstrap, 95% percentile CI를 계산한다.
+   AUROC 차이 CI가 0보다 높으면 AUROC 개선, Brier 차이 CI가 0보다 낮으면 Brier 개선이다.
+   0을 포함하면 차이가 불확실하다고 적는다. 점추정과 CI를 질환별로 모두 공개한다.
+4. 위 95% CI는 각 비교별 구간이며 여섯 지표 전체의 동시 95% 보장은 아니다.
+   세 질환 전체에 대한 하나의 유의성 주장으로 합치지 않는다.
+   기존 관측 가중치와 학습된 모델을 고정한 구간이다. v1의 관측 모델 재추정
+   bootstrap과 구분하고 필요하면 저장 확률에 원래 v1 분석을 추가한다.
+5. seed 평균±SD와 환자 bootstrap CI는 별개로 표기한다. seed를 환자처럼 합치지 않는다.
+
+### 실행 순서와 통과 조건
+
+| 순서 | 할 일 | 완료 기준 / 실패 시 처리 |
+|---|---|---|
+| 1 | 원본 자료, 기존 모델, 정답/가중치 CPU 확인 | **완료**, 아래 실제 준비 결과 참조 |
+| 2 | 원본 bin에서 마지막 512 prefix export | 기준일 포함(age ≤ index_age), token mapping, 환자 순서, split/정답/eligibility 대조. 원본 hash 확인. 다른 코호트나 누락 환자로 대체 금지 |
+| 3 | 공용 임베딩 cache와 CUDA BF16 대조 | 원본은 **batch 64**, shard 4096, split/dense ID 순서. 전체 추출 pool에서 원본 batch 문맥 보존. 기록 batch 32를 복사하지 않음. 모델/내용/precision/추출설정 hash 검증. 동일 cache에서 질환별 적격 명단만 선택 |
+| 4 | 질환별 C10 재학습 및 gate | 임상 통계 float64 오차 0, FP32 특징 오차 0, 저장 모델 replay 확률 오차 ≤1e-6. 신규 임베딩 차이는 먼저 진단. AUROC ±.01, Brier ±.002 둘 다 충족. 현재 CPU replay는 이 gate가 아님 |
+| 5 | 실행 기능 보완 | risk trainer에 W&B, GPU guard, validation-only, checkpoint/resume, C arm, 시간/메모리 계측, 원시 확률 float64 저장. risk head·전처리·optimizer·best·RNG 복원 및 실제 CUDA 재로딩/연속 대 재개 대조 통과 |
+| 6 | 질환별 128-step 소량 측정 | 시험 지표 계산 없이 step 시간, 검증 시간, peak memory 측정. 전체 명단을 유지하고 별도 output 사용. 1~5 통과 후 실행 |
+| 7 | 본 실험 | A 3개 → C 9개 → B seed 1 세 질환 → 파일·재로딩 점검 → B seeds 2/3. 중간 시험 성능 때문에 뒤 seed를 취소/변경하지 않음 |
+| 8 | 최종 분석 | 환자 정렬/지표 독립 재계산, paired bootstrap, 3 seeds 모두 표, W&B finished 및 체크포인트 확인 |
+
+GPU 실행 전 pending reboot, 현재 profile, 다른 GPU 작업, 여유 공간을 확인한다.
+비유한 손실/gradient, 모델·환자 hash 불일치, 재개 불일치, GPU guard 위반이면 중단한다.
+개선이 없다는 이유로 다른 설정을 자동 탐색하지 않는다. 3 epochs 끝에도 검증 손실이
+계속 감소한다면 학습을 충분히 했는지 추가 실험에서 확인하며 최초 결과와 구분한다.
+실행 코드는 별도 고정 checkout에서 사용하고 실행 중 수정하지 않는다.
+
+### 예상 시간: 아직 질병 학습 실측 전
+
+기록 pilot의 step .292037초(batch 32), validation 1,867명/6.774초를 환자 수에
+비례해 환산했다. 질병 head가 작고 prefix 분포가 달라 실제 속도는 다를 수 있다.
+
+`epoch = ceil(n_train / 32) × .292037 + n_validation / 1867 × 6.774`.
+
+| 질환 | steps/epoch | 학습+검증 1 epoch | 3 epochs × 1 seed | 3 epochs × 3 seeds |
+|---|---:|---:|---:|---:|
+| CKD | 4,627 | 24.45분 | 73.35분 | 3.67시간 |
+| 지방간 | 4,556 | 24.08분 | 72.23분 | 3.61시간 |
+| 당뇨병 | 4,186 | 22.13분 | 66.38분 | 3.32시간 |
+
+세 질환 **1 seed씩 약 3시간 32분**, **3 seeds 전부 약 10시간 36분**이 기본값이다.
+cache 준비, gate/head fit, C 대조군, 체크포인트·최종 평가·bootstrap 및 여유를 더해
+**본 실행 큐 12~15시간**을 임시 예약 예산으로 잡는다. 개발·실패 원인 수정 시간은
+포함하지 않는다. 조기 종료 시 짧아진다. 소량 CUDA 측정 후 ETA를 다시 고정한다.
+
+원본 임베딩 manifest의 329,583명 추출은 당시 686초였지만 현재 GPU profile의
+새 실측이 아니므로 그대로 완료 ETA로 쓰지 않는다. 준비/코드 보완은 별도 작업이며
+단순 실행 수십 분 외에 개발 시간이 필요하다. 현 단계에서 시작·완료 시각을 약속하지 않는다.
+
+### 이번에 실제로 완료한 준비
+
+`prepare_risk_outcomes.py`를 작성하고 실제 로컬 자료로 실행했다.
+최종 출력은 `$PREP/risk_outcomes_02/`다. 이전 `_01`은 보존했다.
+출력은 prefix 없는 **정답/가중치 준비 자료**이며 `risk_training_dataset_ready=false`다.
+
+- 원본 cohort/outcomes/embedding 파일, 원본 분석 함수, 공개 결과 manifest/점수의 hash 대조.
+- train/validation/test 정답·eligibility·임상변수·가중치 및 test 기존 확률을 Git 밖에 저장.
+- 세 질환 모두 적격/관측 인원 일치, 임상 중앙값/평균/표준편차 오차 0.
+- 저장 전처리 통계를 적용한 실제 test FP32 특징: 원본 함수 대비 오차 0.
+- 저장 모델 확률 replay 최대 절대 오차: CKD 1.89e-15, 지방간 1.22e-15, 당뇨병 1.55e-15.
+- 기존 AUROC/Brier replay 오차 ≤2.23e-16. **새 CUDA 임베딩/새 C10 학습 결과는 아니다.**
+- 기존 manifest에는 가중치 배열이 없어 hash 검증한 원본 함수로 관측 모델을 다시
+  계산했다. 동일 원본 test 지표가 재현됐다. train/validation 가중치를 역사적 배열과
+  직접 비교한 것은 아니므로 다음 C10 재학습을 건너뛰지 않는다.
+- 원본 bin/map 파일 존재·크기 일치 확인. 전체 bin content hash와 prefix export는 다음 단계다.
+- 디스크 여유 약 775 GiB, 조회 시 GPU 사용률 0%, 전력 제한 400 W 확인.
+  이 조회가 본 실행 직전 guard를 대신하지 않는다.
+
+집계 결과는 `results/risk_preparation_20261022/summary.json`에 저장한다.
+W&B는 본 학습과 소량 GPU 실행에서 집계 지표·시간·메모리만 계속 기록한다.
+이번 CPU 준비는 로컬 provenance JSON에 기록했으며 W&B 학습 run은 새로 만들지 않았다.
+환자 ID·정답·확률·모델·콘솔·코드는 W&B에 올리지 않는다.
+
+## 6. 질병 실행 기능 보완 및 CUDA 검증 진행
+
+2026-10-22 추가 작업. 본 LoRA 실험은 시작하지 않는다.
+
+- `prepare_risk_prefixes.py`: 원본 bin/map의 SHA-256 확인 후 329,583명 prefix export 완료.
+  원본 추출 순서·길이·환자 map·분할과 일치. 출력 `risk_v1_01`, 약 7.62 GB, 88.91초.
+- `risk_cache.py`: 원본 batch 64 / shard 4096 문맥에서 새 CUDA BF16 임베딩을
+  추출하고 모든 원본 벡터와 정확히 대조한다. 성공해야 `cache.json`이 생긴다.
+  cache 사용 시 데이터 전체 내용·patient mapping·prefix·모델·정밀도 및 cache 해시를 검증한다.
+- `train_risk.py`: 원본 모델 JSON과 통계·FP32 특징·저장 예측 replay를 검사한 뒤 C10 gate 발급.
+  `--matched-head`, `--validation-only`, `--benchmark-steps`, `--resume`,
+  `--stop-after-epoch`, W&B 집계 기록과 host/GPU guard 추가.
+- 원본 pandas의 연속 열 합산 순서를 `fit_risk_scaler`에서 보존하도록 수정했다.
+  기존 NumPy 행 선택 후 C-order 합산은 임상 통계에 최대 1.34e-12 오차를 만들었다.
+  수정 후 세 질환의 저장 임베딩/임상 median·mean·sd가 모두 정확히 일치했다.
+- checkpoint 계약은 질병 학습 소스·cache·질병·설정·전처리·모델·자료·환경을 포함한다.
+  저장/재개 구현은 기존 원자적 epoch checkpoint를 사용한다. validation-only checkpoint와
+  benchmark state는 시험 예측에 사용할 수 없다. 원시 확률은 float64로 보존한다.
+- `audit_risk_resume.py`: 실제 CUDA에서 128명 × 2 epochs 연속 실행과 새 프로세스
+  중단/재개를 대조한다. 전체 관측 검증 환자의 확률 및 별도 모델 재로딩을 확인한다.
+- `run_risk_preflight.py`: C10 gate 3개 → CKD CUDA 재개 감사 → 질환별 128-step pilot.
+  실행 중 소스 변경/공간 부족/실패 시 중단한다. **본 실험 실행 기능은 없다.**
+- CPU 테스트 **59개 통과**, torch 2.12.1+cu132, 197.50초. 새 risk 재개/재로딩,
+  다른 seed·validation-only 계약 거부, terminal resume, matched-head, pilot 격리,
+  cache 입력 변조 거부, 원본 통계 합산 순서를 포함한다.
+
+CUDA 결과와 실측 ETA는 아래에 검증 완료 후 추가한다. 현재 이 절은 코드 및 CPU 검증 기록이다.

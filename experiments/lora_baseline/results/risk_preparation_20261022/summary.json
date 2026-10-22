@@ -1,0 +1,213 @@
+{
+  "status": "OUTCOMES_PREPARED_NOT_TRAINING_READY",
+  "source_sha256": {
+    "core": "4a09a88093a59d100876dc0e0cf7a3325dcd13be88e6cfcd08292c7b25f6bc96",
+    "fixed_manifest": "0936e632c2f2d50f6dfc836576d925d767d56238927a5a4ec015d40c2d967e37",
+    "scores": "044425138cfd99f4e4aab20c377a3f2dede4fb385f4020f49a4b60f75bb9b51f",
+    "preindex": "085391bd433179b107ed6513c9e5831a620b2dbad22c28fbfb16617e1e32fe9d",
+    "outcomes": "f0b1c50b28bcccf3537048102f1418e16fb10fa648db198599fbe288dd11c1c9",
+    "embeddings": "0112d446ebd3263e6a8c80ea5024960a68032a816d77d55f83a462c3a2cf89a0",
+    "test_outcomes": "5646bf99532210f1ecd3fc90a7e2f6bdbf906c5f3904be173d047080068c3c9a",
+    "metrics": "4e58cb4e3ef9fd37f3b1dd73620198b01de14a1fc4eb30efb0d0aa5c04fcbe01"
+  },
+  "preparation_script_sha256": "00856bb1fa3984738b0b9f3068dc9af3850f917cc5ffb8ad1346cfdd1793f99f",
+  "environment": {
+    "numpy": "2.5.2",
+    "pandas": "3.0.5",
+    "torch": "2.12.1+cu132",
+    "sklearn": "1.9.0"
+  },
+  "weight_provenance": "reconstructed_original_ipcw_function; no saved weight arrays to compare",
+  "split_counts": {
+    "train": 263245,
+    "validation": 56338,
+    "test": 10000
+  },
+  "diseases": {
+    "ckd": {
+      "counts": {
+        "train": {
+          "eligible": 256536,
+          "observed": 148048,
+          "cases": 4288
+        },
+        "validation": {
+          "eligible": 54858,
+          "observed": 31925,
+          "cases": 956
+        },
+        "test": {
+          "eligible": 9741,
+          "observed": 5665,
+          "cases": 155
+        }
+      },
+      "model_sha256": "f3fd455344600903fc043c59843fe46e7fa01049aefb24cb7fa82e3e084114a8",
+      "clinical_stat_max_errors": {
+        "median": 0.0,
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "fp32_features_max_error": 0.0,
+      "probability_max_error": 1.887379141862766e-15,
+      "published_metrics_replayed": {
+        "auroc": 0.8705996312225279,
+        "brier": 0.02040012204750361
+      },
+      "metric_max_errors": {
+        "auroc": 0.0,
+        "brier": 6.938893903907228e-18
+      }
+    },
+    "fatty_liver": {
+      "counts": {
+        "train": {
+          "eligible": 253697,
+          "observed": 145782,
+          "cases": 4667
+        },
+        "validation": {
+          "eligible": 54319,
+          "observed": 31461,
+          "cases": 977
+        },
+        "test": {
+          "eligible": 9632,
+          "observed": 5578,
+          "cases": 168
+        }
+      },
+      "model_sha256": "c6fc20b5fd93fe35ae71f2304eda651297095995919e44b636b9238bdfa7ecaf",
+      "clinical_stat_max_errors": {
+        "median": 0.0,
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "fp32_features_max_error": 0.0,
+      "probability_max_error": 1.2212453270876722e-15,
+      "published_metrics_replayed": {
+        "auroc": 0.7519826422992202,
+        "brier": 0.027252460886648698
+      },
+      "metric_max_errors": {
+        "auroc": 0.0,
+        "brier": 9.71445146547012e-17
+      }
+    },
+    "diabetes": {
+      "counts": {
+        "train": {
+          "eligible": 235670,
+          "observed": 133947,
+          "cases": 7005
+        },
+        "validation": {
+          "eligible": 50477,
+          "observed": 28974,
+          "cases": 1500
+        },
+        "test": {
+          "eligible": 8858,
+          "observed": 5082,
+          "cases": 280
+        }
+      },
+      "model_sha256": "87a30ec0d970d2c472334db2cade074c324ecc83af2a3ba3a59b78c752ac880d",
+      "clinical_stat_max_errors": {
+        "median": 0.0,
+        "mean": 0.0,
+        "sd": 0.0
+      },
+      "fp32_features_max_error": 0.0,
+      "probability_max_error": 1.5543122344752192e-15,
+      "published_metrics_replayed": {
+        "auroc": 0.7840186599844072,
+        "brier": 0.04518499927209847
+      },
+      "metric_max_errors": {
+        "auroc": 2.220446049250313e-16,
+        "brier": 6.938893903907228e-17
+      }
+    }
+  },
+  "risk_training_dataset_ready": false,
+  "cuda_parity_verified": false,
+  "gate_issued": false,
+  "elapsed_seconds": 2.960243251999998,
+  "array_sha256": {
+    "test/baseline_probability_ckd.npy": "a2c82da988e8c36b145a8a0ab67c872272b7b025969c349772dd0abe85dbea60",
+    "test/baseline_probability_diabetes.npy": "2108e89b82bb61cc4224cf1bd5daad77bc336328624399686f5cc3d5671f5538",
+    "test/baseline_probability_fatty_liver.npy": "58177c1ca8b1cc0aad6e7cae0a9589cfef182aa473b3e37061ccce1138d89dc6",
+    "test/clinical.npy": "444810d060d5d79e16eeaebb0902867b31e037cb60fa5de9073ea0c2d8dd73b2",
+    "test/eligible_ckd.npy": "6dc01932dc1cc790d642d5954fed841f5873910900e63f8b12133755651acba0",
+    "test/eligible_diabetes.npy": "7216898e71a67e5b35b1e482d3b64d73eeed377e5e564f1b38852333b80bb77d",
+    "test/eligible_fatty_liver.npy": "34248b9f3f3f3c01e80a4233e4b1d7e0c413e4af4ed01f52f0f8f61ff8346b19",
+    "test/outcome_ckd.npy": "3373ccc6a6b76ea8b7f03f8446a6510789af325842ea97bc6775af7a033224f2",
+    "test/outcome_diabetes.npy": "eb84c3c54a8eecde7b322a9100725f5f66a65e3656e30c9e47847222f42bc63d",
+    "test/outcome_fatty_liver.npy": "a8cd18d88395e8b7d4cbd64d5ed9d07b7471a05c2c6650c90c9a79fe8b07718d",
+    "test/patient_id.npy": "fb5204bfd9ab05a7038dbffb34868826505a02041957bfe062fbdb59a5adbbe1",
+    "test/weight_ckd.npy": "374c71445ca6a3031101f1dc2305a81567a9181ffdbd586a81c1b5a26b87446d",
+    "test/weight_diabetes.npy": "3bedc3b44c62b0036aec5920988611e85ba3c3a5ea6afce99457c16ecbcf20a5",
+    "test/weight_fatty_liver.npy": "385f5e6e4947dc7d47bd6f5af7f27c7a1a29a8965a04f551474bd44f0f6a4d81",
+    "train/clinical.npy": "2199089fb2d8459ec8ea475e7df3b3efd66684fb414a67460034365a11e5be87",
+    "train/eligible_ckd.npy": "bc836f5d679047ff51a0e7333590108c47a424f3398b873d18cf3a0b8229973d",
+    "train/eligible_diabetes.npy": "a8964056901b89ee19d8f51cd0d2ba7de0f13922225c543c6bfb72238a84e42b",
+    "train/eligible_fatty_liver.npy": "c307e14efd494421296633e6e940a5a11b3ca5b01b02e3f297c3ac7905510127",
+    "train/outcome_ckd.npy": "a37a63f3050f9cf5051993e5c61d72b8f41a74cf8fe46e6f7898d2382482cf01",
+    "train/outcome_diabetes.npy": "5575e31098208c3e1b32cedfa8d26018e4e5e4397ca55a3b965152876375510b",
+    "train/outcome_fatty_liver.npy": "e8a92261d5f66571db48ae6a73ffe308085078da73e10677363e5085ac545092",
+    "train/patient_id.npy": "5a6adbfa90c7ffbc44027c5ec1abc489b6990fa0adeaf89baab91053c85d22b7",
+    "train/weight_ckd.npy": "54d7284c55e5ffb354355092a7acba7e173ba54ce702e286ca7cb9fd6e92ffd5",
+    "train/weight_diabetes.npy": "3b2e2b6274cd681bd5660129cb686bc80541b711c9a56f76bc46ba1ca599f510",
+    "train/weight_fatty_liver.npy": "58bd363ff3be3d55f31f2f0c5660dce2fce65a57d8f961407ae62176970dfc61",
+    "validation/clinical.npy": "84b2eeb86adfa6a315385f2630d7c961ea2d907728ab45175d9632e838430436",
+    "validation/eligible_ckd.npy": "0092b751dfd587be97e7b5b2d2cc4ba9091f1a55fba547df3d729afcb1609ffb",
+    "validation/eligible_diabetes.npy": "ef3f7dd9f8112b4cc311b32660a23f43e577efd20f6797c9b13ed1bdea75734e",
+    "validation/eligible_fatty_liver.npy": "afece12e16661fb3e8bab9d0f21d55f4faaa592b645267e0e3cfb4253c0c9597",
+    "validation/outcome_ckd.npy": "453cbdbbe20e8268cf12408f85d10a2089e757d7577936f1d7af088b8220d904",
+    "validation/outcome_diabetes.npy": "f6566e476dec0b5d4506f419281b83c4d51135d797b953abd3fd494c15a6ebfa",
+    "validation/outcome_fatty_liver.npy": "68cc7b2e3d996646d0b59a6caa797259a5954ad179ec762a16509614a393ff3c",
+    "validation/patient_id.npy": "5225a1286210445441d433f1a13ebcf83e98850ed4296ff5e7738486633d349e",
+    "validation/weight_ckd.npy": "4ce92ba12f8829c65230f11c0decbd33dae8fe626753ebca43018aa205125847",
+    "validation/weight_diabetes.npy": "00337475d677281754a15ed9d04005a2dd1c023e0b12eb6eb1316fc2d717ef53",
+    "validation/weight_fatty_liver.npy": "9484af9ff3350467ba2d4dca4f9719caec1d73c931e8757ee60f6cb06f57297b"
+  },
+  "independent_readback": {
+    "array_hashes_verified": 36,
+    "splits_disjoint": true,
+    "metrics": {
+      "ckd": {
+        "auroc": 0.8705996312225267,
+        "brier": 0.02040012204750361
+      },
+      "fatty_liver": {
+        "auroc": 0.7519826422992205,
+        "brier": 0.027252460886648698
+      },
+      "diabetes": {
+        "auroc": 0.7840186599844075,
+        "brier": 0.04518499927209847
+      }
+    }
+  },
+  "timing_proxy": {
+    "basis": "record pilot timing; bootstrap timing uses baseline versus itself, not LoRA",
+    "diseases": {
+      "ckd": {
+        "train_steps_per_epoch": 4627,
+        "proxy_epoch_seconds": 1467.088059203535,
+        "bootstrap_2000_seconds": 35.8621415000016
+      },
+      "fatty_liver": {
+        "train_steps_per_epoch": 4556,
+        "proxy_epoch_seconds": 1444.6699099753614,
+        "bootstrap_2000_seconds": 33.91184649999843
+      },
+      "diabetes": {
+        "train_steps_per_epoch": 4186,
+        "proxy_epoch_seconds": 1327.5926859635779,
+        "bootstrap_2000_seconds": 30.412393000000293
+      }
+    }
+  }
+}
