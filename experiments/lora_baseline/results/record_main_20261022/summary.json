@@ -1,0 +1,695 @@
+{
+  "status": "completed",
+  "verification": {
+    "verified_at": "2026-10-22T11:13:23.789453+00:00",
+    "execution_commit": "24a8912e28e2486f7f107716681fcd27be7dfeaa",
+    "started_kst": "2026-10-22T18:02:24.292249+09:00",
+    "completed_kst": "2026-10-22T19:15:40.879929+09:00",
+    "wall_minutes": 73.27646133899688,
+    "runs": [
+      {
+        "name": "A_seed1",
+        "run_id": "ky63fpr8",
+        "state": "finished",
+        "checkpoint_verified": true,
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ],
+        "test": {
+          "recall_at_1": 21.74079370766911,
+          "recall_at_2": 32.307855201563264,
+          "recall_at_5": 46.79747295735331,
+          "recall_at_10": 56.076181209085846,
+          "f1_at_1": 28.7627924645554,
+          "f1_at_2": 35.0178609028572,
+          "f1_at_5": 34.97726195652467,
+          "f1_at_10": 28.723720624356698,
+          "precision_at_1": 62.03007518796993,
+          "precision_at_2": 52.01396348012889,
+          "precision_at_5": 34.97314715359828,
+          "precision_at_10": 22.9484425349087,
+          "hit_at_1": 62.03007518796993,
+          "hit_at_2": 69.87110633727175,
+          "hit_at_5": 78.30290010741139,
+          "hit_at_10": 82.92158968850698
+        },
+        "primary": {
+          "point": -14.919239118263846,
+          "ci_low": -16.335321772367855,
+          "ci_high": -13.473289981206433,
+          "n_patients": 1862,
+          "n_resamples": 5000,
+          "seed": 1
+        },
+        "elapsed_seconds": 135.43146127500006,
+        "best": {
+          "epoch": 15,
+          "validation_recall_at_10": 55.14805221557617,
+          "validation_bce": 21.386728286743164
+        },
+        "epochs": 25,
+        "audit": {
+          "frozen_base_unchanged": true,
+          "base_parameters": 65221122,
+          "adapter_parameters": 0,
+          "adapter_fraction_of_base": 0.0,
+          "head_parameters": 11191860,
+          "trained_parameters_total": 11191860
+        }
+      },
+      {
+        "name": "A_seed2",
+        "run_id": "nbq3p6vr",
+        "state": "finished",
+        "checkpoint_verified": true,
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ],
+        "test": {
+          "recall_at_1": 21.807028589725057,
+          "recall_at_2": 32.386957556878734,
+          "recall_at_5": 47.17046283466811,
+          "recall_at_10": 55.963704272912544,
+          "f1_at_1": 28.783223673097858,
+          "f1_at_2": 35.0173823453866,
+          "f1_at_5": 35.10145703412022,
+          "f1_at_10": 28.705737392855777,
+          "precision_at_1": 61.868958109559614,
+          "precision_at_2": 51.98711063372718,
+          "precision_at_5": 35.016111707841034,
+          "precision_at_10": 22.937701396348015,
+          "hit_at_1": 61.868958109559614,
+          "hit_at_2": 69.87110633727175,
+          "hit_at_5": 78.19548872180451,
+          "hit_at_10": 82.76047261009667
+        },
+        "primary": {
+          "point": -15.031716054437148,
+          "ci_low": -16.475721823981665,
+          "ci_high": -13.557054112693397,
+          "n_patients": 1862,
+          "n_resamples": 5000,
+          "seed": 2
+        },
+        "elapsed_seconds": 133.87998072999994,
+        "best": {
+          "epoch": 14,
+          "validation_recall_at_10": 55.24186706542969,
+          "validation_bce": 21.4381160736084
+        },
+        "epochs": 24,
+        "audit": {
+          "frozen_base_unchanged": true,
+          "base_parameters": 65221122,
+          "adapter_parameters": 0,
+          "adapter_fraction_of_base": 0.0,
+          "head_parameters": 11191860,
+          "trained_parameters_total": 11191860
+        }
+      },
+      {
+        "name": "A_seed3",
+        "run_id": "4gxz9hon",
+        "state": "finished",
+        "checkpoint_verified": true,
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ],
+        "test": {
+          "recall_at_1": 22.05679503705779,
+          "recall_at_2": 32.475261199039636,
+          "recall_at_5": 47.39753195326464,
+          "recall_at_10": 56.30120430393623,
+          "f1_at_1": 29.146011470096187,
+          "f1_at_2": 35.333820789144724,
+          "f1_at_5": 35.286266798839414,
+          "f1_at_10": 28.83339840477147,
+          "precision_at_1": 62.83566058002148,
+          "precision_at_2": 52.65843179377014,
+          "precision_at_5": 35.18796992481203,
+          "precision_at_10": 23.018259935553168,
+          "hit_at_1": 62.83566058002148,
+          "hit_at_2": 70.35445757250268,
+          "hit_at_5": 78.0343716433942,
+          "hit_at_10": 83.19011815252416
+        },
+        "primary": {
+          "point": -14.69421602341346,
+          "ci_low": -16.109382659281255,
+          "ci_high": -13.243992755659965,
+          "n_patients": 1862,
+          "n_resamples": 5000,
+          "seed": 3
+        },
+        "elapsed_seconds": 129.50331516899996,
+        "best": {
+          "epoch": 16,
+          "validation_recall_at_10": 54.86712646484375,
+          "validation_bce": 21.337831497192383
+        },
+        "epochs": 26,
+        "audit": {
+          "frozen_base_unchanged": true,
+          "base_parameters": 65221122,
+          "adapter_parameters": 0,
+          "adapter_fraction_of_base": 0.0,
+          "head_parameters": 11191860,
+          "trained_parameters_total": 11191860
+        }
+      },
+      {
+        "name": "C_seed1",
+        "run_id": "7u9ebb84",
+        "state": "finished",
+        "checkpoint_verified": true,
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ],
+        "test": {
+          "recall_at_1": 21.20350766816418,
+          "recall_at_2": 31.862193807578077,
+          "recall_at_5": 45.595622527032056,
+          "recall_at_10": 53.86401714665789,
+          "f1_at_1": 27.985837699670277,
+          "f1_at_2": 34.222913565674226,
+          "f1_at_5": 33.828390651829835,
+          "f1_at_10": 27.49216261415858,
+          "precision_at_1": 59.774436090225564,
+          "precision_at_2": 50.161117078410314,
+          "precision_at_5": 33.587540279269604,
+          "precision_at_10": 21.885069817400645,
+          "hit_at_1": 59.774436090225564,
+          "hit_at_2": 68.796992481203,
+          "hit_at_5": 76.53061224489795,
+          "hit_at_10": 81.203007518797
+        },
+        "primary": {
+          "point": -17.131403180691798,
+          "ci_low": -18.51609107966057,
+          "ci_high": -15.62470319560688,
+          "n_patients": 1862,
+          "n_resamples": 5000,
+          "seed": 1
+        },
+        "elapsed_seconds": 127.87167579300001,
+        "best": {
+          "epoch": 9,
+          "validation_recall_at_10": 53.235572814941406,
+          "validation_bce": 21.636119842529297
+        },
+        "epochs": 14,
+        "audit": {
+          "frozen_base_unchanged": true,
+          "base_parameters": 65221122,
+          "adapter_parameters": 0,
+          "adapter_fraction_of_base": 0.0,
+          "head_parameters": 11191860,
+          "trained_parameters_total": 11191860
+        }
+      },
+      {
+        "name": "C_seed2",
+        "run_id": "7yuxxifc",
+        "state": "finished",
+        "checkpoint_verified": true,
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ],
+        "test": {
+          "recall_at_1": 21.14152214608672,
+          "recall_at_2": 31.231339301226555,
+          "recall_at_5": 45.639965424042906,
+          "recall_at_10": 54.2979169977752,
+          "f1_at_1": 27.958350083645584,
+          "f1_at_2": 33.67454685828814,
+          "f1_at_5": 33.89901684360756,
+          "f1_at_10": 27.84035149423945,
+          "precision_at_1": 59.98925886143931,
+          "precision_at_2": 49.73147153598281,
+          "precision_at_5": 33.81310418904404,
+          "precision_at_10": 22.250268528464016,
+          "hit_at_1": 59.98925886143931,
+          "hit_at_2": 68.25993555316863,
+          "hit_at_5": 77.12137486573577,
+          "hit_at_10": 81.47153598281417
+        },
+        "primary": {
+          "point": -16.697503329574495,
+          "ci_low": -18.17089364448223,
+          "ci_high": -15.241662968713785,
+          "n_patients": 1862,
+          "n_resamples": 5000,
+          "seed": 2
+        },
+        "elapsed_seconds": 114.56615455699989,
+        "best": {
+          "epoch": 5,
+          "validation_recall_at_10": 53.44102478027344,
+          "validation_bce": 21.936079025268555
+        },
+        "epochs": 10,
+        "audit": {
+          "frozen_base_unchanged": true,
+          "base_parameters": 65221122,
+          "adapter_parameters": 0,
+          "adapter_fraction_of_base": 0.0,
+          "head_parameters": 11191860,
+          "trained_parameters_total": 11191860
+        }
+      },
+      {
+        "name": "C_seed3",
+        "run_id": "z878m0ql",
+        "state": "finished",
+        "checkpoint_verified": true,
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ],
+        "test": {
+          "recall_at_1": 21.131677645340602,
+          "recall_at_2": 31.312564296088055,
+          "recall_at_5": 45.72056409339936,
+          "recall_at_10": 54.4057925158309,
+          "f1_at_1": 27.981552445193813,
+          "f1_at_2": 33.906960717906344,
+          "f1_at_5": 33.98605309452582,
+          "f1_at_10": 27.72959313817597,
+          "precision_at_1": 60.150375939849624,
+          "precision_at_2": 50.08055853920516,
+          "precision_at_5": 33.88829215896885,
+          "precision_at_10": 22.121374865735767,
+          "hit_at_1": 60.150375939849624,
+          "hit_at_2": 68.31364124597208,
+          "hit_at_5": 77.0139634801289,
+          "hit_at_10": 82.00859291084855
+        },
+        "primary": {
+          "point": -16.58962781151879,
+          "ci_low": -18.012299916231875,
+          "ci_high": -15.17716093748819,
+          "n_patients": 1862,
+          "n_resamples": 5000,
+          "seed": 3
+        },
+        "elapsed_seconds": 117.02481220499999,
+        "best": {
+          "epoch": 6,
+          "validation_recall_at_10": 53.622859954833984,
+          "validation_bce": 21.78278160095215
+        },
+        "epochs": 11,
+        "audit": {
+          "frozen_base_unchanged": true,
+          "base_parameters": 65221122,
+          "adapter_parameters": 0,
+          "adapter_fraction_of_base": 0.0,
+          "head_parameters": 11191860,
+          "trained_parameters_total": 11191860
+        }
+      },
+      {
+        "name": "lora_seed1",
+        "run_id": "mgkgqt8d",
+        "state": "finished",
+        "checkpoint_verified": true,
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ],
+        "test": {
+          "recall_at_1": 23.12867707490738,
+          "recall_at_2": 35.87641167257323,
+          "recall_at_5": 55.49461462985105,
+          "recall_at_10": 67.17035176134469,
+          "f1_at_1": 30.753381163804015,
+          "f1_at_2": 39.07942319421255,
+          "f1_at_5": 42.478459742677984,
+          "f1_at_10": 35.527431184253004,
+          "precision_at_1": 66.97099892588615,
+          "precision_at_2": 58.243823845327604,
+          "precision_at_5": 42.857142857142854,
+          "precision_at_10": 28.58216970998926,
+          "hit_at_1": 66.97099892588615,
+          "hit_at_2": 74.97314715359828,
+          "hit_at_5": 83.35123523093448,
+          "hit_at_10": 87.64769065520946
+        },
+        "primary": {
+          "point": -3.825068566005001,
+          "ci_low": -5.054474206353234,
+          "ci_high": -2.6086455638337096,
+          "n_patients": 1862,
+          "n_resamples": 5000,
+          "seed": 1
+        },
+        "elapsed_seconds": 1238.620351396,
+        "best": {
+          "epoch": 2,
+          "validation_recall_at_10": 66.0427474975586,
+          "validation_bce": 17.023618698120117
+        },
+        "epochs": 7,
+        "audit": {
+          "frozen_base_unchanged": true,
+          "base_parameters": 65221122,
+          "adapter_parameters": 307200,
+          "adapter_fraction_of_base": 0.004710130561691349,
+          "head_parameters": 11191860,
+          "trained_parameters_total": 11499060
+        }
+      },
+      {
+        "name": "lora_seed2",
+        "run_id": "sk2nbdzo",
+        "state": "finished",
+        "checkpoint_verified": true,
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ],
+        "test": {
+          "recall_at_1": 22.740576915727736,
+          "recall_at_2": 35.38427207849508,
+          "recall_at_5": 55.410444518023766,
+          "recall_at_10": 67.04984343602527,
+          "f1_at_1": 30.239458569132502,
+          "f1_at_2": 38.61647481160486,
+          "f1_at_5": 42.39497093718489,
+          "f1_at_10": 35.572451313870076,
+          "precision_at_1": 66.00429645542428,
+          "precision_at_2": 57.84103114930183,
+          "precision_at_5": 42.953813104189045,
+          "precision_at_10": 28.72717508055854,
+          "hit_at_1": 66.00429645542428,
+          "hit_at_2": 74.06015037593986,
+          "hit_at_5": 83.35123523093448,
+          "hit_at_10": 87.64769065520946
+        },
+        "primary": {
+          "point": -3.9455768913244214,
+          "ci_low": -5.214596652004838,
+          "ci_high": -2.645293744623833,
+          "n_patients": 1862,
+          "n_resamples": 5000,
+          "seed": 2
+        },
+        "elapsed_seconds": 1288.0464717630002,
+        "best": {
+          "epoch": 2,
+          "validation_recall_at_10": 65.63439178466797,
+          "validation_bce": 17.125951766967773
+        },
+        "epochs": 7,
+        "audit": {
+          "frozen_base_unchanged": true,
+          "base_parameters": 65221122,
+          "adapter_parameters": 307200,
+          "adapter_fraction_of_base": 0.004710130561691349,
+          "head_parameters": 11191860,
+          "trained_parameters_total": 11499060
+        }
+      },
+      {
+        "name": "lora_seed3",
+        "run_id": "f85qrvxb",
+        "state": "finished",
+        "checkpoint_verified": true,
+        "files": [
+          "config.yaml",
+          "wandb-summary.json"
+        ],
+        "test": {
+          "recall_at_1": 23.312585763783844,
+          "recall_at_2": 35.725978274793114,
+          "recall_at_5": 54.9572930841556,
+          "recall_at_10": 66.65516069290996,
+          "f1_at_1": 31.012529930281197,
+          "f1_at_2": 39.066783543331425,
+          "f1_at_5": 42.40072038838105,
+          "f1_at_10": 35.54764879255835,
+          "precision_at_1": 67.66917293233082,
+          "precision_at_2": 58.78088077336198,
+          "precision_at_5": 43.05048335123523,
+          "precision_at_10": 28.694951664876477,
+          "hit_at_1": 67.66917293233082,
+          "hit_at_2": 74.65091299677766,
+          "hit_at_5": 82.38453276047261,
+          "hit_at_10": 87.0032223415682
+        },
+        "primary": {
+          "point": -4.340259634439732,
+          "ci_low": -5.584145114662509,
+          "ci_high": -3.0900908780185876,
+          "n_patients": 1862,
+          "n_resamples": 5000,
+          "seed": 3
+        },
+        "elapsed_seconds": 1308.4982586699998,
+        "best": {
+          "epoch": 2,
+          "validation_recall_at_10": 65.97327423095703,
+          "validation_bce": 16.964496612548828
+        },
+        "epochs": 7,
+        "audit": {
+          "frozen_base_unchanged": true,
+          "base_parameters": 65221122,
+          "adapter_parameters": 307200,
+          "adapter_fraction_of_base": 0.004710130561691349,
+          "head_parameters": 11191860,
+          "trained_parameters_total": 11499060
+        }
+      }
+    ],
+    "A": {
+      "mean": 56.11369659531154,
+      "sample_sd": 0.17184912245337394
+    },
+    "C": {
+      "mean": 54.189242220088,
+      "sample_sd": 0.28677132551853807
+    },
+    "lora": {
+      "mean": 66.95845196342664,
+      "sample_sd": 0.2694805376952845
+    }
+  },
+  "bootstrap_audit": {
+    "passed": true,
+    "method": "Independent NumPy stable ranking, label-set Recall@10 and paired difference bootstrap; 5000 percentile resamples with original seed and row ordering (dataset order for primary, sorted IDs for secondary)",
+    "baseline_recall_at_10": 70.99542032734969,
+    "checks": {
+      "A_seed1": {
+        "patient_order_exact": true,
+        "top10_exact": true,
+        "recall_exact": true,
+        "csv_max_rounding_error": 4.838709699583887e-07
+      },
+      "A_seed2": {
+        "patient_order_exact": true,
+        "top10_exact": true,
+        "recall_exact": true,
+        "csv_max_rounding_error": 4.838709699583887e-07
+      },
+      "A_seed3": {
+        "patient_order_exact": true,
+        "top10_exact": true,
+        "recall_exact": true,
+        "csv_max_rounding_error": 4.838709699583887e-07
+      },
+      "C_seed1": {
+        "patient_order_exact": true,
+        "top10_exact": true,
+        "recall_exact": true,
+        "csv_max_rounding_error": 4.7368421007831785e-07
+      },
+      "C_seed2": {
+        "patient_order_exact": true,
+        "top10_exact": true,
+        "recall_exact": true,
+        "csv_max_rounding_error": 4.838709699583887e-07
+      },
+      "C_seed3": {
+        "patient_order_exact": true,
+        "top10_exact": true,
+        "recall_exact": true,
+        "csv_max_rounding_error": 4.782608726827675e-07
+      },
+      "lora_seed1": {
+        "patient_order_exact": true,
+        "top10_exact": true,
+        "recall_exact": true,
+        "csv_max_rounding_error": 4.838709699583887e-07
+      },
+      "lora_seed2": {
+        "patient_order_exact": true,
+        "top10_exact": true,
+        "recall_exact": true,
+        "csv_max_rounding_error": 4.838709699583887e-07
+      },
+      "lora_seed3": {
+        "patient_order_exact": true,
+        "top10_exact": true,
+        "recall_exact": true,
+        "csv_max_rounding_error": 4.838709699583887e-07
+      }
+    },
+    "comparisons": {
+      "lora_seed1_minus_generation50": {
+        "point": -3.825068566005009,
+        "ci_low": -5.054474206353222,
+        "ci_high": -2.60864556383371,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 1,
+        "maximum_difference_from_stored": 1.1546319456101628e-14,
+        "role": "primary"
+      },
+      "lora_seed1_minus_A": {
+        "point": 11.094170552258841,
+        "ci_low": 9.980137906601373,
+        "ci_high": 12.15465243800129,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 1,
+        "maximum_difference_from_stored": 1.4343839893626864e-08,
+        "role": "exploratory_secondary"
+      },
+      "lora_seed1_minus_C": {
+        "point": 13.30633461468679,
+        "ci_low": 12.175099933900693,
+        "ci_high": 14.46379393217539,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 1,
+        "maximum_difference_from_stored": 1.1232247132397788e-08,
+        "role": "exploratory_secondary"
+      },
+      "lora_seed2_minus_generation50": {
+        "point": -3.945576891324411,
+        "ci_low": -5.214596652004846,
+        "ci_high": -2.6452937446238334,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 2,
+        "maximum_difference_from_stored": 1.021405182655144e-14,
+        "role": "seed_sensitivity"
+      },
+      "lora_seed2_minus_A": {
+        "point": 11.08613916311273,
+        "ci_low": 9.942461721765403,
+        "ci_high": 12.234955318763935,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 2,
+        "maximum_difference_from_stored": 6.980574340786916e-09,
+        "role": "exploratory_secondary"
+      },
+      "lora_seed2_minus_C": {
+        "point": 12.75192643825008,
+        "ci_low": 11.565148092152375,
+        "ci_high": 13.926808647284307,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 2,
+        "maximum_difference_from_stored": 1.3926749531378846e-08,
+        "role": "exploratory_secondary"
+      },
+      "lora_seed3_minus_generation50": {
+        "point": -4.340259634439723,
+        "ci_low": -5.584145114662494,
+        "ci_high": -3.090090878018571,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 3,
+        "maximum_difference_from_stored": 1.6431300764452317e-14,
+        "role": "seed_sensitivity"
+      },
+      "lora_seed3_minus_A": {
+        "point": 10.353956388973739,
+        "ci_low": 9.274858778677848,
+        "ci_high": 11.422402719572519,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 3,
+        "maximum_difference_from_stored": 8.958627617516868e-09,
+        "role": "exploratory_secondary"
+      },
+      "lora_seed3_minus_C": {
+        "point": 12.249368177079063,
+        "ci_low": 11.120854224144363,
+        "ci_high": 13.358301391075015,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 3,
+        "maximum_difference_from_stored": 1.2147314265575915e-08,
+        "role": "exploratory_secondary"
+      }
+    }
+  },
+  "original_secondary_contrasts": {
+    "interpretation": "Patient bootstrap conditional on fitted models; seed variation reported separately. No pooling of patients across seeds. Secondary comparisons are exploratory.",
+    "comparisons": {
+      "lora_seed1_minus_A_seed1": {
+        "point": 11.094170554242751,
+        "ci_low": 9.980137920945213,
+        "ci_high": 12.154652435405461,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 1
+      },
+      "lora_seed1_minus_C_seed1": {
+        "point": 13.30633461922664,
+        "ci_low": 12.175099935365195,
+        "ci_high": 14.463793943407637,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 1
+      },
+      "lora_seed2_minus_A_seed2": {
+        "point": 11.086139167024704,
+        "ci_low": 9.942461728745977,
+        "ci_high": 12.23495532171051,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 2
+      },
+      "lora_seed2_minus_C_seed2": {
+        "point": 12.75192643931257,
+        "ci_low": 11.565148091635335,
+        "ci_high": 13.926808661211057,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 2
+      },
+      "lora_seed3_minus_A_seed3": {
+        "point": 10.353956397422117,
+        "ci_low": 9.27485878112245,
+        "ci_high": 11.422402728531146,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 3
+      },
+      "lora_seed3_minus_C_seed3": {
+        "point": 12.249368187432857,
+        "ci_low": 11.120854233015569,
+        "ci_high": 13.35830140322233,
+        "n_patients": 1862,
+        "n_resamples": 5000,
+        "seed": 3
+      }
+    }
+  },
+  "interpretation": {
+    "primary": "LoRA seed 1 minus generation50",
+    "seed_variability": "Sample SD over three training seeds, not a confidence interval",
+    "ci": "95% percentile paired patient bootstrap, 5000 resamples, n=1862; conditional on fitted models and fixed generation outputs; no multiplicity correction",
+    "scope": "Next-record-day prediction only; risk LoRA and 100k expansion not completed"
+  }
+}

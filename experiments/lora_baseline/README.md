@@ -75,9 +75,10 @@ python train_risk.py --release $R --data $E --out runs/risk/ckd/lora_s1 --arm lo
 
 Local source comparison is recorded in PROTOCOL.md Section 12. Actual record
 CUDA BF16 reproduction passed; see RUN_RESULTS_KO.md and results/record_v1_20261022/.
-A 128-step record LoRA timing pilot is complete (LORA_BENCHMARK_KO.md). Disease
-reproduction and full LoRA performance experiments remain pending. Synthetic tests alone
-do not establish actual v1 reproduction.
+A 128-step record LoRA timing pilot and all nine A/C/LoRA record experiments are
+complete. See RECORD_MAIN_PLAN_KO.md and results/record_main_20261022/ for final
+results and an independent bootstrap audit. Disease reproduction/LoRA and the
+100k expansion remain pending. Synthetic tests alone do not establish v1 reproduction.
 
 Risk exports require boolean `eligible_<disease>.npy` per split. Preprocessing
 uses all eligible training patients, including censored patients; optimization

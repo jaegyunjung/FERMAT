@@ -1,12 +1,13 @@
 # PR #2 실행 준비 및 재현 상태 — 2026-10-22
 
-**기록 과제 v1 실제 재현 gate 통과. LoRA 128-step 소량 학습 완료; 질병 gate와 LoRA 본 실험은 미실행이다.**
+**기록 과제 v1 gate와 A/C/LoRA 9개 본 실험 완료. 질병 gate·질병 LoRA 및 100k 확대는 미실행이다.**
 프로토콜은 `2026-10-22.5`이며 PR은 draft다. 상세 결과, 실패 진단과 수정 이력,
 v1 결과는 [RUN_RESULTS_KO.md](RUN_RESULTS_KO.md), LoRA 속도·메모리·ETA는
 [LORA_BENCHMARK_KO.md](LORA_BENCHMARK_KO.md)에 있다.
 체크포인트 저장·재개 및 CUDA 재로딩 검증은 [CHECKPOINT_RESUME_KO.md](CHECKPOINT_RESUME_KO.md)를 따른다.
 독립 검토 후 본 실험 시작 승인을 받았다. 실행 조건과 A/C 통제군은
-[RECORD_MAIN_PLAN_KO.md](RECORD_MAIN_PLAN_KO.md)에 고정한다.
+[RECORD_MAIN_PLAN_KO.md](RECORD_MAIN_PLAN_KO.md)에 고정했다. 같은 문서의 최종 결과 절에
+19:15:40 완료 기록, 성능·bootstrap과 원고/답변 제안문을 정리했다.
 
 ## 1. 논문과 실행 경로 대조
 

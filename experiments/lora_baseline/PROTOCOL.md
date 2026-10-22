@@ -3,8 +3,9 @@
 Protocol version `2026-10-22.5` (`common.PROTOCOL_VERSION`); gates record it and
 a run refuses a gate from another version.
 
-A bounded 128-update record LoRA timing pilot has run; no full LoRA performance
-experiment has run. See LORA_BENCHMARK_KO.md for timings and limits. Version .5 restores
+A bounded 128-update record LoRA timing pilot and the reviewed A/C/LoRA record suite
+have completed. See RECORD_MAIN_PLAN_KO.md for final results and LORA_BENCHMARK_KO.md
+for pilot timings and limits. Version .5 restores
 the original record normalization cohort and inference batch context, based on
 source-code and saved-artifact comparisons during reproduction diagnostics.
 These amendments occurred after the initial diagnostics, not prospectively.
