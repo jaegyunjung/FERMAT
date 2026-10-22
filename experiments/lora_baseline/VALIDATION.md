@@ -4,7 +4,8 @@ Base commit: `b1dd40c753c5aa9aea1d1a67e309dead531c8d9d`.
 Protocol: `2026-10-22.5`. The automated tests below use synthetic inputs and
 random weights only. Actual CUDA record reproduction is documented separately
 in RUN_RESULTS_KO.md; do not confuse it with the synthetic suite. Disease
-reproduction and LoRA training remain pending.
+reproduction and full LoRA experiments remain pending. Bounded LoRA timing
+is reported separately in LORA_BENCHMARK_KO.md.
 
 ## Reproducible checks
 
@@ -17,7 +18,7 @@ python experiments/lora_baseline/audit_v1.py \
   --reference-dir /path/to/original/scripts --out /tmp/v1_audit.json
 ```
 
-The suite contains 44 tests, including both task pipelines, gate issuance and
+The suite contains 46 tests, including both task pipelines, gate issuance and
 rejection, checkpoint reload in separate processes, unchanged frozen weights,
 partial/unequal gradient accumulation, historical seed/order and preprocessing,
 eligibility validation, changed data, modified target files, output protection,
@@ -28,8 +29,10 @@ refusal to export patient data into Git or overwrite an existing export.
 Additional checks cover diagnostic-only gates, cache patient order, aggregate
 tracking restrictions, GPU limits, normalization over unlabeled training patients,
 original inference-pool mapping/content integrity, and Windows-worktree revision
-lookup from WSL. The suite passed in
-28.859 seconds.
+lookup from WSL. The bounded benchmark integration test verifies actual adapter
+updates, unchanged frozen weights, and absence of test outputs/reproduction gates.
+Runtime projection tests include the final partial batch and evaluation costs.
+The suite passed in 32.277 seconds.
 These results are from torch 2.12.1, not the other agent's torch 2.14.1 environment.
 
 The original review's weighted gradient (-0.4) and trailing accumulation (-2)

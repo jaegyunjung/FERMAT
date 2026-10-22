@@ -1,5 +1,8 @@
 # 기록 과제 v1 실제 재현 결과 — 2026-10-22
 
+이 문서는 v1 gate 완료 시점의 기록이다. 이후 LoRA 소량 측정은
+[LORA_BENCHMARK_KO.md](LORA_BENCHMARK_KO.md)에 별도로 기록했다.
+
 **CUDA BF16 전체 임베딩 대조, 기록 head 재학습 및 재현 gate 통과.**
 질병 과제 실제 재현과 LoRA 학습은 아직 하지 않았다. PR #2는 draft로 유지한다.
 프로토콜 `2026-10-22.5`, 실행 커밋 `3903e92f2f64b2511c1ce7220cd0f486cee0ce3b`.

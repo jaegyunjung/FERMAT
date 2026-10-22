@@ -24,6 +24,7 @@ gates.py                   target-content and experiment-identity verification
 recipes.py                 audited v1 preprocessing, seed/order and selection
 tracking.py                aggregate-only W&B and durable local JSONL (optional)
 runtime_guard.py           optional current-boot WSL GPU profile and new host-event checks
+benchmarking.py            bounded LoRA step/validation timing, CUDA peaks and runtime projections
 audit_v1.py                synthetic parity audit against local original source
 audit_record_embeddings.py guarded original-batch/exported-batch CUDA BF16 parity
 audit_record_ties.py        saved-head comparison of seeded and stable tie rules
@@ -71,7 +72,8 @@ python train_risk.py --release $R --data $E --out runs/risk/ckd/lora_s1 --arm lo
 
 Local source comparison is recorded in PROTOCOL.md Section 12. Actual record
 CUDA BF16 reproduction passed; see RUN_RESULTS_KO.md and results/record_v1_20261022/.
-Disease reproduction and all LoRA runs remain pending. Synthetic tests alone
+A 128-step record LoRA timing pilot is complete (LORA_BENCHMARK_KO.md). Disease
+reproduction and full LoRA performance experiments remain pending. Synthetic tests alone
 do not establish actual v1 reproduction.
 
 Risk exports require boolean `eligible_<disease>.npy` per split. Preprocessing
@@ -126,3 +128,14 @@ automatic metadata/statistics and model/data artifacts are disabled. Local
 `tracking/aggregate_history.jsonl` survives connection failures. The local
 `tracking.json` distinguishes connection/finish failures; do not equate a local
 write with confirmed remote delivery. `--tracking offline` never syncs online.
+
+Before a full record LoRA run, add `--benchmark-steps 128 --benchmark-warmup 10`
+to a gated LoRA command. This performs 128 actual optimizer updates, excluding
+the first 10 duration samples from steady-speed estimation (the optimizer's
+100-step LR warmup is unchanged). It times full validation but does not score
+test patients, select a best epoch or issue a gate. Outputs are private
+`benchmark.json` and a checkpoint marked `benchmark_only`; full experiments
+start afresh. This mode currently requires gradient accumulation 1 and no more
+than one epoch of training steps. CUDA peak allocated/reserved bytes are reported
+separately from sampled whole-device memory. ETA includes per-epoch validation;
+checkpoint/network/bootstrap costs and early stopping are not predicted.

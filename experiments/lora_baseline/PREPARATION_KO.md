@@ -1,8 +1,9 @@
 # PR #2 실행 준비 및 재현 상태 — 2026-10-22
 
-**기록 과제 v1 실제 재현 gate 통과. 질병 과제 gate와 LoRA 학습은 아직 실행하지 않았다.**
+**기록 과제 v1 실제 재현 gate 통과. LoRA 128-step 소량 학습 완료; 질병 gate와 LoRA 본 실험은 미실행이다.**
 프로토콜은 `2026-10-22.5`이며 PR은 draft다. 상세 결과, 실패 진단과 수정 이력,
-실측 시간 및 W&B 링크는 [RUN_RESULTS_KO.md](RUN_RESULTS_KO.md)에 있다.
+v1 결과는 [RUN_RESULTS_KO.md](RUN_RESULTS_KO.md), LoRA 속도·메모리·ETA는
+[LORA_BENCHMARK_KO.md](LORA_BENCHMARK_KO.md)에 있다.
 
 ## 1. 논문과 실행 경로 대조
 
@@ -58,7 +59,7 @@ WSL 제한 폴더 `PREP=/home/fermat/fermat-data/restricted/lora_baseline_202610
 
 1. **기록 LoRA 소량 실행:** 현재 동일 dataset/model/precision의 .5 gate를 먼저 검증한다.
    소량 실행에서 속도·메모리를 측정한 뒤 전체 epoch/seed 소요 시간을 계산한다.
-   본 실험 비교 arm과 seed 1, 2, 3을 고정한다. 이번 작업에서는 LoRA를 시작하지 않았다.
+   본 실험 비교 arm과 seed 1, 2, 3을 고정한다. 128-step 측정은 완료했고, 20 epochs × 3 seeds 예약 예산은 약 3시간 30~45분이다. 본 실험은 아직 시작하지 않았다.
 2. **질병 학습 입력 export:** 원본 `task30_d3_final_analysis_20260901_v1/preopen/`
    코호트·정답, `embeddings/fermat_embeddings_20180101_5y_last.parquet`,
    `final_evaluation_v2_raw_dx/restricted_patient_level/selected_test_outcomes_raw_dx_once.parquet`
