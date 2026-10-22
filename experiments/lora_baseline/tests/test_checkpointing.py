@@ -13,6 +13,23 @@ import checkpointing as cp
 
 
 class CheckpointTests(unittest.TestCase):
+    def test_model_configuration_is_bound_independently_of_weights(self):
+        import argparse
+        import common
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'config').mkdir()
+            config = root / 'config/model_config.json'
+            config.write_text('{"dropout": 0.1}')
+            args = common.add_common_arguments(argparse.ArgumentParser()).parse_args([
+                '--data', tmp, '--out', tmp, '--arm', 'lora', '--release', tmp, '--device', 'cpu'])
+            args.gpu_profile, args.validation_only = None, True
+            first = cp.training_contract(args, {}, {'model_sha256': 'same-weights'})
+            config.write_text('{"dropout": 0.2}')
+            second = cp.training_contract(args, {}, {'model_sha256': 'same-weights'})
+            self.assertEqual(first['identity'], second['identity'])
+            self.assertNotEqual(first['model_config_sha256'], second['model_config_sha256'])
+
     def payload(self, epoch=1):
         return dict(completed_epoch=epoch, contract={'seed': 1}, best_state={'head': torch.tensor([3.])})
 

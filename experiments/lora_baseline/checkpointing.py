@@ -85,7 +85,9 @@ def training_contract(args, cfg, identity, diagnostic_hashes=None):
               'lr_lora', 'batch_size', 'grad_accum', 'warmup_steps', 'grad_clip', 'betas', 'bf16',
               'validation_only')
     profile = json.loads(args.gpu_profile.read_text(encoding='utf-8-sig')) if args.gpu_profile else None
+    model_config = args.smoke_random_init or (args.release / 'config/model_config.json')
     contract = dict(code=code, identity={k: v for k, v in identity.items() if k != 'dataset_hash_seconds'},
+                    model_config_sha256=sha256(model_config),
                     settings={k: getattr(args, k) for k in fields}, resolved=cfg,
                     diagnostic_cache=diagnostic_hashes, python=platform.python_version(), torch=str(torch.__version__),
                     numpy=np.__version__, cuda=torch.version.cuda, device=str(args.device),
