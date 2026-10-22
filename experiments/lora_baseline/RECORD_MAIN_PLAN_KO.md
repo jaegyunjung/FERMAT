@@ -80,3 +80,19 @@ early stopping 시점과 C의 실제 소요 시간은 아직 측정 전이다.
 실행 상태는 제한 폴더의 `status.json`, 각 run의 `progress.json`, `tracking/`에 남긴다.
 최종 `secondary_contrasts.json`과 run별 `pipeline_check.json`은 집계 결과이며,
 전체 원자료와 모델은 제한 폴더 안에 유지한다.
+
+## 시작 기록
+
+- 2026-10-22 **18:02:21 KST** 큐 시작. 실행 커밋
+  `24a8912e28e2486f7f107716681fcd27be7dfeaa`; 이후 작업 브랜치의 문서 변경과 분리한다.
+- 실행 snapshot: `C:/Users/HP/.codex/runtimes/fermat-record-24a8912`.
+  WSL 안의 snapshot은 Windows PowerShell의 네트워크 경로 실행 정책에 막혀 사용하지
+  않았다. 동일 커밋의 Windows 로컬 snapshot을 사용하며 보안 정책을 바꾸지 않았다.
+- 결과 루트: `/home/fermat/fermat-data/restricted/lora_baseline_20261022/record_main_suite_01`.
+  큐 상태 `status.json`, 시작 manifest는 Windows
+  `C:/Users/HP/.codex/runtimes/record-main-20261022.launch.json`에 있다.
+- 사전 점검 통과: gate/data/model identity 일치, CUDA BF16 원본 batch 32명
+  임베딩 최대 오차 0, GPU/host guard 통과, 799.23 GiB 여유. CPU **55 tests 통과**
+  (72.174초, torch 2.12.1+cu132). [집계 근거](results/record_main_launch_20261022/summary.json).
+- 첫 실행 [A seed 1 W&B](https://wandb.ai/jaegyunjung-seoul-national-university-hospital/fermat-lora-baseline/runs/ky63fpr8).
+  이 시작 기록은 완료 보고가 아니다. 결과/완료 상태는 로컬 status와 W&B에서 확인한다.

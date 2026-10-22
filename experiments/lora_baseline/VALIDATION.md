@@ -4,8 +4,9 @@ Base commit: `b1dd40c753c5aa9aea1d1a67e309dead531c8d9d`.
 Protocol: `2026-10-22.5`. The automated tests below use synthetic inputs and
 random weights only. Actual CUDA record reproduction is documented separately
 in RUN_RESULTS_KO.md; do not confuse it with the synthetic suite. Disease
-reproduction and full LoRA experiments remain pending. Bounded LoRA timing
-is reported separately in LORA_BENCHMARK_KO.md.
+reproduction remains pending. The full record suite was launched after review;
+its start evidence is in RECORD_MAIN_PLAN_KO.md, not proof of completed results.
+Bounded LoRA timing is reported separately in LORA_BENCHMARK_KO.md.
 
 ## Reproducible checks
 
