@@ -4,8 +4,8 @@ Base weights are never modified. Each selected ``nn.Linear`` is wrapped so that
 ``y = W x + (alpha / r) * B A x`` with ``B`` initialised to zero, so an injected
 model reproduces the released outputs exactly until the first optimizer step.
 The wrapper keeps the original module as ``.base`` and its parameters frozen;
-``model.state_dict()`` therefore still contains the unchanged release tensors
-under their original names plus ``lora_A`` / ``lora_B`` for the adapters.
+``model.state_dict()`` contains the unchanged release tensors under ``.base``
+names plus ``lora_A`` / ``lora_B`` for the adapters.
 
 The released FERMAT attention block fuses query, key and value into one
 ``c_attn`` projection (640 -> 1920). A LoRA on ``c_attn`` therefore adapts
@@ -29,18 +29,20 @@ class LoRALinear(nn.Module):
         super().__init__()
         if not isinstance(base, nn.Linear):
             raise TypeError('LoRA wraps nn.Linear modules only')
-        if rank < 1:
-            raise ValueError('rank must be positive')
+        if not isinstance(rank, int) or rank < 1 or not math.isfinite(alpha) or alpha <= 0:
+            raise ValueError('rank must be a positive integer and alpha positive and finite')
+        if not 0 <= dropout < 1:
+            raise ValueError('dropout must be in [0, 1)')
         self.base = base
         for parameter in self.base.parameters():
             parameter.requires_grad_(False)
         self.rank = int(rank)
         self.scaling = float(alpha) / float(rank)
         self.dropout = nn.Dropout(dropout)
-        self.lora_A = nn.Parameter(torch.empty(rank, base.in_features))
-        self.lora_B = nn.Parameter(torch.zeros(base.out_features, rank))
+        self.lora_A = nn.Parameter(base.weight.new_empty(rank, base.in_features))
+        self.lora_B = nn.Parameter(base.weight.new_zeros(base.out_features, rank))
         # Kaiming-uniform A and zero B is the reference initialisation: the
-        # product starts at zero, the gradient to A does not.
+        # product starts at zero. Initially only B receives a nonzero gradient.
         nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
 
     def forward(self, x):

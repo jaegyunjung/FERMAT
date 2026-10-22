@@ -24,10 +24,7 @@ from lora import (inject_lora, lora_parameters, lora_state_dict, load_lora_state
                   count_parameters, snapshot_parameters, assert_base_unchanged, TARGET_SETS)
 
 ARMS = ('head_only', 'lora')
-# Bumped whenever PROTOCOL.md changes anything a gate depends on; gates record it.
-PROTOCOL_VERSION = '2026-10-22.2'
-PROTOCOL_TARGETS = HERE / 'protocol_targets.json'
-GATE_METRICS = dict(record=('test.recall_at_10',), risk=('test.weighted_auroc', 'test.weighted_brier'))
+from gates import PROTOCOL_VERSION, PROTOCOL_TARGETS, GATE_METRICS, validate_gate
 # v1 local recipe constants (scripts/run_next_record_bundle.py, train_task30_d3_comparators.py).
 EMBEDDING_SD_FLOOR = 1e-4
 RECORD_HEAD_WEIGHT_SD = 0.01
@@ -56,11 +53,13 @@ def add_common_arguments(parser):
     parser.add_argument('--patience', type=int, default=None, help='Arm default when omitted')
     parser.add_argument('--warmup-steps', type=int, default=None, help='Default 0 for head_only, 100 for lora')
     parser.add_argument('--grad-clip', type=float, default=None, help='Default: none for head_only, 1.0 for lora')
-    parser.add_argument('--seed', type=int, default=1)
+    parser.add_argument('--seed', type=int, default=None)
+    parser.add_argument('--recipe', choices=('v1', 'experimental', 'lora'), default=None)
+    parser.add_argument('--smoke-seed', type=int, default=1)
     parser.add_argument('--train-subset', type=int, default=None,
                         help='Fixed random subset of training patients, shared by all arms; must be smaller than the pool')
     parser.add_argument('--train-patient-ids', type=Path, default=None,
-                        help='.npy or text file of patient IDs that must all be present; overrides --train-subset')
+                        help='.npy or text file of patient IDs that must all be present; exclusive with --train-subset')
     parser.add_argument('--subset-seed', type=int, default=20260910)
     parser.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--bf16', action='store_true', help='CUDA autocast for the transformer body')
@@ -73,14 +72,22 @@ def add_common_arguments(parser):
 def resolve_defaults(args, task_defaults):
     """Fill arm-dependent defaults in place and return the resolved dictionary."""
     d = dict(task_defaults[args.arm])
-    d['epochs'] = args.epochs or d['epochs']
-    d['patience'] = args.patience or d['patience']
-    d['lr_head'] = args.lr_head or d['lr_head']
+    d['epochs'] = d['epochs'] if args.epochs is None else args.epochs
+    d['patience'] = d['patience'] if args.patience is None else args.patience
+    d['lr_head'] = d['lr_head'] if args.lr_head is None else args.lr_head
     d['weight_decay'] = d['weight_decay'] if args.weight_decay is None else args.weight_decay
     args.warmup_steps = (0 if args.arm == 'head_only' else 100) if args.warmup_steps is None else args.warmup_steps
     args.grad_clip = (None if args.arm == 'head_only' else 1.0) if args.grad_clip is None else args.grad_clip
     if args.grad_accum < 1 or args.batch_size < 1:
         raise ValueError('batch size and gradient accumulation must be positive')
+    if args.bf16 and not str(args.device).startswith('cuda'):
+        raise ValueError('--bf16 requires a CUDA device; CPU runs use float32')
+    if any(not np.isfinite(d[k]) or d[k] <= 0 for k in ('epochs', 'patience', 'lr_head')) or not np.isfinite(d['weight_decay']) or d['weight_decay'] < 0:
+        raise ValueError('Invalid training hyperparameters')
+    if args.warmup_steps < 0 or (args.grad_clip is not None and args.grad_clip <= 0):
+        raise ValueError('Invalid warm-up or clipping setting')
+    if not np.isfinite(args.lr_lora) or args.lr_lora <= 0 or not all(0 <= b < 1 for b in args.betas):
+        raise ValueError('Invalid adapter learning rate or AdamW betas')
     return d
 
 
@@ -88,9 +95,11 @@ def resolve_defaults(args, task_defaults):
 # Reproduction gate
 # ----------------------------------------------------------------------------
 
-def gate_identity(task, disease, model_info, splits, label_hash, train_rows, selection_mode, dataset_metadata):
+def gate_identity(task, disease, model_info, splits, label_hash, train_rows, selection_mode, dataset_metadata, precision='float32'):
     """Everything a gate must agree on with the run that uses it."""
+    from data import dataset_content_hash
     return dict(
+        dataset_content_sha256=dataset_content_hash(splits, task, disease), precision=precision,
         protocol_version=PROTOCOL_VERSION,
         task=task,
         disease=disease,
@@ -104,31 +113,6 @@ def gate_identity(task, disease, model_info, splits, label_hash, train_rows, sel
         n_train=int(len(train_rows)),
         train_patient_ids_sha256=sha256_of(splits['train'].patient_id[train_rows]),
     )
-
-
-def validate_gate(gate, identity):
-    """Return the list of reasons a gate does not cover this run (empty = accepted)."""
-    reasons = []
-    if not gate.get('passed'):
-        reasons.append('gate did not pass')
-    if gate.get('custom_targets') and not identity['smoke']:
-        reasons.append('gate was built with custom targets; real runs need the protocol targets')
-    g = gate.get('identity', {})
-    for key in ('protocol_version', 'task', 'disease', 'smoke', 'model_sha256', 'dataset_metadata_sha256',
-                'validation_patient_ids_sha256', 'test_patient_ids_sha256', 'label_definition_sha256'):
-        if g.get(key) != identity[key]:
-            reasons.append(f'{key}: gate {g.get(key)!r} vs run {identity[key]!r}')
-    required = GATE_METRICS[identity['task']]
-    checked = {c['metric'] for c in gate.get('checks', [])}
-    for metric in required:
-        if metric not in checked:
-            reasons.append(f'required metric {metric} not checked by the gate')
-    # Allowed training relation: the same patient list, or a gate fitted on the
-    # whole pool, which covers any subset drawn from it (PROTOCOL.md Section 5).
-    same_list = g.get('train_patient_ids_sha256') == identity['train_patient_ids_sha256']
-    if not (same_list or g.get('training_selection') == 'all'):
-        reasons.append('gate training patients are neither the same list nor the full pool')
-    return reasons
 
 
 def require_gate(args, identity):
@@ -158,8 +142,9 @@ def set_seed(seed):
 def build_model(args):
     if args.smoke_random_init is not None:
         config = FermatConfig(**json.loads(Path(args.smoke_random_init).read_text()))
+        set_seed(args.smoke_seed)
         model = Fermat(config)
-        return model.to(args.device).eval(), dict(smoke=True, config=str(args.smoke_random_init), model_sha256=None)
+        return model.to(args.device).eval(), dict(smoke=True, config=str(args.smoke_random_init), model_sha256=sha256_of(json.dumps(dict(config=vars(config), seed=args.smoke_seed), sort_keys=True).encode()))
     from fermat_release import load_release
     model = load_release(args.release, args.device)
     manifest = json.loads((args.release / 'config/artifact_manifest.json').read_text())
@@ -179,9 +164,13 @@ def select_training_rows(split, args):
     """Exact patient list when given, otherwise a fixed random subset that must fit the pool."""
     from data import fixed_subset
     if args.train_patient_ids is not None:
+        if args.train_subset is not None:
+            raise ValueError('Choose either a training patient list or a random subset')
         path = Path(args.train_patient_ids)
         wanted = (np.load(path, allow_pickle=False) if path.suffix == '.npy'
                   else np.loadtxt(path, dtype=np.int64, ndmin=1)).astype(np.int64)
+        if wanted.ndim != 1 or len(wanted) == 0:
+            raise ValueError('Training patient list must be nonempty and one-dimensional')
         if len(np.unique(wanted)) != len(wanted):
             raise ValueError('Training patient list contains duplicates')
         position = {int(p): i for i, p in enumerate(split.patient_id)}
@@ -238,8 +227,8 @@ def init_record_head(head, positives, n_patients):
     """v1 next-record head: N(0, 0.01) weights, bias = logit((positives + 0.5) / (n + 1))."""
     with torch.no_grad():
         torch.nn.init.normal_(head.weight, mean=0., std=RECORD_HEAD_WEIGHT_SD)
-        p = (np.asarray(positives, dtype=np.float64) + 0.5) / (float(n_patients) + 1.)
-        head.bias.copy_(torch.as_tensor(np.log(p / (1 - p)), dtype=head.bias.dtype))
+        p = (torch.as_tensor(positives, dtype=torch.float32, device=head.bias.device) + .5) / (n_patients + 1)
+        head.bias.copy_(torch.logit(p))
 
 
 def init_risk_head(head, weighted_prevalence):
@@ -317,6 +306,8 @@ class Accumulator:
         return [p for g in self.optimizer.param_groups for p in g['params']]
 
     def backward(self, mean_loss, n_patients):
+        if n_patients <= 0 or not torch.isfinite(mean_loss).all():
+            raise ValueError('Loss must be finite and patient count positive')
         (mean_loss * float(n_patients)).backward()
         self.count += int(n_patients)
         self.pending += 1
@@ -329,6 +320,8 @@ class Accumulator:
         for p in self.parameters():
             if p.grad is not None:
                 p.grad.div_(float(self.count))
+        if any(p.grad is not None and not torch.isfinite(p.grad).all() for p in self.parameters()):
+            raise FloatingPointError('Nonfinite gradient; optimizer update refused')
         self.set_warmup(self.steps)
         if self.args.grad_clip is not None:
             torch.nn.utils.clip_grad_norm_(self.parameters(), self.args.grad_clip, error_if_nonfinite=True)
@@ -401,7 +394,7 @@ def fingerprint(args, model_info, data_metadata, extra=None):
         script=Path(sys.argv[0]).name,
         arguments={k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()},
         git_commit=git_commit(),
-        protocol_version=PROTOCOL_VERSION,
+        protocol_version=PROTOCOL_VERSION, recipe=args.recipe,
         model=model_info,
         dataset=data_metadata,
         torch=torch.__version__,
@@ -440,7 +433,10 @@ def read_baseline_csv(path, column):
     values = {}
     with Path(path).open(newline='') as stream:
         for row in csv.DictReader(stream):
-            values[int(row['patient_id'])] = float(row[column])
+            patient_id, value = int(row['patient_id']), float(row[column])
+            if patient_id in values or not np.isfinite(value):
+                raise ValueError('Baseline CSV has duplicate IDs or nonfinite values')
+            values[patient_id] = value
     return values
 
 

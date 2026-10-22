@@ -1,5 +1,5 @@
 {
-  "protocol_version": "2026-10-22.2",
+  "protocol_version": "2026-10-22.3",
   "source": "medRxiv 10.64898/2026.10.11.26365210v1: Section 3.2 and Appendix A (record), Section 3.1 (risk)",
   "record": {
     "test.recall_at_10": {"expected": 55.68, "tolerance": 1.0,

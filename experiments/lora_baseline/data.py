@@ -12,9 +12,10 @@ A dataset is a directory::
     <root>/<split>/label_indptr.npy      int64 [N + 1]  CSR row pointer
     <root>/<split>/label_tokens.npy      int64 [nnz]    model token IDs on the target date
     disease-risk task
-    <root>/<split>/clinical.npy          float32 [N, 4]  age, sex, log rows, log active days
+    <root>/<split>/clinical.npy          float64/float32 [N, 4] age, sex, log rows, log active days
     <root>/<split>/outcome_<disease>.npy int8 [N]  1 case, 0 noncase, -1 unobserved/ineligible
-    <root>/<split>/weight_<disease>.npy  float32 [N]  clipped inverse observation probability
+    <root>/<split>/eligible_<disease>.npy bool [N]  disease-specific at-risk cohort
+    <root>/<split>/weight_<disease>.npy  float64/float32 [N] clipped inverse observation probability
 
 Splits are ``train``, ``validation`` and ``test``. Prefixes are the last at most
 512 observed events through the index date, exactly as supplied to the
@@ -24,6 +25,7 @@ source cohorts is the responsibility of the internal pipeline; this module only
 validates and serves them.
 """
 import json
+import hashlib
 from pathlib import Path
 import numpy as np
 import torch
@@ -34,7 +36,8 @@ PAD_AGE = -10000.
 
 def _load(path, dtype, ndim):
     array = np.load(path, mmap_mode='r', allow_pickle=False)
-    if array.dtype != dtype or array.ndim != ndim:
+    allowed = dtype if isinstance(dtype, tuple) else (dtype,)
+    if array.dtype not in allowed or array.ndim != ndim:
         raise ValueError(f'{path}: expected {dtype} with {ndim} dimensions, got {array.dtype} {array.shape}')
     return array
 
@@ -60,26 +63,30 @@ class PrefixSplit:
         if (folder / 'label_indptr.npy').exists():
             self.label_indptr = _load(folder / 'label_indptr.npy', np.int64, 1)
             self.label_tokens = _load(folder / 'label_tokens.npy', np.int64, 1)
-            if len(self.label_indptr) != n + 1 or self.label_indptr[-1] != len(self.label_tokens):
+            if len(self.label_indptr) != n + 1 or self.label_indptr[0] != 0 or self.label_indptr[-1] != len(self.label_tokens):
                 raise ValueError(f'{folder}: CSR label arrays are inconsistent')
             if (np.diff(self.label_indptr) < 1).any():
                 raise ValueError(f'{folder}: every record-task patient needs an observed target')
             self.labels = True
         self.clinical = None
         if (folder / 'clinical.npy').exists():
-            self.clinical = _load(folder / 'clinical.npy', np.float32, 2)
+            self.clinical = _load(folder / 'clinical.npy', (np.float32, np.float64), 2)
             if self.clinical.shape != (n, 4):
                 raise ValueError(f'{folder}: clinical must be [N, 4]')
-        self.outcomes = {}
+        self.outcomes, self.eligible = {}, {}
         for disease in diseases:
             y = _load(folder / f'outcome_{disease}.npy', np.int8, 1)
-            w = _load(folder / f'weight_{disease}.npy', np.float32, 1)
+            w = _load(folder / f'weight_{disease}.npy', (np.float32, np.float64), 1)
             if len(y) != n or len(w) != n:
                 raise ValueError(f'{folder}: outcome arrays for {disease} have the wrong length')
             if not np.isin(y, (-1, 0, 1)).all() or (w < 0).any() or not np.isfinite(w).all():
                 raise ValueError(f'{folder}: invalid outcome or weight values for {disease}')
             if ((y == -1) & (w > 0)).any() or ((y >= 0) & (w == 0)).any():
                 raise ValueError(f'{folder}: observed outcomes must carry positive weights for {disease}')
+            eligible = _load(folder / f'eligible_{disease}.npy', np.bool_, 1)
+            if len(eligible) != n or ((~eligible) & ((y >= 0) | (w > 0))).any():
+                raise ValueError(f'{folder}: ineligible patients cannot have observed outcomes')
+            self.eligible[disease] = eligible
             self.outcomes[disease] = (y, w)
 
     def _validate_prefixes(self):
@@ -116,7 +123,10 @@ def multi_hot(label_lists, class_index, n_classes):
     """Dense float targets; raises if a label is outside the prediction vocabulary."""
     target = torch.zeros(len(label_lists), n_classes)
     for row, tokens in enumerate(label_lists):
-        columns = class_index[np.asarray(tokens, dtype=np.int64)]
+        tokens = np.asarray(tokens, dtype=np.int64)
+        if (tokens < 0).any() or (tokens >= len(class_index)).any():
+            raise ValueError('Target token outside the model vocabulary')
+        columns = class_index[tokens]
         if (columns < 0).any():
             raise ValueError('Target token outside the prediction vocabulary')
         target[row, torch.from_numpy(columns)] = 1.
@@ -141,6 +151,8 @@ def fixed_subset(n, size, seed):
     """
     if size is None:
         return np.arange(n)
+    if size <= 0:
+        raise ValueError('Training subset must be positive')
     if size > n:
         raise ValueError(f'Requested subset of {size} exceeds the {n} available patients')
     return np.sort(np.random.default_rng(seed).choice(n, size=size, replace=False))
@@ -157,3 +169,23 @@ def iterate_batches(rows, batch_size, rng=None):
 def read_metadata(root):
     path = Path(root) / 'dataset.json'
     return json.loads(path.read_text()) if path.exists() else {}
+
+
+def dataset_content_hash(splits, task, disease):
+    """Stream all consumed data files, including the full training pool.
+
+    Hashes alone enter metadata; no patient identifiers or records are exported.
+    No mtime cache: modifying inputs must invalidate the gate.
+    """
+    digest = hashlib.sha256()
+    files = ['idx.npy', 'age.npy', 'token_type.npy', 'patient_id.npy']
+    files += (['label_indptr.npy', 'label_tokens.npy'] if task == 'record' else
+              ['clinical.npy', f'outcome_{disease}.npy', f'weight_{disease}.npy', f'eligible_{disease}.npy'])
+    for name, split in sorted(splits.items()):
+        for file in sorted(files):
+            path = split.root / split.split / file
+            digest.update(f'{name}/{file}:{path.stat().st_size}:'.encode())
+            with path.open('rb') as stream:
+                for chunk in iter(lambda: stream.read(8 * 1024 * 1024), b''):
+                    digest.update(chunk)
+    return digest.hexdigest()

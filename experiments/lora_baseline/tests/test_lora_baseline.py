@@ -14,6 +14,7 @@ HERE = Path(__file__).resolve().parent
 PACKAGE = HERE.parent
 sys.path.insert(0, str(PACKAGE))
 import common  # noqa: E402  (also puts the release package on sys.path)
+from gates import content_hash, official_targets
 from fermat_release.model import Fermat, FermatConfig  # noqa: E402
 from lora import (LoRALinear, inject_lora, lora_parameters, lora_state_dict, load_lora_state_dict,  # noqa: E402
                   count_parameters, snapshot_parameters, assert_base_unchanged)
@@ -216,13 +217,16 @@ class GateValidationTests(unittest.TestCase):
         base = dict(protocol_version=common.PROTOCOL_VERSION, task='risk', disease='ckd', smoke=False,
                     model_sha256='m', dataset_metadata_sha256='d', validation_patient_ids_sha256='v',
                     test_patient_ids_sha256='t', label_definition_sha256='l', training_selection='all',
-                    n_train=10, train_patient_ids_sha256='tr')
+                    n_train=10, train_patient_ids_sha256='tr', dataset_content_sha256='content', precision='float32')
         base.update(overrides)
         return base
 
     def gate(self, identity, metrics=('test.weighted_auroc', 'test.weighted_brier'), **overrides):
-        g = dict(passed=True, custom_targets=False, identity=identity,
-                 checks=[dict(metric=m, passed=True) for m in metrics])
+        targets = official_targets('risk', 'ckd')
+        checked_targets = {m: targets[m] for m in metrics}
+        g = dict(passed=True, custom_targets=False, identity=identity, recipe='v1',
+                 optimizer_steps=800, selected_epoch=1, targets_sha256=content_hash(checked_targets),
+                 checks=[dict(metric=m, value=targets[m]['expected'], **targets[m], passed=True) for m in metrics])
         g.update(overrides)
         return g
 
@@ -342,6 +346,7 @@ class PipelineSmokeTests(unittest.TestCase):
         self.assertEqual(fingerprint['n_train'], 4)
         self.assertEqual(fingerprint['training_selection'], 'patient_list')
         np.save(listed, np.append(ids, 99999999))
+        out = self.root / 'record_missing_ids'
         message = self.invoke(['train_record.py'] + self.common_args(out, 'head_only') + ['--train-patient-ids', str(listed)],
                               expect_failure=True)
         self.assertIn('not in the training split', message)
@@ -359,6 +364,14 @@ class PipelineSmokeTests(unittest.TestCase):
     def test_b_risk_task_both_arms_with_gate_and_reload(self):
         head = self.root / 'risk_head'
         self.invoke(['train_risk.py', '--disease', 'ckd'] + self.common_args(head, 'head_only'))
+        head_log = json.loads((head / 'summary.json').read_text())
+        self.assertEqual([c['C'] for c in head_log['candidates']], [.01, .1, 1., 10.])
+        self.assertEqual(head_log['summary']['optimizer_steps'], 800)
+        eligible = np.load(self.data / 'train/eligible_ckd.npy')
+        self.assertEqual(head_log['fingerprint']['n_preprocessing_train_eligible'], int(eligible.sum()))
+        clinical = np.load(self.data / 'train/clinical.npy').astype(np.float64)
+        state = torch.load(head / 'trainable_state.pt', weights_only=True)
+        np.testing.assert_allclose(state['preprocessing']['clinical_mean'], clinical[eligible].mean(0), rtol=0, atol=1e-12)
         incomplete = self.gate_for(head / 'summary.json', ['test.weighted_brier'], self.root / 'risk_gate_half.json', complete=False)
         self.assertFalse(json.loads(Path(incomplete).read_text())['passed'])   # AUROC check missing
         gate = self.gate_for(head / 'summary.json', ['test.weighted_auroc', 'test.weighted_brier'], self.root / 'risk_gate.json')
@@ -378,8 +391,34 @@ class PipelineSmokeTests(unittest.TestCase):
         reload = self.root / 'risk_reload'
         self.invoke(['predict.py', '--state', str(lora / 'trainable_state.pt'), '--data', str(self.data),
                      '--out', str(reload), '--device', 'cpu', '--smoke-random-init', str(HERE / 'smoke_model_config.json')])
-        self.assertEqual((lora / 'test_patient_probabilities.csv').read_text(),
-                         (reload / 'test_patient_probabilities.csv').read_text())
+        # Different inference batch sizes can change float32 rounding. Compare
+        # identifiers/labels/weights exactly, probabilities within one micro-unit.
+        a = np.genfromtxt(lora / 'test_patient_probabilities.csv', delimiter=',', names=True)
+        b = np.genfromtxt(reload / 'test_patient_probabilities.csv', delimiter=',', names=True)
+        for column in ('patient_id', 'outcome', 'weight'):
+            np.testing.assert_array_equal(a[column], b[column])
+        np.testing.assert_allclose(a['probability'], b['probability'], rtol=0, atol=1e-6)
+
+    def test_existing_run_cannot_be_overwritten(self):
+        out = self.root / 'protected_run'
+        out.mkdir()
+        sentinel = out / 'summary.json'
+        sentinel.write_text('existing result')
+        message = self.invoke(['train_record.py'] + self.common_args(out, 'head_only'), expect_failure=True)
+        self.assertIn('not empty', message)
+        self.assertEqual(sentinel.read_text(), 'existing result')
+
+    def test_checkpoint_rejects_another_base_model(self):
+        head = self.root / 'mismatch_head'
+        self.invoke(['train_record.py'] + self.common_args(head, 'head_only'))
+        state = torch.load(head / 'trainable_state.pt', weights_only=True)
+        state['config']['model_sha256'] = 'different-model'
+        wrong = self.root / 'wrong.pt'
+        torch.save(state, wrong)
+        message = self.invoke(['predict.py', '--state', str(wrong), '--data', str(self.data),
+                               '--out', str(self.root / 'wrong_prediction'), '--device', 'cpu',
+                               '--smoke-random-init', str(HERE / 'smoke_model_config.json')], expect_failure=True)
+        self.assertIn('Base model does not match', message)
 
 
 if __name__ == '__main__':
