@@ -28,6 +28,7 @@ from metrics import record_metrics, paired_bootstrap, mean_difference, rank_clas
 from recipes import configure_recipe, record_epoch_order, record_improved
 from tracking import Tracker, add_arguments as add_tracking_arguments
 from runtime_guard import RuntimeGuard
+import checkpointing
 
 
 def load_diagnostic_embeddings(root, splits, rows, width):
@@ -70,6 +71,9 @@ def main():
     parser.add_argument('--gpu-profile', type=Path, help='Enable WSL host/GPU guard with current-boot profile JSON')
     parser.add_argument('--benchmark-steps', type=int, help='LoRA timing only: bounded training, validation timing, no test evaluation')
     parser.add_argument('--benchmark-warmup', type=int, default=10, help='Initial timing samples to exclude; separate from optimizer LR warmup')
+    parser.add_argument('--resume', type=Path, help='Verified last_training.json from a prior run; use a new output directory')
+    parser.add_argument('--stop-after-epoch', type=int, help='Pause after a committed epoch, before test evaluation')
+    parser.add_argument('--validation-only', action='store_true', help='Diagnostic run: save validation predictions; never score test or issue a gate')
     parser.add_argument('--classes', type=Path, default=None,
                         help='int64 .npy of predicted token IDs; defaults to <data>/classes.npy, then the release head classes')
     parser.add_argument('--baseline-recall', type=Path, default=None,
@@ -81,6 +85,12 @@ def main():
         lora=dict(epochs=20, patience=5, lr_head=1e-3, weight_decay=0.01, batch=args.batch_size)))
     resamples = args.bootstrap_resamples or 5000
     configure_recipe(args, cfg, 'record')
+    if args.stop_after_epoch is not None and args.stop_after_epoch < 1:
+        raise ValueError('--stop-after-epoch must be positive')
+    if args.benchmark_steps is not None and (args.resume or args.stop_after_epoch or args.validation_only):
+        raise ValueError('Benchmark cannot be combined with epoch resume/pause or validation-only mode')
+    if args.validation_only and args.recipe == 'v1':
+        raise ValueError('Validation-only diagnostics cannot use the gate-issuing v1 recipe')
     if args.benchmark_steps is not None and (args.arm != 'lora' or args.grad_accum != 1
             or args.benchmark_warmup < 0 or args.benchmark_steps <= args.benchmark_warmup):
         raise ValueError('Benchmark requires LoRA, grad-accum 1 and steps > nonnegative timing warmup')
@@ -99,6 +109,7 @@ def main():
                       protocol=common.PROTOCOL_VERSION, commit=common.git_commit(), extraction_batch=args.batch_size,
                       optimizer_batch=cfg['batch'], epochs=cfg['epochs'], patience=cfg['patience'],
                       benchmark_steps=args.benchmark_steps, benchmark_warmup=args.benchmark_warmup,
+                      resumed=args.resume is not None, validation_only=args.validation_only,
                       rank=args.rank, alpha=args.alpha, lora_dropout=args.lora_dropout, lr_lora=args.lr_lora,
                       warmup_steps=args.warmup_steps, grad_clip=args.grad_clip, grad_accum=args.grad_accum,
                       lr_head=cfg['lr_head'], weight_decay=cfg['weight_decay'], bf16=args.bf16))
@@ -206,6 +217,8 @@ def main():
     state_config = dict(protocol_version=common.PROTOCOL_VERSION, model_sha256=model_info['model_sha256'],
                         bf16=args.bf16, smoke_seed=args.smoke_seed, smoke=bool(model_info['smoke']), recipe=args.recipe, task='record', arm=args.arm, rank=args.rank, alpha=args.alpha, targets=args.targets,
                         head_in=model.config.n_embd, head_out=n_classes, classes=str(classes_path))
+    state_config.update(validation_only=args.validation_only, inference_batch_size=args.batch_size,
+                        validation_patient_ids_sha256=common.sha256_of(splits['validation'].patient_id))
     preprocessing = dict(embedding_mean=mean, embedding_sd=sd, classes=classes)
 
 
@@ -271,7 +284,27 @@ def main():
 
     best, best_state, since_best = None, None, 0
     rng = np.random.default_rng(args.seed)
-    for epoch in range(1, cfg['epochs'] + 1):
+    contract = checkpointing.training_contract(args, cfg, identity, log['fingerprint'].get('diagnostic_cache_sha256'))
+    completed_epoch = 0
+    if args.resume is not None:
+        previous, manifest = checkpointing.load_epoch(args.resume, contract)
+        for key, value in preprocessing.items():
+            if not torch.equal(torch.as_tensor(value), previous['current_state']['preprocessing'][key]):
+                raise ValueError('Resume preprocessing mismatch: ' + key)
+        common.restore_state(model, head, previous['current_state'])
+        optimizer.load_state_dict(previous['optimizer'])
+        accumulator.steps = accumulator.epoch_start = previous['optimizer_steps']
+        best, best_state, since_best = previous['best'], previous['best_state'], previous['since_best']
+        completed_epoch, log['epochs'] = previous['completed_epoch'], previous['epochs']
+        log['fingerprint']['resume'] = dict(checkpoint_sha256=manifest['sha256'], source_run_id=previous.get('tracking_run_id'),
+                                          completed_epoch=completed_epoch, original_git_commit=previous['git_commit'])
+        checkpointing.atomic_torch_save(best_state, args.out / 'best_model.pt')
+        tracker.log({'progress/resumed_after_epoch': completed_epoch, 'progress/optimizer_steps': accumulator.steps})
+        # Restore last: model loading, extraction, optimizer construction and tracking
+        # must not consume the RNG state that belongs to the next epoch.
+        checkpointing.restore_rng(previous['rng'], rng)
+    terminal = completed_epoch >= cfg['epochs'] or since_best >= cfg['patience']
+    for epoch in range(completed_epoch + 1, cfg['epochs'] + 1) if not terminal else ():
         epoch_started = time.perf_counter()
         guard.check()
         head.train()
@@ -301,10 +334,38 @@ def main():
             best_state = common.trainable_state(model, head, preprocessing, dict(state_config, selected_epoch=epoch))
         else:
             since_best += 1
-            if since_best >= cfg['patience']:
-                break
+        terminal = epoch >= cfg['epochs'] or since_best >= cfg['patience']
+        payload = dict(contract=contract, completed_epoch=epoch, optimizer_steps=accumulator.steps,
+                       current_state=common.trainable_state(model, head, preprocessing, dict(state_config, selected_epoch=epoch)),
+                       optimizer=checkpointing.cpu_tree(optimizer.state_dict()), best=best, best_state=best_state,
+                       since_best=since_best, epochs=log['epochs'], rng=checkpointing.capture_rng(rng),
+                       git_commit=log['fingerprint']['git_commit'], tracking_run_id=tracker.status.get('run_id'))
+        checkpoint_started = time.perf_counter()
+        manifest = checkpointing.save_epoch(args.out, payload, improved)
+        tracker.log({'time/checkpoint_seconds': time.perf_counter() - checkpoint_started,
+                     'progress/checkpoint_epoch': epoch})
+        if args.stop_after_epoch is not None and epoch >= args.stop_after_epoch and not terminal:
+            common.write_json(args.out / 'paused.json', dict(completed_epoch=epoch, manifest=manifest, test_evaluated=False))
+            guard.check(force=True)
+            tracker.log({'progress/paused': True})
+            tracker.finish()
+            return
+        if terminal:
+            break
 
     common.restore_state(model, head, best_state)
+    if args.validation_only:
+        logits = scores_for('validation', val_rows, frozen['validation'] if args.arm == 'head_only' else None)
+        checkpointing.atomic_torch_save(dict(patient_id=torch.from_numpy(splits['validation'].patient_id.copy()), logits=logits,
+            top10_classes=torch.from_numpy(classes[rank_classes(logits, 10).numpy()])), args.out / 'validation_scores.pt')
+        audit = common.finish_audit(model, snapshot, head, best_state, args.out)
+        log['summary'] = dict(validation_only=True, test_evaluated=False, selected_epoch=best[2],
+                              optimizer_steps=accumulator.steps, audit=audit)
+        common.write_json(args.out / 'validation_summary.json', log)
+        guard.check(force=True)
+        tracker.log({'audit/frozen_base_unchanged': True, 'progress/validation_only_completed': True})
+        tracker.finish()
+        return
     test_logits = scores_for('test', test_rows, frozen['test'] if args.arm == 'head_only' else None)
     per_patient = record_metrics(test_logits, splits['test'].label_lists(test_rows), class_index)
     patient_ids = splits['test'].patient_id[test_rows]

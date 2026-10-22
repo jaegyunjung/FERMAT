@@ -31,16 +31,26 @@ def main():
     parser.add_argument('--bf16', action='store_true', default=None, help='Precision defaults to the checkpoint')
     parser.add_argument('--smoke-random-init', type=Path, default=None)
     parser.add_argument('--smoke-seed', type=int, default=1, help='Seed used to build the smoke model in training')
+    parser.add_argument('--reference-scores', type=Path, help='Compare record validation outputs with the saved live-model scores')
+    parser.add_argument('--gpu-profile', type=Path, help='Enable current-boot WSL GPU/host guard')
     args = parser.parse_args()
     if args.batch_size <= 0:
         parser.error('--batch-size must be positive')
     if args.out.exists() and any(args.out.iterdir()):
         raise ValueError(f'Output directory is not empty: {args.out}; choose a new run directory')
     args.out.mkdir(parents=True, exist_ok=True)
+    from runtime_guard import RuntimeGuard
+    guard = RuntimeGuard(args.gpu_profile, args.out)
     if args.smoke_random_init is not None:
         common.set_seed(args.smoke_seed)
     checkpoint = torch.load(args.state, map_location='cpu', weights_only=True)
     saved = checkpoint['config']
+    if saved.get('validation_only') and args.split != 'validation':
+        raise ValueError('Validation-only checkpoint cannot score the test split')
+    if args.reference_scores is not None and (args.split != 'validation' or saved['task'] != 'record'):
+        raise ValueError('Reference-score audit is restricted to record validation')
+    if args.reference_scores is not None and args.batch_size != saved.get('inference_batch_size', args.batch_size):
+        raise ValueError('Reference-score audit requires the original inference batch size')
     if saved.get('protocol_version') != common.PROTOCOL_VERSION:
         raise ValueError('Checkpoint protocol differs; use the matching code version')
     if args.bf16 is not None and args.bf16 != saved['bf16']:
@@ -61,6 +71,7 @@ def main():
     outputs = []
     with torch.no_grad():
         for batch_rows in iterate_batches(rows, args.batch_size):
+            guard.check()
             idx, age, typ = split.batch(batch_rows, args.device)
             with common.autocast(args):
                 z = common.last_hidden(model, idx, age, typ).float()
@@ -75,11 +86,25 @@ def main():
     if task == 'record':
         classes = pre['classes'].numpy()
         class_index = class_lookup(classes, model.config.vocab_size)
-        torch.save(dict(patient_id=torch.from_numpy(patient_ids), logits=scores,
-                        top10_classes=torch.from_numpy(classes[rank_classes(scores, 10).numpy()])), args.out / 'test_scores.pt')
+        output = dict(patient_id=torch.from_numpy(patient_ids.copy()), logits=scores,
+                      top10_classes=torch.from_numpy(classes[rank_classes(scores, 10).numpy()]))
+        if args.reference_scores is not None:
+            reference = torch.load(args.reference_scores, map_location='cpu', weights_only=True)
+            matching = output['logits'].shape == reference['logits'].shape
+            report = dict(patient_order_exact=torch.equal(output['patient_id'], reference['patient_id']),
+                          top10_exact=torch.equal(output['top10_classes'], reference['top10_classes']),
+                          logits_allclose=matching and torch.allclose(scores, reference['logits'], rtol=1e-5, atol=1e-5),
+                          logits_exact=torch.equal(scores, reference['logits']),
+                          maximum_absolute_error=float((scores - reference['logits']).abs().max()) if matching else None,
+                          rtol=1e-5, atol=1e-5)
+            report['passed'] = report['patient_order_exact'] and report['top10_exact'] and report['logits_allclose']
+            common.write_json(args.out / 'reload_audit.json', report)
+            if not report['passed']:
+                raise ValueError('Independent validation checkpoint reload differs from the live model')
+        torch.save(output, args.out / f'{args.split}_scores.pt')
         if split.labels is not None:
             per_patient = record_metrics(scores, split.label_lists(rows), class_index)
-            with (args.out / 'test_patient_metrics.csv').open('w', newline='') as stream:
+            with (args.out / f'{args.split}_patient_metrics.csv').open('w', newline='') as stream:
                 writer = csv.writer(stream)
                 writer.writerow(['patient_id'] + list(per_patient))
                 for row in range(len(patient_ids)):
@@ -94,6 +119,7 @@ def main():
             for row in range(len(patient_ids)):
                 writer.writerow([int(patient_ids[row]), f'{p[row]:.8f}', int(y[row]), f'{w[row]:.6f}'])
         print(json.dumps(dict(n=len(p), mean_probability=float(p.mean()))))
+    guard.check(force=True)
 
 
 if __name__ == '__main__':

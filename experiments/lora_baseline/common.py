@@ -136,6 +136,8 @@ def require_gate(args, identity):
 # ----------------------------------------------------------------------------
 
 def set_seed(seed):
+    import random
+    random.seed(seed)
     torch.manual_seed(seed)
     np.random.seed(seed)
     if torch.cuda.is_available():
@@ -425,7 +427,8 @@ def write_json(path, payload):
 def finish_audit(model, snapshot, head, state, out_dir):
     """Prove the release tensors are untouched and persist only the trainable pieces."""
     assert_base_unchanged(model, snapshot)
-    torch.save(state, Path(out_dir) / 'trainable_state.pt')
+    from checkpointing import atomic_torch_save
+    atomic_torch_save(state, Path(out_dir) / 'trainable_state.pt')
     counts = count_parameters(model)
     adapters = counts['trainable']
     head_count = sum(p.numel() for p in head.parameters())

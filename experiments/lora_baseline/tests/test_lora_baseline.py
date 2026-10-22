@@ -368,6 +368,62 @@ class PipelineSmokeTests(unittest.TestCase):
                               expect_failure=True)
         self.assertIn('not in the training split', message)
 
+    def test_epoch_resume_matches_uninterrupted_and_reloads_validation(self):
+        import checkpointing
+        def same(left, right):
+            if isinstance(left, torch.Tensor):
+                self.assertTrue(torch.equal(left, right))
+            elif isinstance(left, dict):
+                self.assertEqual(left.keys(), right.keys())
+                for key in left:
+                    same(left[key], right[key])
+            elif isinstance(left, (tuple, list)):
+                self.assertEqual(len(left), len(right))
+                for a, b in zip(left, right):
+                    same(a, b)
+            else:
+                self.assertEqual(left, right)
+        gate_head = self.root / 'resume_gate_head'
+        self.invoke(['train_record.py'] + self.common_args(gate_head, 'head_only'))
+        gate = self.gate_for(gate_head / 'summary.json', ['test.recall_at_10'], self.root / 'resume_gate.json')
+        for arm in ('head_only', 'lora'):
+            with self.subTest(arm=arm):
+                full, pause, resumed = [self.root / (arm + '_resume_' + suffix) for suffix in ('full', 'pause', 'continued')]
+                def args(out):
+                    return self.common_args(out, arm) + ['--recipe', 'lora' if arm == 'lora' else 'experimental',
+                        '--validation-only', '--seed', '3', '--grad-accum', '2', '--gate', str(gate)]
+                self.invoke(['train_record.py'] + args(full))
+                self.invoke(['train_record.py'] + args(pause) + ['--stop-after-epoch', '1'])
+                self.assertTrue((pause / 'paused.json').exists())
+                self.assertFalse((pause / 'test_scores.pt').exists())
+                self.invoke(['train_record.py'] + args(resumed) + ['--resume', str(pause / 'last_training.json')])
+                def latest(folder):
+                    manifest = json.loads((folder / 'last_training.json').read_text())
+                    return torch.load(folder / manifest['checkpoint'], weights_only=True)
+                a, b = latest(full), latest(resumed)
+                for field in ('current_state', 'optimizer', 'best_state', 'best', 'since_best', 'optimizer_steps', 'rng'):
+                    same(a[field], b[field])
+                for epoch_a, epoch_b in zip(a['epochs'], b['epochs']):
+                    same({k:v for k,v in epoch_a.items() if k != 'epoch_seconds'},
+                         {k:v for k,v in epoch_b.items() if k != 'epoch_seconds'})
+                same(torch.load(full / 'validation_scores.pt', weights_only=True),
+                     torch.load(resumed / 'validation_scores.pt', weights_only=True))
+                reload_out = self.root / (arm + '_resume_reload')
+                self.invoke(['predict.py', '--state', str(resumed / 'trainable_state.pt'), '--data', str(self.data),
+                             '--out', str(reload_out), '--device', 'cpu', '--split', 'validation', '--batch-size', '8',
+                             '--reference-scores', str(resumed / 'validation_scores.pt'),
+                             '--smoke-random-init', str(HERE / 'smoke_model_config.json')])
+                self.assertTrue(json.loads((reload_out / 'reload_audit.json').read_text())['passed'])
+                self.assertFalse((resumed / 'gate.json').exists())
+                error = self.invoke(['train_record.py'] + args(self.root / (arm + '_wrong_seed')) +
+                                    ['--resume', str(pause / 'last_training.json'), '--seed', '4'], expect_failure=True)
+                self.assertIn('Resume contract mismatch', error)
+                # Resuming an epoch-cap checkpoint finalizes; it must not execute another epoch.
+                terminal_out = self.root / (arm + '_terminal_resume')
+                self.invoke(['train_record.py'] + args(terminal_out) + ['--resume', str(resumed / 'last_training.json')])
+                summary = json.loads((terminal_out / 'validation_summary.json').read_text())
+                self.assertEqual(len(summary['epochs']), 2)
+                self.assertEqual(summary['summary']['optimizer_steps'], a['optimizer_steps'])
     def test_split_overlap_is_rejected(self):
         from data import PrefixSplit
         import shutil
