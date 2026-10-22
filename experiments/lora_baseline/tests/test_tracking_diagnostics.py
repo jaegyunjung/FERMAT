@@ -17,6 +17,15 @@ import test_reproduction
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_windows_worktree_commit_fallback(self):
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        import common
+        with patch.object(common.subprocess, 'run', side_effect=[
+                subprocess.CalledProcessError(128, 'git'), SimpleNamespace(stdout='abc123\n')]) as run:
+            self.assertEqual(common.git_commit(), 'abc123')
+            self.assertEqual(run.call_args.args[0][0], 'git.exe')
+
     def test_embedding_pool_preserves_order_and_rejects_changed_prefix(self):
         from data import PrefixSplit, dataset_content_hash
         package = Path(__file__).resolve().parents[1]

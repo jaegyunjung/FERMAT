@@ -374,11 +374,15 @@ def load_trained(path, model, args_like):
 
 
 def git_commit():
-    try:
-        return subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=REPO, capture_output=True,
-                              text=True, check=True).stdout.strip()
-    except Exception:
-        return None
+    # A Windows-created worktree contains a Windows .git pointer that Linux git
+    # cannot resolve. WSL can query the same checkout through Windows git.
+    for executable in ('git', 'git.exe'):
+        try:
+            return subprocess.run([executable, 'rev-parse', 'HEAD'], cwd=REPO, capture_output=True,
+                                  text=True, check=True, timeout=10).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return None
 
 
 def sha256_of(data):
