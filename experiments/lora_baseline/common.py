@@ -98,8 +98,11 @@ def resolve_defaults(args, task_defaults):
 def gate_identity(task, disease, model_info, splits, label_hash, train_rows, selection_mode, dataset_metadata, precision='float32'):
     """Everything a gate must agree on with the run that uses it."""
     from data import dataset_content_hash
+    hash_started = time.perf_counter()
+    data_hash = dataset_content_hash(splits, task, disease)
+    hash_seconds = time.perf_counter() - hash_started
     return dict(
-        dataset_content_sha256=dataset_content_hash(splits, task, disease), precision=precision,
+        dataset_content_sha256=data_hash, dataset_hash_seconds=hash_seconds, precision=precision,
         protocol_version=PROTOCOL_VERSION,
         task=task,
         disease=disease,

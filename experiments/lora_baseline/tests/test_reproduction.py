@@ -78,6 +78,35 @@ class GateRegressionTests(unittest.TestCase):
 
 
 class RecipeTests(unittest.TestCase):
+    def test_published_c_is_fixed_even_when_smoke_testing(self):
+        from recipes import risk_c_values, RISK_C_VALUES
+        self.assertEqual(risk_c_values('v1'), (10.,))
+        self.assertEqual(risk_c_values('experimental'), RISK_C_VALUES)
+        for values, steps in (([1.], 200), ([.01, .1, 1., 10.], 200), ([10.], 199)):
+            with self.assertRaisesRegex(ValueError, 'fixed C=10'):
+                risk_c_values('v1', values, steps)
+
+    def test_matching_metrics_do_not_hide_wrong_risk_selection(self):
+        log = GateRegressionTests().log()
+        identity = log['fingerprint']['gate_identity']
+        identity.update(task='risk', disease='ckd')
+        targets = official_targets('risk', 'ckd')
+        log['summary']['test'] = {k.split('.')[1]: v['expected'] for k, v in targets.items()}
+        log['summary']['selected']['C'] = 10.
+        log['summary']['optimizer_steps'] = 200
+        fit = dict(selection='fixed', candidates=[10.], steps_per_fit=200)
+        log['fingerprint']['risk_regularization'] = fit
+        self.assertTrue(make_gate(log, targets)['passed'])
+        for change in (dict(selection='validation_brier'), dict(candidates=[1., 10.]), dict(steps_per_fit=199)):
+            bad = copy.deepcopy(log)
+            bad['fingerprint']['risk_regularization'].update(change)
+            gate = make_gate(bad, targets)
+            self.assertFalse(gate['passed'])
+            gate['passed'] = True
+            self.assertTrue(validate_gate(gate, identity))
+        log['summary']['selected']['C'] = 1.
+        self.assertFalse(make_gate(log, targets)['passed'])
+
     def test_lora_preserves_base_dtype_and_initial_gradient_direction(self):
         layer = LoRALinear(torch.nn.Linear(3, 2).double(), rank=2, alpha=2., dropout=0.)
         x = torch.ones(4, 3, dtype=torch.float64)
@@ -134,7 +163,8 @@ class RecipeTests(unittest.TestCase):
         self.assertEqual(select_risk_candidate(candidates), 1)
 
     def test_command_modules_are_safe_to_import(self):
-        for name in ('train_record', 'train_risk', 'predict', 'check_gate', 'make_synthetic_dataset'):
+        for name in ('train_record', 'train_risk', 'predict', 'check_gate', 'make_synthetic_dataset',
+                     'prepare_record_v1', 'prepare_risk_baselines'):
             self.assertTrue(callable(importlib.import_module(name).main))
 
     def test_negative_label_is_not_silently_indexed_from_end(self):
@@ -143,6 +173,31 @@ class RecipeTests(unittest.TestCase):
 
 
 class DatasetTests(unittest.TestCase):
+    def test_saved_prefix_mapping_and_cutoff(self):
+        from prepare_record_v1 import pack_prefixes
+        rows = np.array([[10, 100, 0, 1], [10, 105, 5, 2], [11, 80, 3, 1]], dtype=np.uint32)
+        offsets = np.array([0, 2, 3])
+        idx, age, typ = pack_prefixes(rows, offsets, [1, 0], [10, 11], [105, 80])
+        np.testing.assert_array_equal(idx[:, :2], [[4, 0], [1, 6]])
+        np.testing.assert_array_equal(age[:, :2], [[80, -10000], [100, 105]])
+        np.testing.assert_array_equal(typ[:, :2], [[1, 0], [1, 2]])
+        with self.assertRaisesRegex(ValueError, 'cutoff'):
+            pack_prefixes(rows, offsets, [0], [10, 11], [104, 80])
+        with self.assertRaisesRegex(ValueError, 'identity'):
+            pack_prefixes(rows, offsets, [0], [999, 11], [105, 80])
+
+    def test_record_export_refuses_git_and_existing_output(self):
+        from prepare_record_v1 import prepare
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / '.git').mkdir()
+            with self.assertRaisesRegex(ValueError, 'Git checkout'):
+                prepare(root, root, root / 'output')
+            (root / '.git').rmdir()
+            (root / 'output').mkdir()
+            with self.assertRaisesRegex(ValueError, 'already exists'):
+                prepare(root, root, root / 'output')
+
     def test_eligibility_and_data_content_are_checked(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

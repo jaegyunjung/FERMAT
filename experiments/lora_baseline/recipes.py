@@ -9,6 +9,19 @@ import torch
 
 RECORD_SEED = 20260908
 RISK_C_VALUES = (0.01, 0.1, 1.0, 10.0)
+V1_RISK_C = 10.0
+
+
+def risk_c_values(recipe, values=None, steps=200):
+    """The published revision fixed C=10; the earlier grid is exploratory."""
+    values = tuple(values) if values is not None else ((V1_RISK_C,) if recipe == 'v1' else RISK_C_VALUES)
+    if steps <= 0 or not values or any(not np.isfinite(c) or c <= 0 for c in values):
+        raise ValueError('Risk steps and C values must be positive and finite')
+    if len(set(values)) != len(values):
+        raise ValueError('Duplicate risk C values')
+    if recipe == 'v1' and (values != (V1_RISK_C,) or steps != 200):
+        raise ValueError('v1 requires fixed C=10 and 200 steps; use --recipe experimental for a grid')
+    return values
 
 
 def record_epoch_order(n, seed, epoch):

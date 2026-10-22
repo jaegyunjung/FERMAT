@@ -1,8 +1,10 @@
 # Refactor validation — 2026-10-22
 
 Base commit: `b1dd40c753c5aa9aea1d1a67e309dead531c8d9d`.
-Protocol: `2026-10-22.3`. No patient records, released weights or GPU training
-were used for these checks. Actual v1 reproduction remains pending.
+Protocol: `2026-10-22.4`. The automated tests below use synthetic inputs and
+random weights only. Separate local preparation used saved private artifacts
+and released weights on CPU; see PREPARATION_KO.md. No actual head fitting or
+LoRA training has run. Actual v1 reproduction remains pending.
 
 ## Reproducible checks
 
@@ -15,11 +17,15 @@ python experiments/lora_baseline/audit_v1.py \
   --reference-dir /path/to/original/scripts --out /tmp/v1_audit.json
 ```
 
-The suite contains 33 tests, including both task pipelines, gate issuance and
+The suite contains 37 tests, including both task pipelines, gate issuance and
 rejection, checkpoint reload in separate processes, unchanged frozen weights,
 partial/unequal gradient accumulation, historical seed/order and preprocessing,
 eligibility validation, changed data, modified target files, output protection,
 wrong-base checkpoint rejection, and import-safe command entry points.
+The added regressions cover fixed C=10, rejection of a matching-metric gate
+from grid selection/wrong C, saved prefix mapping and cutoff checks, and
+refusal to export patient data into Git or overwrite an existing export.
+These results are from torch 2.12.1, not the other agent's torch 2.14.1 environment.
 
 The original review's weighted gradient (-0.4) and trailing accumulation (-2)
 regressions remain covered. The formerly accepted alternate-target gate is now
@@ -37,6 +43,10 @@ and infinite values, and small standard deviations. For all four C candidates:
 - Fitted coefficients and intercept: exact equality; maximum error 0.
 - Validation probabilities: maximum absolute error `4.440892098500626e-16`.
 - Selected C: identical (`0.01` for this synthetic fixture; not a clinical result).
+
+This audit checks the earlier grid's primitive fit and prediction functions.
+It does not validate grid selection as the published v1 recipe. The final
+manuscript's fixed-C10 revision is documented separately in PREPARATION_KO.md.
 
 Audited source SHA-256:
 

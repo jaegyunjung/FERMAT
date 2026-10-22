@@ -4,7 +4,7 @@ import json
 import math
 from pathlib import Path
 
-PROTOCOL_VERSION = '2026-10-22.3'
+PROTOCOL_VERSION = '2026-10-22.4'
 PROTOCOL_TARGETS = Path(__file__).with_name('protocol_targets.json')
 GATE_METRICS = dict(record=('test.recall_at_10',), risk=('test.weighted_auroc', 'test.weighted_brier'))
 
@@ -34,6 +34,10 @@ def metric_check(metric, value, expected, tolerance):
     return dict(metric=metric, value=value, expected=expected, tolerance=tolerance, passed=passed)
 
 
+def published_risk_fit(fit):
+    return fit == dict(selection='fixed', candidates=[10.0], steps_per_fit=200, selected_C=10.0)
+
+
 def make_gate(log, targets):
     targets = normalize_targets(targets)
     summary, fingerprint = log['summary'], log['fingerprint']
@@ -51,8 +55,13 @@ def make_gate(log, targets):
     custom = targets != official_targets(task, disease)
     trained = summary.get('optimizer_steps', 0) > 0 and summary['selected']['epoch'] > 0
     recipe_ok = fingerprint.get('recipe') == 'v1'
+    risk_fit = None
+    if task == 'risk':
+        risk_fit = dict(fingerprint.get('risk_regularization') or {}, selected_C=summary['selected'].get('C'))
+        recipe_ok = recipe_ok and published_risk_fit(risk_fit) and summary.get('optimizer_steps') == 200
     return dict(passed=trained and not missing and all(c['passed'] for c in checks)
                 and (identity['smoke'] or (recipe_ok and not custom)),
+                risk_regularization=risk_fit,
                 custom_targets=custom, targets_sha256=content_hash(targets),
                 recipe=fingerprint.get('recipe'), missing_required_metrics=missing,
                 checks=checks, identity=identity, selected_epoch=summary['selected']['epoch'],
@@ -102,6 +111,9 @@ def validate_gate(gate, identity):
             reasons.append('real runs require the official protocol targets')
         if gate.get('recipe') != 'v1':
             reasons.append('real runs require a v1 reproduction recipe')
+        if identity['task'] == 'risk' and (not published_risk_fit(gate.get('risk_regularization'))
+                                          or gate.get('optimizer_steps') != 200):
+            reasons.append('real risk gates require fixed C=10 with 200 steps, without grid selection')
     same_list = g.get('train_patient_ids_sha256') == identity.get('train_patient_ids_sha256')
     # Full dataset content is compared above, including the entire training pool.
     if not (same_list or g.get('training_selection') == 'all'):

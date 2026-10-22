@@ -1,0 +1,3 @@
+# Optional: reading saved private v1 Parquet artifacts. Training only needs the release requirements.
+pandas>=2,<3
+pyarrow>=15

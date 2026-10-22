@@ -3,7 +3,7 @@ comparison), with the frozen representation arm and the LoRA arm in one pipeline
 
 head_only: frozen hidden state and the four clinical variables -> weighted
            logistic predictor fitted with the manuscript recipe (AdamW, 200
-           full-batch steps per C, learning rate 0.03, validation Brier selection).
+           full-batch steps, learning rate 0.03, fixed C=10).
 lora:      LoRA adapters and the same logistic head trained jointly with
            mini-batches; the epoch with the lowest validation weighted BCE is
            selected and the test split is scored once. Requires a passed
@@ -25,7 +25,7 @@ from data import PrefixSplit, iterate_batches, read_metadata  # noqa: E402
 from metrics import weighted_auroc, weighted_brier, paired_bootstrap  # noqa: E402
 
 from recipes import (configure_recipe, fit_risk_scaler, risk_features, risk_probabilities,
-                     select_risk_candidate, fit_risk_candidate, RISK_C_VALUES)
+                     select_risk_candidate, fit_risk_candidate, risk_c_values)
 
 def main():
     parser = common.add_common_arguments(argparse.ArgumentParser(description=__doc__))
@@ -33,7 +33,8 @@ def main():
     parser.add_argument('--baseline-probabilities', type=Path, default=None,
                         help='CSV with patient_id,probability from a saved arm for the paired bootstrap')
     parser.add_argument('--baseline-label', default='baseline')
-    parser.add_argument('--risk-c-values', type=float, nargs='+', default=list(RISK_C_VALUES))
+    parser.add_argument('--risk-c-values', type=float, nargs='+', default=None,
+                        help='v1: fixed 10; experimental: default .01 .1 1 10, selected by validation Brier')
     parser.add_argument('--risk-steps', type=int, default=200)
     args = parser.parse_args()
     if args.arm == 'head_only' and args.weight_decay is not None:
@@ -45,11 +46,10 @@ def main():
         lora=dict(epochs=3, patience=1, lr_head=1e-3, weight_decay=0.01)))
     resamples = args.bootstrap_resamples or 2000
     configure_recipe(args, cfg, 'risk')
-    if args.risk_steps <= 0 or any(not np.isfinite(c) or c <= 0 for c in args.risk_c_values):
-        raise ValueError('Risk steps and C values must be positive and finite')
-    if args.recipe == 'v1' and args.smoke_random_init is None:
-        if args.risk_steps != 200 or tuple(args.risk_c_values) != RISK_C_VALUES:
-            raise ValueError('v1 requires 200 steps and the original C grid')
+    if args.arm == 'head_only':
+        args.risk_c_values = risk_c_values(args.recipe, args.risk_c_values, args.risk_steps)
+    elif args.risk_c_values is not None or args.risk_steps != 200:
+        raise ValueError('Risk C candidates and full-batch steps only apply to head_only')
     common.set_seed(args.seed)
     if args.out.exists() and any(args.out.iterdir()):
         raise ValueError(f'Output directory is not empty: {args.out}; choose a new run directory')
@@ -107,7 +107,10 @@ def main():
         n_validation_observed=len(val_rows), n_test=len(test_rows), n_test_observed=int(len(observed['test'])),
         train_patient_ids_sha256=common.sha256_of(splits['train'].patient_id[train_rows]),
         gate=gate, gate_identity=identity, resolved=cfg, warmup_steps=args.warmup_steps, grad_clip=args.grad_clip,
-        betas=list(args.betas))), epochs=[])
+        betas=list(args.betas),
+        risk_regularization=(dict(selection='fixed' if args.recipe == 'v1' else 'validation_brier',
+                                  candidates=list(args.risk_c_values), steps_per_fit=args.risk_steps)
+                             if args.arm == 'head_only' else None))), epochs=[])
 
     frozen_eligible = common.frozen_embeddings(model, splits['train'], pre_rows, args)
     position = {int(row): i for i, row in enumerate(pre_rows)}
@@ -184,7 +187,7 @@ def main():
                                    validation_weighted_brier=brier))
             candidate_states.append(common.trainable_state(model, head, preprocessing,
                                     dict(state_config, selected_epoch=1, selected_C=c_value)))
-        selected = select_risk_candidate(candidates)
+        selected = 0 if args.recipe == 'v1' else select_risk_candidate(candidates)
         chosen = candidates[selected]
         selected_c = chosen['C']
         best, best_state = (chosen['validation_weighted_bce'], 1), candidate_states[selected]

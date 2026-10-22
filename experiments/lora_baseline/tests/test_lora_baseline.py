@@ -225,7 +225,8 @@ class GateValidationTests(unittest.TestCase):
         targets = official_targets('risk', 'ckd')
         checked_targets = {m: targets[m] for m in metrics}
         g = dict(passed=True, custom_targets=False, identity=identity, recipe='v1',
-                 optimizer_steps=800, selected_epoch=1, targets_sha256=content_hash(checked_targets),
+                 optimizer_steps=200, selected_epoch=1, targets_sha256=content_hash(checked_targets),
+                 risk_regularization=dict(selection='fixed', candidates=[10.0], steps_per_fit=200, selected_C=10.0),
                  checks=[dict(metric=m, value=targets[m]['expected'], **targets[m], passed=True) for m in metrics])
         g.update(overrides)
         return g
@@ -365,8 +366,8 @@ class PipelineSmokeTests(unittest.TestCase):
         head = self.root / 'risk_head'
         self.invoke(['train_risk.py', '--disease', 'ckd'] + self.common_args(head, 'head_only'))
         head_log = json.loads((head / 'summary.json').read_text())
-        self.assertEqual([c['C'] for c in head_log['candidates']], [.01, .1, 1., 10.])
-        self.assertEqual(head_log['summary']['optimizer_steps'], 800)
+        self.assertEqual([c['C'] for c in head_log['candidates']], [10.])
+        self.assertEqual(head_log['summary']['optimizer_steps'], 200)
         eligible = np.load(self.data / 'train/eligible_ckd.npy')
         self.assertEqual(head_log['fingerprint']['n_preprocessing_train_eligible'], int(eligible.sum()))
         clinical = np.load(self.data / 'train/clinical.npy').astype(np.float64)

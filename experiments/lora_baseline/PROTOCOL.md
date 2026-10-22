@@ -1,6 +1,6 @@
 # LoRA fine-tuning baseline — protocol (drafted 2026-10-22, before any run)
 
-Protocol version `2026-10-22.3` (`common.PROTOCOL_VERSION`); gates record it and
+Protocol version `2026-10-22.4` (`common.PROTOCOL_VERSION`); gates record it and
 a run refuses a gate from another version.
 
 **Status: synthetic implementation checks passed; actual v1 reproduction pending.** No LoRA model has been trained on SNUH
@@ -58,7 +58,7 @@ not generators.
 | Head initialisation | record head: weights N(0, 0.01), bias = logit((positives + 0.5)/(n + 1)) per item; risk head: zero weights, bias = logit of the weighted training prevalence. Both follow the local v1 code (Section 12) and are identical in both arms |
 | Loss definitions | record: BCE summed over the 17,460 output items, averaged over patients (v1). Risk: the full-cohort objective Σ w·BCE / Σ w; mini-batches use the fixed training-set mean weight as normaliser so that accumulation over patients recovers exactly that objective, never a per-batch weight sum |
 | Learning rates | adapters 2e-4; head 1e-3 (record), 1e-3 (risk, LoRA arm) |
-| Weight decay | 0.01 (record both arms, risk LoRA arm); 1e-4/C (risk head-only; validation Brier selects C from .01, .1, 1, 10) |
+| Weight decay | 0.01 (record both arms, risk LoRA arm); 1e-5 (risk v1 head-only: fixed C=10 under 1e-4/C) |
 | Head input scale | fixed frozen-model statistics. Record: selected train cohort, sd lower bound 1e-4. Risk: all eligible training patients including censored patients, sd>1e-8 else1, finite-value median imputation. Both arms share the task-specific transform |
 | Audit | after training every pre-injection tensor is checked bit-identical (`assert_base_unchanged`) |
 | Saved state | `trainable_state.pt` holds adapters, head, every standardisation constant (embedding mean/sd; clinical medians, mean/sd), the prediction vocabulary and the run configuration. `predict.py` rebuilds the predictor from this file alone in a separate process and must reproduce probabilities within absolute tolerance 1e-6 and record logits within rtol/atol 1e-5 across inference batch sizes; IDs, labels and weights match exactly |
@@ -81,7 +81,7 @@ order.
 | `head_only` recipe | cached frozen embeddings; batch 256; ≤60 epochs; stop after 10 epochs without validation improvement (v1) |
 | `lora` recipe | batch 32 prefixes (gradient accumulation allowed); ≤20 epochs; stop after 5 epochs without improvement |
 | Selection | validation Recall@10, validation BCE as tie-breaker; the test split is scored once per run |
-| Seeds | historical reproduction: 20260908 (also historical candidates20260909/20260910). New comparisons: seeds1,2,3; use `--recipe experimental` for new head-only seeds and `--recipe lora` for LoRA. Only historical recipe runs issue real gates |
+| Seeds | historical candidates: 20260908, 20260909, 20260910; the saved selected v1 head uses 20260909 (pass explicitly). New comparisons: seeds 1, 2, 3; use `--recipe experimental` for new head-only seeds and `--recipe lora` for LoRA. Only historical recipe runs issue real gates |
 | Secondary | both arms repeated with the **same 100,000 patient IDs** used in the head-scaling evidence, loaded from that experiment's saved list via `--train-patient-ids` (a random re-draw is not the same cohort; `--train-subset` refuses a size larger than the pool instead of silently using all patients) |
 
 Primary contrast: LoRA (seed 1) minus saved generation (50 paths), paired
@@ -89,7 +89,7 @@ patient bootstrap with 5,000 resamples on the 1,862 test patients, conditional
 on fitted predictors and saved paths (v1 Section 2.4). Secondary contrasts:
 LoRA minus `head_only` from this pipeline; LoRA minus the 100k head.
 
-Reproduction gate (enforced by code): `head_only --recipe v1 --seed 20260908` must give test
+Reproduction gate (enforced by code): `head_only --recipe v1 --seed 20260909` must give test
 Recall@10 within 1.0 percentage point of the v1 linear heads (55.68–55.98%;
 target 55.68 in `protocol_targets.json`). `check_gate.py` writes `gate.json`
 carrying the run identity (Section 10); `train_record.py --arm lora` refuses to
@@ -114,7 +114,7 @@ death is a case, death before disease an observed non-case.
 | Patients | v1 eligible training pool (per disease; 235,670–256,536 eligible), v1 validation pool, the v1 10,000-patient test cohort with its disease-specific eligibility |
 | Weights | the v1 clipped inverse observation probabilities, exported as they were used; **not refitted** here |
 | Features | four standardised clinical variables followed by 640 hidden components, matching v1 column order; statistics from all eligible train, optimization only on observed selected train |
-| `head_only` recipe | cached embeddings, full-batch AdamW,200 steps per C, lr.03, wd=1e-4/C; C=[.01,.1,1,10], select by validation weighted Brier with smallerC breaking ties; no early stopping within a C fit |
+| `head_only` recipe | cached embeddings, full-batch AdamW, 200 steps, lr .03, fixed C=10 and wd=1e-5; no C selection or early stopping. Earlier grid selection is available only with `--recipe experimental` |
 | `lora` recipe | batch 32; ≤3 epochs; the epoch with the lowest validation weighted BCE is selected; stop after 1 epoch without improvement |
 | Training-set size | primary: the same 100,000 observed-outcome training patients for both arms, supplied as a patient-ID list. The reproduction gate is the `head_only` fit on the **full** pool (the v1 predictor); a gate fitted on the full pool is accepted for a LoRA run on any list drawn from that pool, and a gate fitted on a subset is accepted only for the identical list |
 | Seeds | 1, 2, 3 for the LoRA arm of every disease, fixed in advance and all reported; seed 1 is the primary run. The head-only full-batch fit is deterministic given its initialisation and is run once per training set |
@@ -184,11 +184,14 @@ per split.
 
 ## 9. Gate identity and validation
 
-Version .3 binds task/disease, model hash, precision, protocol version, metadata,
+Version .4 binds task/disease, model hash, precision, protocol version, metadata,
 prediction vocabulary/labels, validation/test IDs and selected training IDs.
 It also streams a hash of every consumed array across all three splits,
 including the complete training pool and eligibility. No patient rows are
 copied into the gate. Keep input files immutable during a run.
+This reads all training/validation/test input bytes on every invocation, without
+an mtime cache. Include this I/O in wall-clock estimates; its measured duration
+is recorded as `gate_identity.dataset_hash_seconds` (not an identity constraint).
 
 Official thresholds come from `protocol_targets.json`. Different contents
 supplied by either `--targets` or per-metric overrides are custom. On consumption,
@@ -241,7 +244,7 @@ implementation and recipe descriptions; it does not alter official gate targets.
 | Risk preprocessing | float64 median, nonfinite median->0; nonfinite input->median; sd>1e-8 else1 | shared recipes.fit_risk_scaler/risk_features |
 | Risk initialization | zero weights, numpy weighted prevalence bias clipped to[1e-6,1-1e-6] | matched |
 | Risk fitting | sum(w*BCE)/sum(w); full batch 200 steps; AdamW.03, default betas, wd=1e-4/C | recipes.fit_risk_candidate |
-| Risk selection | C=[.01,.1,1,10]; smallest validation weighted Brier, tie smallerC | candidates and selected C recorded |
+| Risk regularization | published revision fixed C=10 for all six predictors; diabetes was refitted after the earlier grid | v1 has one C=10 fit; grid selection remains experimental and cannot issue a real gate |
 | Risk prediction | FP32 coefficients evaluated in float64, logits clipped[-40,40] | shared recipes.risk_probabilities |
 | Head-only clip/warm-up | absent in both originals | absent; incompatible real v1 overrides rejected |
 | Record architecture search | original included linear and mlp256, three seeds each | this protocol reproduces the linear baseline, not the full architecture search |
@@ -258,7 +261,16 @@ to compare the original risk preprocessing/fit/predict functions using synthetic
 data. It extracts only those functions, records source hashes, and never runs
 original main functions or queries patient data. The initial CPU audit found
 identical FP32 features and fitted coefficients, maximum probability error
-4.44e-16, and identical selected C.
+4.44e-16, and identical selected C for the synthetic exploratory grid. This
+checks the fitting functions, not the published regularization policy.
+
+The local `FIXED_C10_REVISION_KO.md` and `build/recompute_fixed_c.py` in
+`reports/genai4health_paper_20260908/` establish the final recipe: CKD and fatty
+liver reused C=10 heads; both diabetes heads were refitted at C=10. The earlier
+grid had selected C=.01 for diabetes. The revision explicitly says C=10 was
+chosen after examining existing results; do not call it prospectively specified.
+Version .4 gates record fixed selection, candidate list [10], selected C=10,
+and 200 updates. Matching AUROC/Brier from another C or a grid is insufficient.
 
 Actual cohort export, frozen embedding parity and outcome/weight definitions
 remain to be checked. If a real gate fails, explain those differences; never
@@ -268,7 +280,7 @@ tune the recipe or thresholds to the test result.
 
 - Export explicit `eligible_*.npy`; missing masks fail. Eligibility must not be
   reconstructed as weight>0.
-- Version .2 gates/checkpoints are incompatible. Regenerate them; editing a
+- Version .2/.3 gates/checkpoints are incompatible. Regenerate them; editing a
   version string is not migration.
 - `gates.py` owns evidence checks; `recipes.py` owns historical task recipes;
   `common.py` owns model, accumulation and artifact plumbing. CLI imports have

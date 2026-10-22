@@ -4,6 +4,10 @@ Code for the fine-tuning baseline requested in the NeurIPS GenAI4Health review
 (reviewer RRnf, meta-review item 4). [PROTOCOL.md](PROTOCOL.md) fixes the design;
 read it before running anything on real data.
 
+The local preparation status and ordered execution checklist are in
+[PREPARATION_KO.md](PREPARATION_KO.md). Optional saved-artifact exporters require
+`pip install -r experiments/lora_baseline/requirements-preparation.txt`.
+
 The scripts import the frozen model code from `releases/fermat_snuh_20261021`
 and never modify the release. Weights (`artifacts/model.pt`) and patient data are
 not in git; point `--release` at an unpacked collaborator archive.
@@ -19,6 +23,8 @@ common.py                  model, accumulation, checkpoint and provenance plumbi
 gates.py                   target-content and experiment-identity verification
 recipes.py                 audited v1 preprocessing, seed/order and selection
 audit_v1.py                synthetic parity audit against local original source
+prepare_record_v1.py       verify and export saved record prefixes, labels and 50-path baseline outside Git
+prepare_risk_baselines.py  verify published fixed-C10 artifacts and export comparison probabilities outside Git
 train_record.py            task R: items on the first clinical date after the history
 train_risk.py              task D: five-year disease risk for one disease
 make_synthetic_dataset.py  random fixture for pipeline tests (not patient data)
@@ -40,7 +46,7 @@ R=/path/to/unpacked/FERMAT_SNUH_20261021_compared   # holds artifacts/model.pt
 D=/path/to/exported/record_dataset                   # data.py layout
 
 # Task R: reproduction arm, gate, then LoRA arm (seed 1)
-python train_record.py --release $R --data $D --out runs/record/head_only_v1 --arm head_only --recipe v1 --seed 20260908 \
+python train_record.py --release $R --data $D --out runs/record/head_only_v1 --arm head_only --recipe v1 --seed 20260909 \
     --train-patient-ids /path/to/v1_record_train_ids.npy --device cuda --bf16
 python check_gate.py --summary runs/record/head_only_v1/summary.json --out runs/record/gate.json
 python train_record.py --release $R --data $D --out runs/record/lora_s1 --arm lora --seed 1 --gate runs/record/gate.json \
@@ -79,7 +85,9 @@ Optional original-source audit (requires pandas):
 python audit_v1.py --reference-dir /path/to/original/scripts --out /tmp/v1_audit.json
 ```
 
-Version .3 changes risk preprocessing and checkpoint identity. Regenerate old
+Version .4 fixes risk v1 at C=10 with 200 updates and checks that policy in the
+gate. Grid selection requires `--recipe experimental`; it cannot issue a real
+gate. Version .3 introduced the corrected preprocessing. Regenerate old
 gates/checkpoints. Use an empty output directory per run. Prediction reads
 precision/smoke seed from its checkpoint and verifies the base model.
 Interrupted-run resume is not implemented. No actual patient-data training
