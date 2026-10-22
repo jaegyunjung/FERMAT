@@ -18,7 +18,6 @@ import sys
 from pathlib import Path
 import numpy as np
 import torch
-from torch.nn import functional as F
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import common  # noqa: E402
@@ -34,7 +33,6 @@ args = parser.parse_args()
 cfg = common.resolve_defaults(args, dict(
     head_only=dict(epochs=1, patience=1, lr_head=0.03, weight_decay=1e-5, steps=200),
     lora=dict(epochs=3, patience=1, lr_head=1e-3, weight_decay=0.01)))
-gate = common.require_gate(args)
 resamples = args.bootstrap_resamples or 2000
 common.set_seed(args.seed)
 args.out.mkdir(parents=True, exist_ok=True)
@@ -66,6 +64,12 @@ train_rows = pool.rows[chosen]
 val_rows, test_rows = observed['validation'], np.arange(len(splits['test']))
 if len(train_rows) == 0 or len(val_rows) == 0:
     raise ValueError('No observed outcomes to train or validate on')
+if args.arm == 'head_only' and args.grad_accum != 1:
+    raise ValueError('--grad-accum does not apply to the full-batch head_only fit')
+label_hash = common.sha256_of_arrays(*splits['validation'].outcomes[args.disease], *splits['test'].outcomes[args.disease])
+identity = common.gate_identity('risk', args.disease, model_info, splits, label_hash, train_rows, selection_mode,
+                                read_metadata(args.data))
+gate = common.require_gate(args, identity)
 
 
 def outcome(name, rows):
@@ -88,7 +92,8 @@ log = dict(fingerprint=common.fingerprint(args, model_info, read_metadata(args.d
     disease=args.disease, n_train_observed=len(train_rows), training_selection=selection_mode,
     n_validation_observed=len(val_rows), n_test=len(test_rows), n_test_observed=int(len(observed['test'])),
     train_patient_ids_sha256=common.sha256_of(splits['train'].patient_id[train_rows]),
-    gate=gate, resolved=cfg, warmup_steps=args.warmup_steps, betas=list(args.betas))), epochs=[])
+    gate=gate, gate_identity=identity, resolved=cfg, warmup_steps=args.warmup_steps, grad_clip=args.grad_clip,
+    betas=list(args.betas))), epochs=[])
 
 frozen = {name: common.frozen_embeddings(model, splits[name], rows, args)
           for name, rows in (('train', train_rows), ('validation', val_rows), ('test', test_rows))}
@@ -99,23 +104,19 @@ scale = {k: torch.from_numpy(np.asarray(v)).to(args.device) for k, v in preproce
 snapshot, wrapped = common.prepare_adapters(model, args)
 head = torch.nn.Linear(model.config.n_embd + 4, 1).to(args.device)
 y_train, w_train = outcome('train', train_rows)
-common.init_head_bias(head, [float((w_train * y_train).sum() / w_train.sum())], args.head_bias_init)
+common.init_risk_head(head, float((w_train * y_train).sum() / w_train.sum()))
+mean_weight = float(w_train.mean())
 optimizer, set_warmup = common.make_optimizer(model, head, args, cfg['lr_head'], cfg['weight_decay'])
 accumulator = common.Accumulator(optimizer, set_warmup, args)
 clinical_t = {name: torch.from_numpy(clinical(name, rows)) for name, rows in
               (('train', train_rows), ('validation', val_rows), ('test', test_rows))}
 state_config = dict(task='risk', arm=args.arm, rank=args.rank, alpha=args.alpha, targets=args.targets,
-                    head_in=model.config.n_embd + 4, head_out=1, disease=args.disease,
-                    head_bias_init=args.head_bias_init)
+                    head_in=model.config.n_embd + 4, head_out=1, disease=args.disease)
 
 
 def features(z, c):
     return torch.cat([(z - scale['embedding_mean']) / scale['embedding_sd'],
                       (c - scale['clinical_mean']) / scale['clinical_sd']], 1)
-
-
-def weighted_bce(logits, y, w):
-    return (w * F.binary_cross_entropy_with_logits(logits, y, reduction='none')).sum() / w.sum()
 
 
 def probabilities(name, rows, cached):
@@ -148,11 +149,13 @@ if args.arm == 'head_only':
     # Full-batch logistic fit on cached embeddings: the manuscript's recipe, no selection.
     x = features(torch.from_numpy(frozen['train']).to(args.device), clinical_t['train'].to(args.device))
     y, w = y_train.to(args.device), w_train.to(args.device)
+    # The objective is the full-cohort sum(w * BCE) / sum(w); no accumulation is involved.
     for _ in range(cfg['steps']):
-        loss = weighted_bce(head(x).squeeze(1), y, w)
-        accumulator.backward(loss)
-        accumulator.step()
-    accumulator.end_epoch()
+        loss = common.weighted_objective(head(x).squeeze(1), y, w)
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        optimizer.step()
+        accumulator.steps += 1
     bce, auroc, brier = validate()
     log['epochs'].append(dict(epoch=1, train_weighted_bce=float(loss.detach()), validation_weighted_bce=bce,
                               validation_weighted_auroc=auroc, validation_weighted_brier=brier,
@@ -169,8 +172,12 @@ else:
             with common.autocast(args):
                 z = common.last_hidden(model, idx, age, typ).float()
             logits = head(features(z, clinical_t['train'][batch_rows].to(args.device))).squeeze(1)
-            loss = weighted_bce(logits, y_train[batch_rows].to(args.device), w_train[batch_rows].to(args.device))
-            accumulator.backward(loss)
+            # Fixed training-set mean weight as the normaliser: accumulated over
+            # patients this is the gradient of sum(w * BCE) / sum(w), not a
+            # per-batch reweighting (PROTOCOL.md Section 5).
+            loss = common.weighted_minibatch_loss(logits, y_train[batch_rows].to(args.device),
+                                                  w_train[batch_rows].to(args.device), mean_weight)
+            accumulator.backward(loss, len(batch_rows))
             losses.append(float(loss.detach()))
         accumulator.end_epoch()
         bce, auroc, brier = validate()

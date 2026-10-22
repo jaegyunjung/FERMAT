@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 import numpy as np
 import torch
+from torch.nn import functional as F
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
@@ -23,6 +24,13 @@ from lora import (inject_lora, lora_parameters, lora_state_dict, load_lora_state
                   count_parameters, snapshot_parameters, assert_base_unchanged, TARGET_SETS)
 
 ARMS = ('head_only', 'lora')
+# Bumped whenever PROTOCOL.md changes anything a gate depends on; gates record it.
+PROTOCOL_VERSION = '2026-10-22.2'
+PROTOCOL_TARGETS = HERE / 'protocol_targets.json'
+GATE_METRICS = dict(record=('test.recall_at_10',), risk=('test.weighted_auroc', 'test.weighted_brier'))
+# v1 local recipe constants (scripts/run_next_record_bundle.py, train_task30_d3_comparators.py).
+EMBEDDING_SD_FLOOR = 1e-4
+RECORD_HEAD_WEIGHT_SD = 0.01
 
 
 def add_common_arguments(parser):
@@ -33,7 +41,7 @@ def add_common_arguments(parser):
     parser.add_argument('--arm', choices=ARMS, required=True,
                         help='head_only reproduces the frozen representation arm inside this pipeline')
     parser.add_argument('--gate', type=Path, default=None,
-                        help='gate.json from check_gate.py; the lora arm refuses to run without a passed gate')
+                        help='gate.json from check_gate.py; the lora arm refuses to run without a matching passed gate')
     parser.add_argument('--rank', type=int, default=8)
     parser.add_argument('--alpha', type=float, default=16.)
     parser.add_argument('--lora-dropout', type=float, default=0.05)
@@ -42,14 +50,12 @@ def add_common_arguments(parser):
     parser.add_argument('--lr-head', type=float, default=None, help='Task default when omitted')
     parser.add_argument('--weight-decay', type=float, default=None, help='Task default when omitted')
     parser.add_argument('--betas', type=float, nargs=2, default=(0.9, 0.999), help='AdamW betas (PyTorch default)')
-    parser.add_argument('--head-bias-init', choices=('frequency', 'zero'), default='frequency',
-                        help='frequency: bias = logit of the training-set target prevalence')
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--grad-accum', type=int, default=1)
     parser.add_argument('--epochs', type=int, default=None, help='Arm default when omitted')
     parser.add_argument('--patience', type=int, default=None, help='Arm default when omitted')
     parser.add_argument('--warmup-steps', type=int, default=None, help='Default 0 for head_only, 100 for lora')
-    parser.add_argument('--grad-clip', type=float, default=1.0)
+    parser.add_argument('--grad-clip', type=float, default=None, help='Default: none for head_only, 1.0 for lora')
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--train-subset', type=int, default=None,
                         help='Fixed random subset of training patients, shared by all arms; must be smaller than the pool')
@@ -72,22 +78,75 @@ def resolve_defaults(args, task_defaults):
     d['lr_head'] = args.lr_head or d['lr_head']
     d['weight_decay'] = d['weight_decay'] if args.weight_decay is None else args.weight_decay
     args.warmup_steps = (0 if args.arm == 'head_only' else 100) if args.warmup_steps is None else args.warmup_steps
+    args.grad_clip = (None if args.arm == 'head_only' else 1.0) if args.grad_clip is None else args.grad_clip
     if args.grad_accum < 1 or args.batch_size < 1:
         raise ValueError('batch size and gradient accumulation must be positive')
     return d
 
 
-def require_gate(args):
-    """The LoRA arm may only start after the head-only reproduction gate passed."""
+# ----------------------------------------------------------------------------
+# Reproduction gate
+# ----------------------------------------------------------------------------
+
+def gate_identity(task, disease, model_info, splits, label_hash, train_rows, selection_mode, dataset_metadata):
+    """Everything a gate must agree on with the run that uses it."""
+    return dict(
+        protocol_version=PROTOCOL_VERSION,
+        task=task,
+        disease=disease,
+        smoke=bool(model_info.get('smoke', False)),
+        model_sha256=model_info.get('model_sha256'),
+        dataset_metadata_sha256=sha256_of(json.dumps(dataset_metadata, sort_keys=True).encode()),
+        validation_patient_ids_sha256=sha256_of(splits['validation'].patient_id),
+        test_patient_ids_sha256=sha256_of(splits['test'].patient_id),
+        label_definition_sha256=label_hash,
+        training_selection=selection_mode,
+        n_train=int(len(train_rows)),
+        train_patient_ids_sha256=sha256_of(splits['train'].patient_id[train_rows]),
+    )
+
+
+def validate_gate(gate, identity):
+    """Return the list of reasons a gate does not cover this run (empty = accepted)."""
+    reasons = []
+    if not gate.get('passed'):
+        reasons.append('gate did not pass')
+    if gate.get('custom_targets') and not identity['smoke']:
+        reasons.append('gate was built with custom targets; real runs need the protocol targets')
+    g = gate.get('identity', {})
+    for key in ('protocol_version', 'task', 'disease', 'smoke', 'model_sha256', 'dataset_metadata_sha256',
+                'validation_patient_ids_sha256', 'test_patient_ids_sha256', 'label_definition_sha256'):
+        if g.get(key) != identity[key]:
+            reasons.append(f'{key}: gate {g.get(key)!r} vs run {identity[key]!r}')
+    required = GATE_METRICS[identity['task']]
+    checked = {c['metric'] for c in gate.get('checks', [])}
+    for metric in required:
+        if metric not in checked:
+            reasons.append(f'required metric {metric} not checked by the gate')
+    # Allowed training relation: the same patient list, or a gate fitted on the
+    # whole pool, which covers any subset drawn from it (PROTOCOL.md Section 5).
+    same_list = g.get('train_patient_ids_sha256') == identity['train_patient_ids_sha256']
+    if not (same_list or g.get('training_selection') == 'all'):
+        reasons.append('gate training patients are neither the same list nor the full pool')
+    return reasons
+
+
+def require_gate(args, identity):
+    """The LoRA arm may only start after a matching head-only reproduction gate passed."""
     if args.arm != 'lora':
         return None
     if args.gate is None:
         raise SystemExit('The lora arm requires --gate gate.json produced by check_gate.py (PROTOCOL.md Section 4/5)')
     gate = json.loads(Path(args.gate).read_text())
-    if not gate.get('passed'):
-        raise SystemExit(f'Reproduction gate failed: {args.gate}')
+    reasons = validate_gate(gate, identity)
+    if reasons:
+        raise SystemExit('Reproduction gate rejected for this run:\n  - ' + '\n  - '.join(reasons))
     return gate
 
+
+# ----------------------------------------------------------------------------
+# Model, data selection, features
+# ----------------------------------------------------------------------------
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -100,7 +159,7 @@ def build_model(args):
     if args.smoke_random_init is not None:
         config = FermatConfig(**json.loads(Path(args.smoke_random_init).read_text()))
         model = Fermat(config)
-        return model.to(args.device).eval(), dict(smoke=True, config=str(args.smoke_random_init))
+        return model.to(args.device).eval(), dict(smoke=True, config=str(args.smoke_random_init), model_sha256=None)
     from fermat_release import load_release
     model = load_release(args.release, args.device)
     manifest = json.loads((args.release / 'config/artifact_manifest.json').read_text())
@@ -168,21 +227,48 @@ def frozen_embeddings(model, split, rows, args):
     return out
 
 
-def standardization(values):
+def standardization(values, sd_floor=EMBEDDING_SD_FLOOR):
+    """Training-set mean and standard deviation; the sd is floored, as in the v1 head code."""
     mean = values.mean(0)
-    sd = values.std(0)
-    sd = np.where(sd > 1e-6, sd, 1.)
+    sd = np.maximum(values.std(0), sd_floor)
     return mean.astype(np.float32), sd.astype(np.float32)
 
 
-def init_head_bias(head, prevalence, mode):
-    """Set the output bias to the logit of the training prevalence (clipped), or zero."""
+def init_record_head(head, positives, n_patients):
+    """v1 next-record head: N(0, 0.01) weights, bias = logit((positives + 0.5) / (n + 1))."""
     with torch.no_grad():
-        if mode == 'frequency':
-            p = np.clip(np.asarray(prevalence, dtype=np.float64), 1e-6, 1 - 1e-6)
-            head.bias.copy_(torch.as_tensor(np.log(p / (1 - p)), dtype=head.bias.dtype))
-        else:
-            head.bias.zero_()
+        torch.nn.init.normal_(head.weight, mean=0., std=RECORD_HEAD_WEIGHT_SD)
+        p = (np.asarray(positives, dtype=np.float64) + 0.5) / (float(n_patients) + 1.)
+        head.bias.copy_(torch.as_tensor(np.log(p / (1 - p)), dtype=head.bias.dtype))
+
+
+def init_risk_head(head, weighted_prevalence):
+    """v1 weighted logistic predictor: zero weights, bias = logit of the weighted prevalence."""
+    with torch.no_grad():
+        head.weight.zero_()
+        p = min(max(float(weighted_prevalence), 1e-6), 1 - 1e-6)
+        head.bias.fill_(float(np.log(p / (1 - p))))
+
+
+def record_loss(logits, targets):
+    """v1 training loss: BCE summed over output items, averaged over patients."""
+    return F.binary_cross_entropy_with_logits(logits, targets, reduction='none').sum(1).mean()
+
+
+def weighted_objective(logits, y, w):
+    """Full-cohort objective: sum(w * BCE) / sum(w) over the patients given."""
+    return (w * F.binary_cross_entropy_with_logits(logits, y, reduction='none')).sum() / w.sum()
+
+
+def weighted_minibatch_loss(logits, y, w, mean_weight):
+    """Per-patient mean of w * BCE / mean_weight.
+
+    ``mean_weight`` is the fixed average weight over the whole training set, so
+    averaging this quantity over all patients (whatever the batching) equals the
+    full-cohort objective ``sum(w * BCE) / sum(w)``; per-batch weight sums are
+    never used as normalisers.
+    """
+    return (w * F.binary_cross_entropy_with_logits(logits, y, reduction='none')).mean() / mean_weight
 
 
 def prepare_adapters(model, args):
@@ -213,17 +299,26 @@ def make_optimizer(model, head, args, lr_head, weight_decay):
 
 
 class Accumulator:
-    """Gradient accumulation that never drops the trailing partial accumulation."""
+    """Gradient accumulation over patients.
+
+    Each call to ``backward`` passes a per-patient mean loss and the number of
+    patients it averages; the gradient of the patient *sum* is accumulated and
+    divided by the total number of patients at update time. The update therefore
+    equals the gradient of the mean loss over every accumulated patient, whatever
+    the batch sizes and however many batches the trailing accumulation holds.
+    Normalisation happens before gradient clipping.
+    """
 
     def __init__(self, optimizer, set_warmup, args):
         self.optimizer, self.set_warmup, self.args = optimizer, set_warmup, args
-        self.pending, self.steps, self.epoch_start = 0, 0, 0
+        self.pending, self.count, self.steps, self.epoch_start = 0, 0, 0, 0
 
     def parameters(self):
         return [p for g in self.optimizer.param_groups for p in g['params']]
 
-    def backward(self, loss):
-        (loss / self.args.grad_accum).backward()
+    def backward(self, mean_loss, n_patients):
+        (mean_loss * float(n_patients)).backward()
+        self.count += int(n_patients)
         self.pending += 1
         if self.pending == self.args.grad_accum:
             self.step()
@@ -231,11 +326,15 @@ class Accumulator:
     def step(self):
         if self.pending == 0:
             return
+        for p in self.parameters():
+            if p.grad is not None:
+                p.grad.div_(float(self.count))
         self.set_warmup(self.steps)
-        torch.nn.utils.clip_grad_norm_(self.parameters(), self.args.grad_clip, error_if_nonfinite=True)
+        if self.args.grad_clip is not None:
+            torch.nn.utils.clip_grad_norm_(self.parameters(), self.args.grad_clip, error_if_nonfinite=True)
         self.optimizer.step()
         self.optimizer.zero_grad(set_to_none=True)
-        self.pending = 0
+        self.pending, self.count = 0, 0
         self.steps += 1
 
     def end_epoch(self):
@@ -244,6 +343,10 @@ class Accumulator:
             raise RuntimeError('No optimizer update was performed in this epoch')
         self.epoch_start = self.steps
 
+
+# ----------------------------------------------------------------------------
+# State, provenance, outputs
+# ----------------------------------------------------------------------------
 
 def trainable_state(model, head, preprocessing, config):
     """Everything needed to reproduce predictions without the training run."""
@@ -280,8 +383,17 @@ def git_commit():
         return None
 
 
-def sha256_of(array):
-    return hashlib.sha256(np.ascontiguousarray(array).tobytes()).hexdigest()
+def sha256_of(data):
+    if isinstance(data, (bytes, bytearray)):
+        return hashlib.sha256(data).hexdigest()
+    return hashlib.sha256(np.ascontiguousarray(data).tobytes()).hexdigest()
+
+
+def sha256_of_arrays(*arrays):
+    digest = hashlib.sha256()
+    for array in arrays:
+        digest.update(np.ascontiguousarray(array).tobytes())
+    return digest.hexdigest()
 
 
 def fingerprint(args, model_info, data_metadata, extra=None):
@@ -289,6 +401,7 @@ def fingerprint(args, model_info, data_metadata, extra=None):
         script=Path(sys.argv[0]).name,
         arguments={k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()},
         git_commit=git_commit(),
+        protocol_version=PROTOCOL_VERSION,
         model=model_info,
         dataset=data_metadata,
         torch=torch.__version__,

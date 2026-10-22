@@ -1,5 +1,8 @@
 # LoRA fine-tuning baseline — protocol (drafted 2026-10-22, before any run)
 
+Protocol version `2026-10-22.2` (`common.PROTOCOL_VERSION`); gates record it and
+a run refuses a gate from another version.
+
 **Status: preregistered, not executed.** No LoRA model has been trained on SNUH
 data as of this date. Everything below was fixed before the first GPU run; any
 later deviation must be recorded in the results document as a protocol change,
@@ -50,12 +53,13 @@ not generators.
 | Total trained parameters (LoRA arm) | record task **11,499,060**; risk task 307,845. The 0.47% figure describes the adapters only and is never quoted as the total |
 | Base dropout | the release value (0.1) stays active in `model.train()` |
 | Precision | BF16 autocast for the transformer body on CUDA; heads and losses in FP32 |
-| Optimiser | AdamW with PyTorch default betas (0.9, 0.999), gradient clip 1.0; LoRA arm: 100 warm-up steps then constant; head-only arm: no warm-up |
-| Gradient accumulation | the trailing partial accumulation of every epoch is applied; an epoch with zero optimizer updates aborts the run |
-| Head initialisation | output bias = logit of the training-set target prevalence (per item for the record head, weighted prevalence for the risk head), PyTorch default weights; identical in both arms |
+| Optimiser | AdamW with PyTorch default betas (0.9, 0.999). LoRA arm: gradient clip 1.0, 100 warm-up steps then constant. Head-only arm: no clipping, no warm-up (v1) |
+| Gradient accumulation | gradients of the per-patient *sum* are accumulated and divided by the number of patients actually accumulated, before clipping; the trailing partial accumulation of every epoch is applied with that same normalisation, and an epoch with zero optimizer updates aborts the run. Not applicable to the full-batch head-only risk fit (rejected) |
+| Head initialisation | record head: weights N(0, 0.01), bias = logit((positives + 0.5)/(n + 1)) per item; risk head: zero weights, bias = logit of the weighted training prevalence. Both follow the local v1 code (Section 11) and are identical in both arms |
+| Loss definitions | record: BCE summed over the 17,460 output items, averaged over patients (v1). Risk: the full-cohort objective Σ w·BCE / Σ w; mini-batches use the fixed training-set mean weight as normaliser so that accumulation over patients recovers exactly that objective, never a per-batch weight sum |
 | Learning rates | adapters 2e-4; head 1e-3 (record), 1e-3 (risk, LoRA arm) |
 | Weight decay | 0.01 (record both arms, risk LoRA arm); 1e-5 (risk head-only, as v1) |
-| Head input scale | hidden state standardised with the **frozen** model's training-set mean/sd, computed before injection and held fixed, so both arms feed the head on the same scale |
+| Head input scale | hidden state standardised with the **frozen** model's training-set mean/sd (sd floored at 1e-4 as in v1), computed before injection and held fixed, so both arms feed the head on the same scale |
 | Audit | after training every pre-injection tensor is checked bit-identical (`assert_base_unchanged`) |
 | Saved state | `trainable_state.pt` holds adapters, head, every standardisation constant (embedding mean/sd; clinical medians, mean/sd), the prediction vocabulary and the run configuration. `predict.py` rebuilds the predictor from this file alone in a separate process and must reproduce the training run's test outputs exactly; the test suite checks this |
 
@@ -86,9 +90,10 @@ on fitted predictors and saved paths (v1 Section 2.4). Secondary contrasts:
 LoRA minus `head_only` from this pipeline; LoRA minus the 100k head.
 
 Reproduction gate (enforced by code): `head_only` seed 1 must give test
-Recall@10 within 1.0 percentage point of the v1 linear heads (55.68–55.98%).
-`check_gate.py` writes `gate.json`; `train_record.py --arm lora` refuses to start
-without a passed gate. If the gate fails, the cohort export, target definition or
+Recall@10 within 1.0 percentage point of the v1 linear heads (55.68–55.98%;
+target 55.68 in `protocol_targets.json`). `check_gate.py` writes `gate.json`
+carrying the run identity (Section 10); `train_record.py --arm lora` refuses to
+start unless a gate passed **and** matches the run. If the gate fails, the cohort export, target definition or
 head recipe differs from v1 and no LoRA run is made until the discrepancy is
 explained. Before the gate run, the head recipe in this pipeline is diffed
 against the local v1 head-training code (bias initialisation, loss reduction,
@@ -111,7 +116,7 @@ death is a case, death before disease an observed non-case.
 | Features | standardised hidden state (640) concatenated with the four standardised clinical variables (training-set median imputation, mean/sd scaling) |
 | `head_only` recipe | cached frozen embeddings, full-batch AdamW, 200 steps, learning rate 0.03, weight decay 1e-5, no model selection (v1 Appendix A) |
 | `lora` recipe | batch 32; ≤3 epochs; the epoch with the lowest validation weighted BCE is selected; stop after 1 epoch without improvement |
-| Training-set size | primary: a fixed 100,000-patient subset of observed-outcome training patients, **identical for both arms** (`--train-subset 100000`). `head_only` is additionally fitted on the full pool to confirm agreement with v1 |
+| Training-set size | primary: the same 100,000 observed-outcome training patients for both arms, supplied as a patient-ID list. The reproduction gate is the `head_only` fit on the **full** pool (the v1 predictor); a gate fitted on the full pool is accepted for a LoRA run on any list drawn from that pool, and a gate fitted on a subset is accepted only for the identical list |
 | Seeds | 1, 2, 3 for the LoRA arm of every disease, fixed in advance and all reported; seed 1 is the primary run. The head-only full-batch fit is deterministic given its initialisation and is run once per training set |
 
 Primary contrast per disease: LoRA minus representation-based logistic
@@ -122,9 +127,11 @@ the fixed-weight interval is the 2026-10-21 analysis standard. Both can be
 reported if the saved per-patient probabilities are run through the v1 tooling.
 
 Reproduction gate (enforced by code, per disease): full-pool `head_only` AUROC
-within 0.01 of v1 (0.871 CKD, 0.752 fatty liver, 0.784 diabetes) and weighted
-Brier within 0.002 (0.0204, 0.0273, 0.0452). `train_risk.py --arm lora` refuses
-to start without the disease's passed `gate.json`. Otherwise, as in Section 4.
+within 0.01 of v1 (0.871 CKD, 0.752 fatty liver, 0.784 diabetes) **and** weighted
+Brier within 0.002 (0.0204, 0.0273, 0.0452); both checks are required
+(`protocol_targets.json`). `train_risk.py --arm lora` refuses a gate for another
+task, disease, model, dataset, patient list or label definition, a gate missing
+either metric, and a gate built with custom targets. Otherwise, as in Section 4.
 
 ## 6. Interpretation rules (fixed)
 
@@ -172,7 +179,19 @@ per split.
    events among the first 64 post-index events) equal the v1 target definition;
    if not, do not place the two numbers in one table.
 
-## 9. Outputs and what enters the repository
+## 9. Gate identity (what a gate must agree on with the run)
+
+`gate.json` records: protocol version; task and disease; whether the model is a
+smoke model; the release `model.pt` SHA-256; the SHA-256 of `dataset.json`, of
+the validation and test patient-ID arrays, and of the label definition (record:
+prediction vocabulary plus validation/test target sets; risk: validation/test
+outcome and weight arrays); the training selection mode, size and patient-ID
+hash; each checked metric with target, tolerance and value. `validate_gate`
+compares all of these with the run before the LoRA arm starts. Targets come from
+`protocol_targets.json` only; a gate built with command-line targets is marked
+`custom_targets` and is accepted only by smoke runs.
+
+## 10. Outputs and what enters the repository
 
 Each run writes `summary.json` (arguments, git commit, release model SHA-256,
 dataset provenance, training-patient SHA-256 and selection mode, the gate it ran
@@ -183,7 +202,7 @@ contrasts), per-patient test CSVs, `test_scores.pt` (record task) and
 aggregate numbers are committed, under `experiments/lora_baseline/results/`;
 per-patient files stay internal, as for every other evidence folder.
 
-## 10. Reporting plan for the next manuscript version
+## 11. Reporting plan for the next manuscript version
 
 - New results subsection "Supervised fine-tuning" with one table: for each task,
   frozen representation (v1), 100k head (record only), LoRA, generation, with
@@ -194,3 +213,35 @@ per-patient files stay internal, as for every other evidence folder.
   its one-pass inference cost.
 - The v1 numbers remain labelled as v1; no number from this protocol replaces a
   v1 number silently.
+
+## 12. v1 recipe comparison (to complete locally before the gate runs)
+
+Reference files (local, not in git): `scripts/run_next_record_bundle.py`
+(next-record head), `scripts/weekend_head_scaling.py` (head scaling),
+`scripts/train_task30_d3_comparators.py` and `scripts/task30_d3_analysis_core.py`
+(disease predictors, preprocessing, metrics). Status values: **match**,
+**intentional change** (applies to both arms, reported as such), **fix needed**,
+**unverified** (must be diffed against the file named; cannot be settled from
+the manuscript).
+
+| Item | v1 local code | This branch | Status |
+|---|---|---|---|
+| Record head weight init | N(0, 0.01) | N(0, 0.01) | match (fixed 2026-10-22) |
+| Record head bias init | logit((positives + 0.5)/(n + 1)) | same | match (fixed 2026-10-22) |
+| Record training loss | BCE summed over items, mean over patients | same | match (fixed 2026-10-22) |
+| Embedding sd floor | max(sd, 1e-4) | max(sd, 1e-4) | match (fixed 2026-10-22) |
+| Risk head weight init | zeros | zeros | match (fixed 2026-10-22) |
+| Risk objective | weighted BCE, weights clipped IPCW | Σ w·BCE / Σ w over the training set | match in definition; **unverified** whether v1 normalised by Σ w or by n |
+| Record head optimizer | AdamW lr 1e-3, wd 0.01, batch 256 (Appendix A) | same; betas (0.9, 0.999) | betas **unverified** |
+| Risk head optimizer | AdamW lr 0.03, wd 1e-5, 200 full-batch steps (Appendix A) | same; betas (0.9, 0.999) | betas and whether the fit was full-batch **unverified** |
+| Gradient clipping / warm-up (head-only) | — | none / none | **unverified** |
+| Embedding extraction precision | CUDA BF16 autocast, FP32 head (MODEL_CARD.md) | `--bf16` autocast on CUDA, FP32 head | match when `--bf16` is set on CUDA |
+| Patient order and seeds | — | numpy `default_rng(seed)` permutation per epoch; three seeds | **unverified** (ordering scheme) |
+| Tie handling at ranking | patient-seeded tie break (MODEL_CARD.md) | stable class-order tie break (as the released head) | intentional change; expected effect ≤ 0.04 pp (v1 Appendix A: 70.96 vs 71.00) |
+| Early stopping / selection | validation Recall@10, BCE tie-break, patience 10, ≤ 60 epochs (Appendix A) | same | match in definition; bookkeeping (strict vs non-strict improvement, evaluation every epoch) **unverified** |
+| LoRA-arm settings (clip 1.0, warm-up 100, lr 2e-4, dropout 0.05) | n/a | LoRA arm only | intentional, new |
+
+Rules: every **unverified** row is settled by diffing the named file, and the
+result is written into this table with the commit that settles it. A gate run is
+made only after no row reads **fix needed**. Settings are never adjusted to make
+the gate pass; a failed gate is explained from code and data differences.

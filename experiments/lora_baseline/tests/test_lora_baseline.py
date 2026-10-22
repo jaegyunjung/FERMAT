@@ -1,4 +1,6 @@
 """Unit and pipeline tests that need no release artifacts and no patient data."""
+import argparse
+import copy
 import json
 import subprocess
 import sys
@@ -142,6 +144,109 @@ class MetricTests(unittest.TestCase):
         self.assertEqual(len(fixed_subset(50, None, 3)), 50)
 
 
+class ObjectiveTests(unittest.TestCase):
+    """Numeric checks requested in review: weighted objective and accumulation."""
+
+    def accumulator(self, params, grad_accum, lr=1.):
+        optimizer = torch.optim.SGD(params, lr=lr)
+        args = argparse.Namespace(grad_accum=grad_accum, grad_clip=None, warmup_steps=0)
+        return common.Accumulator(optimizer, lambda step: None, args)
+
+    def test_weighted_objective_gradient_is_minus_0_4(self):
+        y = torch.tensor([1., 0.]); w = torch.tensor([9., 1.])
+        logit = torch.zeros(2, requires_grad=True)
+        common.weighted_objective(logit, y, w).backward()
+        self.assertAlmostEqual(float(logit.grad.sum()), -0.4, places=6)
+
+    def test_one_patient_batches_reproduce_the_full_objective(self):
+        y = torch.tensor([1., 0.]); w = torch.tensor([9., 1.])
+        bias = torch.nn.Parameter(torch.zeros(1))
+        acc = self.accumulator([bias], grad_accum=2)
+        mean_weight = float(w.mean())
+        for i in range(2):
+            acc.backward(common.weighted_minibatch_loss(bias.expand(1), y[i:i + 1], w[i:i + 1], mean_weight), 1)
+        acc.end_epoch()
+        self.assertAlmostEqual(float(bias.detach()), 0.4, places=6)   # one SGD step of size -(-0.4)
+
+    def test_partial_accumulation_uses_the_true_mean(self):
+        p = torch.nn.Parameter(torch.zeros(1))
+        acc = self.accumulator([p], grad_accum=4)
+        for _ in range(2):
+            acc.backward(2. * p, 1)
+        acc.end_epoch()
+        self.assertAlmostEqual(float(p.detach()), -2., places=6)
+        self.assertEqual(acc.steps, 1)
+
+    def test_unequal_batches_match_full_batch(self):
+        torch.manual_seed(0)
+        x = torch.randn(7, 3); y = (torch.rand(7) > 0.5).float(); w = torch.rand(7) + 0.5
+        full = torch.nn.Linear(3, 1); split = copy.deepcopy(full)
+        common.weighted_objective(full(x).squeeze(1), y, w).backward()
+        acc = self.accumulator(list(split.parameters()), grad_accum=3)
+        mean_weight = float(w.mean())
+        captured = {}
+        original_step = acc.optimizer.step
+        acc.optimizer.step = lambda: captured.update(grads=[p.grad.clone() for p in split.parameters()]) or original_step()
+        for rows in (slice(0, 3), slice(3, 5), slice(5, 7)):
+            acc.backward(common.weighted_minibatch_loss(split(x[rows]).squeeze(1), y[rows], w[rows], mean_weight), rows.stop - rows.start)
+        acc.end_epoch()
+        for g_full, g_split in zip([p.grad for p in full.parameters()], captured['grads']):
+            torch.testing.assert_close(g_full, g_split, rtol=1e-5, atol=1e-6)
+        # Same check for the record loss (mean over patients of a per-patient sum).
+        full = torch.nn.Linear(3, 4); split = copy.deepcopy(full); t = (torch.rand(7, 4) > 0.5).float()
+        common.record_loss(full(x), t).backward()
+        acc = self.accumulator(list(split.parameters()), grad_accum=2)
+        captured = {}
+        original_step = acc.optimizer.step
+        acc.optimizer.step = lambda: captured.update(grads=[p.grad.clone() for p in split.parameters()]) or original_step()
+        for rows in (slice(0, 4), slice(4, 7)):
+            acc.backward(common.record_loss(split(x[rows]), t[rows]), rows.stop - rows.start)
+        acc.end_epoch()
+        for g_full, g_split in zip([p.grad for p in full.parameters()], captured['grads']):
+            torch.testing.assert_close(g_full, g_split, rtol=1e-5, atol=1e-6)
+
+    def test_zero_update_epoch_fails(self):
+        acc = self.accumulator([torch.nn.Parameter(torch.zeros(1))], grad_accum=2)
+        with self.assertRaises(RuntimeError):
+            acc.end_epoch()
+
+
+class GateValidationTests(unittest.TestCase):
+    def identity(self, **overrides):
+        base = dict(protocol_version=common.PROTOCOL_VERSION, task='risk', disease='ckd', smoke=False,
+                    model_sha256='m', dataset_metadata_sha256='d', validation_patient_ids_sha256='v',
+                    test_patient_ids_sha256='t', label_definition_sha256='l', training_selection='all',
+                    n_train=10, train_patient_ids_sha256='tr')
+        base.update(overrides)
+        return base
+
+    def gate(self, identity, metrics=('test.weighted_auroc', 'test.weighted_brier'), **overrides):
+        g = dict(passed=True, custom_targets=False, identity=identity,
+                 checks=[dict(metric=m, passed=True) for m in metrics])
+        g.update(overrides)
+        return g
+
+    def test_matching_gate_is_accepted(self):
+        self.assertEqual(common.validate_gate(self.gate(self.identity()), self.identity()), [])
+
+    def test_full_pool_gate_covers_a_subset_but_not_the_reverse(self):
+        run = self.identity(training_selection='patient_list', n_train=5, train_patient_ids_sha256='sub')
+        self.assertEqual(common.validate_gate(self.gate(self.identity()), run), [])
+        gate_on_subset = self.gate(self.identity(training_selection='subset', train_patient_ids_sha256='other'))
+        self.assertTrue(any('training patients' in r for r in common.validate_gate(gate_on_subset, run)))
+
+    def test_mismatches_are_rejected(self):
+        run = self.identity()
+        for field in ('task', 'disease', 'model_sha256', 'test_patient_ids_sha256', 'label_definition_sha256',
+                      'protocol_version', 'smoke'):
+            gate = self.gate(self.identity(**{field: 'x' if field != 'smoke' else True}))
+            self.assertTrue(any(r.startswith(field) for r in common.validate_gate(gate, run)), field)
+        self.assertTrue(common.validate_gate(self.gate(self.identity(), metrics=('test.weighted_brier',)), run))
+        self.assertTrue(common.validate_gate(self.gate(self.identity(), custom_targets=True), run))
+        self.assertEqual(common.validate_gate(self.gate(self.identity(smoke=True), custom_targets=True), self.identity(smoke=True)), [])
+        self.assertTrue(common.validate_gate(self.gate(self.identity(), passed=False), run))
+
+
 class PipelineSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -172,26 +277,32 @@ class PipelineSmokeTests(unittest.TestCase):
                 '--smoke-random-init', str(HERE / 'smoke_model_config.json'), '--batch-size', '8',
                 '--epochs', '2', '--patience', '2', '--bootstrap-resamples', '20']
 
-    def gate_for(self, summary_path, metric, out):
-        value = json.loads(Path(summary_path).read_text())['summary']
-        for key in metric.split('.'):
-            value = value[key]
-        self.invoke(['check_gate.py', '--summary', str(summary_path), '--metric', metric,
-                     '--expected', str(value), '--tolerance', '1e-9', '--out', str(out)])
-        self.assertTrue(json.loads(Path(out).read_text())['passed'])
+    def gate_for(self, summary_path, metrics, out, offset=0., complete=True):
+        summary = json.loads(Path(summary_path).read_text())['summary']
+        command = ['check_gate.py', '--summary', str(summary_path), '--out', str(out)]
+        for metric in metrics:
+            value = summary
+            for key in metric.split('.'):
+                value = value[key]
+            command += ['--metric', metric, '--expected', str(value + offset), '--tolerance', '1e-9']
+        should_pass = offset == 0. and complete
+        self.invoke(command, expect_failure=not should_pass)
+        gate = json.loads(Path(out).read_text())
+        self.assertEqual(gate['passed'], should_pass)
+        self.assertTrue(gate['custom_targets'])
         return out
 
-    def test_record_task_both_arms_with_gate_and_reload(self):
+    def test_a_record_task_both_arms_with_gate_and_reload(self):
         head = self.root / 'record_head'
         self.invoke(['train_record.py'] + self.common_args(head, 'head_only'))
         head_summary = json.loads((head / 'summary.json').read_text())
         self.assertEqual(head_summary['fingerprint']['warmup_steps'], 0)
         self.assertGreater(head_summary['summary']['optimizer_steps'], 0)
-        gate = self.gate_for(head / 'summary.json', 'test.recall_at_10', self.root / 'record_gate.json')
-        failing = self.invoke(['check_gate.py', '--summary', str(head / 'summary.json'), '--metric',
-                               'test.recall_at_10', '--expected', '999', '--tolerance', '0.1',
-                               '--out', str(self.root / 'record_gate_fail.json')], expect_failure=True)
-        self.assertIn('"passed": false', failing)
+        gate = self.gate_for(head / 'summary.json', ['test.recall_at_10'], self.root / 'record_gate.json')
+        self.gate_for(head / 'summary.json', ['test.recall_at_10'], self.root / 'record_gate_fail.json', offset=5.)
+        protocol_gate = self.invoke(['check_gate.py', '--summary', str(head / 'summary.json'),
+                                     '--out', str(self.root / 'record_gate_protocol.json')], expect_failure=True)
+        self.assertIn('"custom_targets": false', protocol_gate)   # real targets, synthetic data: fails honestly
         lora = self.root / 'record_lora'
         ungated = self.invoke(['train_record.py'] + self.common_args(lora, 'lora'), expect_failure=True)
         self.assertIn('requires --gate', ungated)
@@ -245,11 +356,18 @@ class PipelineSmokeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             common.check_split_overlap(splits)
 
-    def test_risk_task_both_arms_with_gate_and_reload(self):
+    def test_b_risk_task_both_arms_with_gate_and_reload(self):
         head = self.root / 'risk_head'
         self.invoke(['train_risk.py', '--disease', 'ckd'] + self.common_args(head, 'head_only'))
-        gate = self.gate_for(head / 'summary.json', 'test.weighted_brier', self.root / 'risk_gate.json')
+        incomplete = self.gate_for(head / 'summary.json', ['test.weighted_brier'], self.root / 'risk_gate_half.json', complete=False)
+        self.assertFalse(json.loads(Path(incomplete).read_text())['passed'])   # AUROC check missing
+        gate = self.gate_for(head / 'summary.json', ['test.weighted_auroc', 'test.weighted_brier'], self.root / 'risk_gate.json')
         lora = self.root / 'risk_lora'
+        wrong_task = self.invoke(['train_risk.py', '--disease', 'ckd'] + self.common_args(lora, 'lora') +
+                                 ['--gate', str(self.root / 'record_gate.json')], expect_failure=True)
+        self.assertIn('task:', wrong_task)
+        self.invoke(['train_risk.py', '--disease', 'ckd'] + self.common_args(lora, 'head_only') + ['--grad-accum', '2'],
+                    expect_failure=True)
         self.invoke(['train_risk.py', '--disease', 'ckd'] + self.common_args(lora, 'lora') +
                     ['--gate', str(gate), '--grad-accum', '2',
                      '--baseline-probabilities', str(head / 'test_patient_probabilities.csv')])

@@ -34,7 +34,6 @@ args = parser.parse_args()
 cfg = common.resolve_defaults(args, dict(
     head_only=dict(epochs=60, patience=10, lr_head=1e-3, weight_decay=0.01, batch=256),
     lora=dict(epochs=20, patience=5, lr_head=1e-3, weight_decay=0.01, batch=args.batch_size)))
-gate = common.require_gate(args)
 resamples = args.bootstrap_resamples or 5000
 common.set_seed(args.seed)
 args.out.mkdir(parents=True, exist_ok=True)
@@ -52,13 +51,19 @@ class_index = class_lookup(classes, model.config.vocab_size)
 n_classes = len(classes)
 train_rows, selection_mode = common.select_training_rows(splits['train'], args)
 val_rows, test_rows = np.arange(len(splits['validation'])), np.arange(len(splits['test']))
+label_hash = common.sha256_of_arrays(classes, splits['validation'].label_indptr, splits['validation'].label_tokens,
+                                     splits['test'].label_indptr, splits['test'].label_tokens)
+identity = common.gate_identity('record', None, model_info, splits, label_hash, train_rows, selection_mode,
+                                read_metadata(args.data))
+gate = common.require_gate(args, identity)
 targets = {name: multi_hot(splits[name].label_lists(rows), class_index, n_classes)
            for name, rows in (('train', train_rows), ('validation', val_rows))}
 log = dict(fingerprint=common.fingerprint(args, model_info, read_metadata(args.data), dict(
     classes=str(classes_path), n_classes=n_classes, n_train=len(train_rows), training_selection=selection_mode,
     n_validation=len(val_rows), n_test=len(test_rows),
     train_patient_ids_sha256=common.sha256_of(splits['train'].patient_id[train_rows]),
-    gate=gate, resolved=cfg, warmup_steps=args.warmup_steps, betas=list(args.betas))), epochs=[])
+    gate=gate, gate_identity=identity, resolved=cfg, warmup_steps=args.warmup_steps, grad_clip=args.grad_clip,
+    betas=list(args.betas))), epochs=[])
 
 # Standardisation always comes from the frozen model on the training patients,
 # so both arms feed the head inputs on the same scale (MODEL_CARD.md).
@@ -68,12 +73,11 @@ mean, sd = common.standardization(frozen['train'])
 mean_t, sd_t = (torch.from_numpy(a).to(args.device) for a in (mean, sd))
 snapshot, wrapped = common.prepare_adapters(model, args)
 head = torch.nn.Linear(model.config.n_embd, n_classes).to(args.device)
-common.init_head_bias(head, targets['train'].mean(0).numpy(), args.head_bias_init)
+common.init_record_head(head, targets['train'].sum(0).numpy(), len(train_rows))
 optimizer, set_warmup = common.make_optimizer(model, head, args, cfg['lr_head'], cfg['weight_decay'])
 accumulator = common.Accumulator(optimizer, set_warmup, args)
 state_config = dict(task='record', arm=args.arm, rank=args.rank, alpha=args.alpha, targets=args.targets,
-                    head_in=model.config.n_embd, head_out=n_classes, classes=str(classes_path),
-                    head_bias_init=args.head_bias_init)
+                    head_in=model.config.n_embd, head_out=n_classes, classes=str(classes_path))
 preprocessing = dict(embedding_mean=mean, embedding_sd=sd, classes=classes)
 
 
@@ -118,8 +122,8 @@ for epoch in range(1, cfg['epochs'] + 1):
             idx, age, typ = splits['train'].batch(train_rows[batch_rows], args.device)
             with common.autocast(args):
                 z = common.last_hidden(model, idx, age, typ).float()
-        loss = F.binary_cross_entropy_with_logits(head((z - mean_t) / sd_t), y)
-        accumulator.backward(loss)
+        loss = common.record_loss(head((z - mean_t) / sd_t), y)
+        accumulator.backward(loss, len(batch_rows))
         losses.append(float(loss.detach()))
     accumulator.end_epoch()
     recall, bce = validate()
