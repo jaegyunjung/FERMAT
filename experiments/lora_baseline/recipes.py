@@ -101,9 +101,11 @@ def configure_recipe(args, cfg, task):
     args.recipe = args.recipe or ('v1' if args.arm == 'head_only' else 'lora')
     if (args.arm == 'lora') != (args.recipe == 'lora'):
         raise ValueError('LoRA arm requires recipe=lora; head_only requires v1 or experimental')
+    if args.recipe == 'diagnostic_v1' and task != 'record':
+        raise ValueError('diagnostic_v1 is only implemented for the record task')
     if args.seed is None:
-        args.seed = (RECORD_SEED if task == 'record' else 0) if args.recipe == 'v1' else 1
-    if args.recipe != 'v1' or args.smoke_random_init is not None:
+        args.seed = (RECORD_SEED if task == 'record' else 0) if args.recipe in ('v1', 'diagnostic_v1') else 1
+    if args.recipe not in ('v1', 'diagnostic_v1') or args.smoke_random_init is not None:
         return
     if args.grad_accum != 1 or args.grad_clip is not None or args.warmup_steps != 0 or tuple(args.betas) != (0.9, 0.999):
         raise ValueError('v1 requires accumulation=1, no clipping/warm-up and default AdamW betas; use --recipe experimental')

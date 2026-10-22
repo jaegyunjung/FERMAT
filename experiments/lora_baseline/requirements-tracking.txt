@@ -1,0 +1,2 @@
+# Optional aggregate-only experiment tracking.
+wandb>=0.28,<0.29

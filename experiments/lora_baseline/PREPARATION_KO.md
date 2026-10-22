@@ -67,7 +67,11 @@ CPU 자동 테스트 37개가 torch `2.12.1+cu132`에서 통과했다.
    저장 임베딩과 대조한다. 차이가 나면 release 모델, 마지막 hidden state,
    attention mask, dtype부터 확인한다. 위 CPU 비교를 gate로 사용하지 않는다.
 2. **기록 v1 재학습 및 gate.** 아래 명령의 seed 20260909, batch 256,
-   v1 설정을 사용한다. stable ranking tie 처리는 원본과 다른 점이므로
+   v1 설정을 사용한다. `--batch-size 32`는 추출/점수 계산용이며, head 학습 batch는
+   v1 recipe에서 256으로 고정된다. 먼저 `--recipe diagnostic_v1 --embeddings-cache`
+   실행으로 저장 임베딩 위의 동일 레시피를 진단한다. 일반 experimental은 epoch
+   순서까지 달라지므로 이 진단에 사용하지 않는다. diagnostic_v1은 gate를 발급하지 못한다.
+   stable ranking tie 처리는 원본과 다른 점이므로
    저장 예측과 환자별 차이를 별도로 정리한다. gate 실패 시 LoRA를 시작하지 않는다.
 3. **질병 입력 export.** `task30_d3_final_analysis_20260901_v1` 아래 원본
    `preopen/d3_preindex_cohort_train_val_testselected.parquet`,
@@ -84,6 +88,11 @@ CPU 자동 테스트 37개가 torch `2.12.1+cu132`에서 통과했다.
    기존 `weekend_head_scaling_20260912_v1/n100000`의 contract/선택 결과/예측 파일은
    있으나, 10만 명 prefix export 및 기존 명단 대조는 아직 하지 않았다.
    18,474명 입력에 `--train-subset 100000`을 주거나 새로 임의 추출하지 않는다.
+   **현재 .4 프로토콜은 확장된 학습 pool에 기존 gate 재사용을 허용하지 않는다.**
+   validation/test가 같아도 전체 content hash가 바뀐다. 이번 실행 범위는 18,474명이며,
+   100k 비교는 새 학습 pool과 역사적 reference cohort를 각각 검증하는 gate 설계 및
+   회귀 테스트를 별도 프로토콜 개정으로 확정할 때까지 보류한다. experimental head를
+   v1으로 이름만 바꾸거나 hash 검사를 우회하지 않는다.
    질병의 10만 명 실험도 질환별 관측 환자 명단을 고정하고 두 arm이 공유해야 한다.
 6. **GPU 소량 실행 후 본 실험.** 일치하는 gate가 생긴 뒤 한 seed의 작은 실행으로
    메모리와 step 시간을 측정한다. 이후 사전 고정한 arm/seed 1, 2, 3을 실행한다.
@@ -118,7 +127,7 @@ $PY "$CODE/prepare_risk_baselines.py" \
 # 아래 학습 명령은 CUDA BF16 대조 및 GPU 실행 전 확인을 마친 뒤 실행한다.
 $PY "$CODE/train_record.py" --release "$RELEASE" --data "$PREP/record_v1" \
   --out "$PREP/runs/record_v1_seed20260909" --arm head_only --recipe v1 \
-  --seed 20260909 --batch-size 256 --device cuda --bf16
+  --seed 20260909 --batch-size 32 --device cuda --bf16
 $PY "$CODE/check_gate.py" --summary "$PREP/runs/record_v1_seed20260909/summary.json" \
   --out "$PREP/runs/record_v1_gate.json"
 ```

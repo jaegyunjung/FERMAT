@@ -54,7 +54,7 @@ def add_common_arguments(parser):
     parser.add_argument('--warmup-steps', type=int, default=None, help='Default 0 for head_only, 100 for lora')
     parser.add_argument('--grad-clip', type=float, default=None, help='Default: none for head_only, 1.0 for lora')
     parser.add_argument('--seed', type=int, default=None)
-    parser.add_argument('--recipe', choices=('v1', 'experimental', 'lora'), default=None)
+    parser.add_argument('--recipe', choices=('v1', 'diagnostic_v1', 'experimental', 'lora'), default=None)
     parser.add_argument('--smoke-seed', type=int, default=1)
     parser.add_argument('--train-subset', type=int, default=None,
                         help='Fixed random subset of training patients, shared by all arms; must be smaller than the pool')
@@ -205,7 +205,7 @@ def last_hidden(model, idx, age, typ):
 
 
 @torch.no_grad()
-def frozen_embeddings(model, split, rows, args):
+def frozen_embeddings(model, split, rows, args, progress=None):
     from data import iterate_batches
     model.eval()
     out = np.zeros((len(rows), model.config.n_embd), dtype=np.float32)
@@ -216,6 +216,8 @@ def frozen_embeddings(model, split, rows, args):
             h = last_hidden(model, idx, age, typ)
         out[position:position + len(batch_rows)] = h.float().cpu().numpy()
         position += len(batch_rows)
+        if progress is not None:
+            progress(position, len(rows))
     return out
 
 
