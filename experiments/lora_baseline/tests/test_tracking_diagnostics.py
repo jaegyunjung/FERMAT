@@ -11,12 +11,38 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tracking import Tracker
 from runtime_guard import validate_sample
-from train_record import load_diagnostic_embeddings
+from train_record import load_diagnostic_embeddings, attach_embedding_pool
 from gates import make_gate, official_targets, validate_gate
 import test_reproduction
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_embedding_pool_preserves_order_and_rejects_changed_prefix(self):
+        from data import PrefixSplit, dataset_content_hash
+        package = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run([sys.executable, str(package / 'make_synthetic_dataset.py'), '--out', str(root / 'data'),
+                            '--patients', '8', '8', '8', '--max-length', '8'], check=True, capture_output=True)
+            data = root / 'data'
+            pool = data / 'embedding_pool'
+            pool.mkdir()
+            for name in ('idx', 'age', 'token_type', 'patient_id'):
+                np.save(pool / (name + '.npy'), np.concatenate([
+                    np.load(data / split / (name + '.npy')) for split in ('test', 'train', 'validation')]))
+            splits = {s: PrefixSplit(data, s) for s in ('train', 'validation', 'test')}
+            mapping = attach_embedding_pool(splits, data, 512)
+            np.testing.assert_array_equal(mapping['train'], np.arange(8, 16))
+            np.testing.assert_array_equal(mapping['test'], np.arange(8))
+            before = dataset_content_hash(splits, 'record', None)
+            age = np.load(pool / 'age.npy')
+            age[8, 0] += 1
+            np.save(pool / 'age.npy', age)
+            self.assertNotEqual(before, dataset_content_hash(splits, 'record', None))
+            del splits['embedding_pool']
+            with self.assertRaisesRegex(ValueError, 'prefixes differ'):
+                attach_embedding_pool(splits, data, 512)
+
     def test_diagnostic_recipe_cannot_issue_real_gate(self):
         log = test_reproduction.GateRegressionTests().log()
         log['fingerprint']['recipe'] = 'diagnostic_v1'

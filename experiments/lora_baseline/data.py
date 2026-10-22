@@ -28,6 +28,10 @@ Real record exports additionally require ``preprocessing_train/`` with prefix
 arrays and patient IDs for every original training patient (including patients
 without a target). It has no labels. Its contents enter the gate identity and
 its frozen embeddings determine the record scaler, as in the original fit.
+``embedding_pool/`` contains the complete original inference sequence, including
+held-out prefixes, without labels. Extraction preserves its order and batches
+of 32; the scaler still uses training patients only. Every task prefix must
+match its mapped pool prefix exactly, and the pool enters the content hash.
 """
 import json
 import hashlib
@@ -187,7 +191,7 @@ def dataset_content_hash(splits, task, disease):
     files += (['label_indptr.npy', 'label_tokens.npy'] if task == 'record' else
               ['clinical.npy', f'outcome_{disease}.npy', f'weight_{disease}.npy', f'eligible_{disease}.npy'])
     for name, split in sorted(splits.items()):
-        consumed = files[:4] if task == 'record' and name == 'preprocessing_train' else files
+        consumed = files[:4] if task == 'record' and name in ('preprocessing_train', 'embedding_pool') else files
         for file in sorted(consumed):
             path = split.root / split.split / file
             digest.update(f'{name}/{file}:{path.stat().st_size}:'.encode())

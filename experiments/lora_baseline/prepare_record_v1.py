@@ -123,6 +123,16 @@ def prepare(pilot, record, out):
             np.array_equal(np.maximum(reference.std(0), 1e-4), source_scale['sd'])):
         raise ValueError('All-training scaler does not exactly match saved v1 statistics')
     provenance['record/standardization.npz'] = sha256(record / 'standardization.npz')
+    # Preserve the ORIGINAL 32-row extraction batches, including rows excluded
+    # from supervised targets. Splitting first changes partial-batch kernels.
+    folder = staging / 'embedding_pool'
+    folder.mkdir()
+    idx, age, typ = pack_prefixes(rows, offsets, np.arange(len(targets)),
+                                 targets.patient_id_dense.to_numpy(), targets.index_age_days.to_numpy())
+    for name, values in dict(idx=idx, age=age, token_type=typ,
+                             patient_id=targets.person_id.to_numpy(np.int64),
+                             frozen_embeddings=np.asarray(embeddings)).items():
+        np.save(folder / (name + '.npy'), values)
     baseline = pd.read_parquet(record / 'paths50/predictions.parquet')
     ids = np.load(staging / 'test/patient_id.npy')
     if not baseline.person_id.is_unique or set(baseline.person_id) != set(ids):
@@ -138,6 +148,7 @@ def prepare(pilot, record, out):
     selection = json.loads((record / 'model_selection.json').read_text())
     metadata = dict(task='record', source='saved next_record_bundle_20260908_v1',
                     preprocessing_train_patients=len(chosen),
+                    embedding_pool_patients=len(targets), embedding_batch_size=32,
                     source_sha256=provenance, counts=counts, selected_v1_head=selection['chosen'],
                     prefix_rule='Saved observed prefix through index date, stored token ID + 1; right padding',
                     label_rule='Saved first future DX/RX/PX day bundle; nonempty target cohort',
@@ -146,6 +157,7 @@ def prepare(pilot, record, out):
     (staging / 'dataset.json').write_text(json.dumps(metadata, indent=2) + '\n')
     splits = {s: PrefixSplit(staging, s) for s in counts}
     splits['preprocessing_train'] = PrefixSplit(staging, 'preprocessing_train')
+    splits['embedding_pool'] = PrefixSplit(staging, 'embedding_pool')
     hash_start = time.perf_counter()
     digest = dataset_content_hash(splits, 'record', None)
     report = dict(status='PREPARED_NOT_REPRODUCED', counts=counts, classes=len(classes),

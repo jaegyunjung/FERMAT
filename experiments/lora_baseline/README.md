@@ -22,7 +22,11 @@ metrics.py                 Recall@K / F1 / precision / hit, weighted AUROC and B
 common.py                  model, accumulation, checkpoint and provenance plumbing
 gates.py                   target-content and experiment-identity verification
 recipes.py                 audited v1 preprocessing, seed/order and selection
+tracking.py                aggregate-only W&B and durable local JSONL (optional)
+runtime_guard.py           optional current-boot WSL GPU profile and new host-event checks
 audit_v1.py                synthetic parity audit against local original source
+audit_record_embeddings.py guarded original-batch/exported-batch CUDA BF16 parity
+audit_record_ties.py        saved-head comparison of seeded and stable tie rules
 prepare_record_v1.py       verify and export saved record prefixes, labels and 50-path baseline outside Git
 prepare_risk_baselines.py  verify published fixed-C10 artifacts and export comparison probabilities outside Git
 train_record.py            task R: items on the first clinical date after the history
@@ -85,7 +89,10 @@ Optional original-source audit (requires pandas):
 python audit_v1.py --reference-dir /path/to/original/scripts --out /tmp/v1_audit.json
 ```
 
-Version .4 fixes risk v1 at C=10 with 200 updates and checks that policy in the
+Version .5 restores the original record scaler cohort: all 19,992 training
+patients, including patients without a next-record target. Real record exports
+must contain `preprocessing_train/`; only 18,474 observed-target patients enter
+head optimization. It invalidates .4 gates. Version .4 fixes risk v1 at C=10 with 200 updates and checks that policy in the
 gate. Grid selection requires `--recipe experimental`; it cannot issue a real
 gate. Version .3 introduced the corrected preprocessing. Regenerate old
 gates/checkpoints. Use an empty output directory per run. Prediction reads
@@ -97,3 +104,18 @@ Every run writes `summary.json`, a per-patient test CSV and `trainable_state.pt`
 (adapters, head and preprocessing constants; `predict.py` reproduces the run's
 test outputs from it). Commit only `summary.json` and `gate.json` files, under
 `results/`.
+
+For a source-faithful head diagnostic, use `--recipe diagnostic_v1
+--embeddings-cache /path/to/export`; this keeps historical seed/order and
+hyperparameters but cannot authorize LoRA. Then run fresh `--recipe v1
+--reference-embeddings /path/to/export --batch-size 32`: the reference check
+compares every extracted embedding before fitting. Head training remains batch
+256. See the preparation report for the expanded-cohort gate restriction.
+
+Optional tracking: install `requirements-tracking.txt`, then pass `--tracking
+online --wandb-entity YOUR_ENTITY --run-name YOUR_NAME`. Only explicitly selected
+numeric aggregates and non-patient run configuration are sent. Code, console,
+automatic metadata/statistics and model/data artifacts are disabled. Local
+`tracking/aggregate_history.jsonl` survives connection failures. The local
+`tracking.json` distinguishes connection/finish failures; do not equate a local
+write with confirmed remote delivery. `--tracking offline` never syncs online.

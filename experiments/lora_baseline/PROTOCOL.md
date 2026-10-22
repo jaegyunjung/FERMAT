@@ -309,3 +309,11 @@ historical-reference versus new-pool compatibility. Do not bypass the check or
 relabel an experimental 100k head as v1. Shared risk embedding caching is also
 deferred; its future key must bind model, prefix content, precision and extraction
 semantics, independently of disease-specific outcomes and eligibility.
+
+Before a risk gate, require exact float64 agreement of the clinical median,
+mean and standard deviation with the saved fixed-C10 transform; FP32 transformed
+training features must agree exactly in an independent source comparison, and
+saved-model probability replay must have maximum absolute error <=1e-6.
+Treat any failure as a preprocessing/identity diagnostic, not a reason to tune
+test thresholds. Cold-cache hashing duration must be reported separately from
+the existing record warm-cache measurement.

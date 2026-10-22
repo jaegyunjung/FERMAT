@@ -44,6 +44,24 @@ def load_diagnostic_embeddings(root, splits, rows, width):
         result[name], hashes[name] = np.asarray(values[rows[name]]), sha256(path)
     return result, hashes
 
+
+def attach_embedding_pool(splits, root, block_size):
+    """Bind the original inference batching context to each supervised prefix."""
+    pool = PrefixSplit(root, 'embedding_pool', block_size)
+    position = {int(pid): i for i, pid in enumerate(pool.patient_id)}
+    mappings = {}
+    for name, split in splits.items():
+        if not np.isin(split.patient_id, pool.patient_id).all():
+            raise ValueError('Missing patient in original embedding pool')
+        mapped = np.array([position[int(pid)] for pid in split.patient_id])
+        for start in range(0, len(mapped), 512):
+            for attr in ('idx', 'age', 'token_type'):
+                if not np.array_equal(getattr(split, attr)[start:start+512], getattr(pool, attr)[mapped[start:start+512]]):
+                    raise ValueError('Embedding pool prefixes differ from task split')
+        mappings[name] = mapped
+    splits['embedding_pool'] = pool
+    return mappings
+
 def main():
     parser = common.add_common_arguments(argparse.ArgumentParser(description=__doc__))
     add_tracking_arguments(parser)
@@ -94,6 +112,13 @@ def main():
         splits['preprocessing_train'] = pool
     elif args.smoke_random_init is None:
         raise ValueError('Real record runs require the original all-training preprocessing pool')
+    pool_mapping = None
+    if (args.data / 'embedding_pool').exists():
+        pool_mapping = attach_embedding_pool(splits, args.data, model.config.block_size)
+        if args.batch_size != 32:
+            raise ValueError('Original record embedding-pool execution requires --batch-size 32')
+    elif args.smoke_random_init is None:
+        raise ValueError('Real record runs require the original embedding_pool batch context')
     classes_path = args.classes or (args.data / 'classes.npy' if (args.data / 'classes.npy').exists()
                                     else args.release / 'artifacts/head_classes.npy')
     classes = np.load(classes_path, allow_pickle=False).astype(np.int64)
@@ -120,12 +145,17 @@ def main():
     split_rows = dict(train=train_rows, validation=val_rows, test=test_rows)
     if 'preprocessing_train' in splits:
         split_rows = dict(preprocessing_train=np.arange(len(splits['preprocessing_train'])), **split_rows)
+    if pool_mapping is not None:
+        split_rows = dict(embedding_pool=np.arange(len(splits['embedding_pool'])), **split_rows)
     frozen = {}
     if args.embeddings_cache is not None:
         frozen, hashes = load_diagnostic_embeddings(args.embeddings_cache, splits, split_rows, model.config.n_embd)
         log['fingerprint']['diagnostic_cache_sha256'] = hashes
     else:
         for name, rows in split_rows.items():
+            if name != 'embedding_pool' and pool_mapping is not None:
+                frozen[name] = frozen['embedding_pool'][pool_mapping[name][rows]]
+                continue
             if name == 'train' and 'preprocessing_train' in frozen:
                 positions = {int(pid): i for i, pid in enumerate(splits['preprocessing_train'].patient_id)}
                 frozen['train'] = frozen['preprocessing_train'][[positions[int(pid)] for pid in splits['train'].patient_id[train_rows]]]
