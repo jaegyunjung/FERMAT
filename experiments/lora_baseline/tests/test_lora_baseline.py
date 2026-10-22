@@ -401,6 +401,12 @@ class PipelineSmokeTests(unittest.TestCase):
                     manifest = json.loads((folder / 'last_training.json').read_text())
                     return torch.load(folder / manifest['checkpoint'], weights_only=True)
                 a, b = latest(full), latest(resumed)
+                for folder, state in ((full, a), (resumed, b)):
+                    history = [json.loads(line) for line in
+                               (folder / 'tracking/aggregate_history.jsonl').read_text().splitlines()]
+                    updates = [row['progress/optimizer_steps'] for row in history
+                               if 'progress/optimizer_steps' in row]
+                    self.assertEqual(updates[-1], state['optimizer_steps'])
                 for field in ('current_state', 'optimizer', 'best_state', 'best', 'since_best', 'optimizer_steps', 'rng'):
                     same(a[field], b[field])
                 for epoch_a, epoch_b in zip(a['epochs'], b['epochs']):

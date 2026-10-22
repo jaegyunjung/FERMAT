@@ -322,7 +322,8 @@ def main():
         print(json.dumps(log['epochs'][-1]), flush=True)
         epoch_seconds = time.perf_counter() - epoch_started
         log['epochs'][-1]['epoch_seconds'] = epoch_seconds
-        tracker.log({'progress/epoch': epoch, 'train/bce': log['epochs'][-1]['train_bce'],
+        tracker.log({'progress/epoch': epoch, 'progress/optimizer_steps': accumulator.steps,
+                     'train/bce': log['epochs'][-1]['train_bce'],
                      'validation/recall_at_10': recall, 'validation/bce': bce,
                      'time/epoch_seconds': epoch_seconds,
                      'time/max_remaining_training_seconds': epoch_seconds * (cfg['epochs'] - epoch)})
