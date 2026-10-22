@@ -1,8 +1,8 @@
-# PR #2: 실제 재현과 LoRA 실행 준비 — 2026-10-22
+# PR #2 실행 준비 및 재현 상태 — 2026-10-22
 
-현재 상태는 **입력 준비 및 코드 검증 완료, 실제 재현 gate와 LoRA 학습 미실행**이다.
-아래 저장 결과 수치는 기존 v1 산출물을 확인한 값이며 새 실험 결과가 아니다.
-프로토콜 버전은 `2026-10-22.4`. PR은 draft로 유지한다.
+**기록 과제 v1 실제 재현 gate 통과. 질병 과제 gate와 LoRA 학습은 아직 실행하지 않았다.**
+프로토콜은 `2026-10-22.5`이며 PR은 draft다. 상세 결과, 실패 진단과 수정 이력,
+실측 시간 및 W&B 링크는 [RUN_RESULTS_KO.md](RUN_RESULTS_KO.md)에 있다.
 
 ## 1. 논문과 실행 경로 대조
 
@@ -25,32 +25,28 @@ C=10은 기존 결과를 검토한 후 정한 수정 사항이므로 사전 지�
 재현 명령에 seed 20260909를 명시한다. 다른 두 역사적 seed도 코드에서 허용하지만,
 이는 원래의 linear/MLP × 3 seed 선택 전체를 다시 수행한 것과 같지 않다.
 
-## 2. 이번에 실제 준비한 것
+## 2. 현재 사용해야 할 입력
 
-환자 자료는 모두 Git 밖에 있다. WSL 기준 준비 폴더:
-`/home/fermat/fermat-data/restricted/lora_baseline_20261022/`
+WSL 제한 폴더 `PREP=/home/fermat/fermat-data/restricted/lora_baseline_20261022`.
+환자 자료, 임베딩, 예측, 가중치는 모두 Git 밖에 둔다.
 
-| 산출물 | 현재 확인한 내용 |
+| 폴더 | 용도 |
 |---|---|
-| `record_v1/` | train 18,474명, validation 1,867명, test 1,862명; vocabulary 17,460개; prefixes/정답/원본 순서 보존 |
-| `record_v1/baseline_rollout50.csv` | 시험 1,862명 모두 일치; Recall@10 평균 70.9954203%; 새 코드와 같은 % 단위로 변환 |
-| `record_v1/*/frozen_embeddings.npy` | 기존 임베딩의 동일 행을 복사한 대조용 파일. 학습 스크립트는 아직 이 cache를 소비하지 않음 |
-| `risk_baselines/{ckd,fatty_liver,diabetes}_v1_probabilities.csv` | 고정 C=10 표현 예측기의 기존 시험 10,000명 확률; 새 모델 결과 아님 |
-| 각 준비 폴더 `preparation.json` | 원본 해시, 환자 수, 작업 상태. 환자별 행은 포함하지 않음 |
-| `release_cpu_preflight.json` | 릴리스 artifact 6개 해시 일치, 실제 가중치 로딩 및 6명 CPU forward 정상 |
+| `record_v1_original_batches/` | 최종 기록 입력: 학습 18,474명, 검증 1,867명, 시험 1,862명; vocabulary 17,460개 |
+| 그 안의 `preprocessing_train/` | 원본 학습 환자 19,992명 전원으로 정규화 통계 계산; 정답 없는 환자 포함 |
+| 그 안의 `embedding_pool/` | 원본 23,991명 순서, batch 32를 보존하는 추출 전용 입력; held-out 자료는 정규화 학습에 사용하지 않음 |
+| 각 split의 `frozen_embeddings.npy` | 원본 저장 임베딩; diagnostic_v1 입력 또는 fresh v1의 대조 기준 |
+| `baseline_rollout50.csv` | 기존 생성 50경로 시험 1,862명, 평균 Recall@10 70.9954203%; 신규 생성 결과 아님 |
+| `risk_baselines/` | 기존 C10 표현 모델의 시험 10,000명 확률 CSV; 질병 학습 입력이 아님 |
 
-기록 export는 약 286 MB(대조용 임베딩 포함)다. `PrefixSplit` 검증을 통과했으며,
-전체 입력 content hash는
-`3bba0fedeec726ede3cbab579eaac0d67c8cd4c438abdc7e41ecd596147e4835`다.
-이번 warm-cache 전체 content hash 읽기는 약 0.09초였다. 더 큰 질병 코호트나
-cold cache의 시간 추정에 그대로 적용하지 않는다. 매 학습 실행의 전체 입력 해시
-읽기 시간도 `gate_identity.dataset_hash_seconds`에 기록한다.
+최종 기록 export는 848,899,736 bytes(약 849 MB)다. 입력 content hash는
+`5eb20ab9b04a1619711733dca0db67332cd3d0ecfbcccce233f8f7343b2b983e`.
+전체 hash 읽기는 warm cache에서 약 0.22초였다. cold cache나 질병 입력의
+시간으로 일반화하지 않는다. 매 실행 `dataset_hash_seconds`를 기록한다.
+기존 `record_v1/`, `record_v1_full_preprocessing/`는 초기 진단용으로 보존했으며,
+이 경로로 최종 gate를 실행하지 않는다. .3/.4 gate를 버전만 바꾸어 재사용하지 않는다.
 
-CPU FP32 임베딩 6개와 저장 CUDA BF16 임베딩의 최소 cosine은 0.999959,
-최대 절대 차이는 0.02714 미만이었다. 이는 진단용이며 BF16 재현 통과 증거가 아니다.
-동일 CUDA BF16 설정과 batch 구성을 맞춘 비교가 남았다.
-
-검증한 기존 표현 예측기 결과:
+기존 고정 C10 결과(새 재현 결과 아님):
 
 | 질환 | 학습 적격 / 관측 | 검증 적격 / 관측 | 시험 적격 / 관측 | AUROC | Brier |
 |---|---:|---:|---:|---:|---:|
@@ -58,79 +54,63 @@ CPU FP32 임베딩 6개와 저장 CUDA BF16 임베딩의 최소 cosine은 0.9999
 | 지방간 | 253,697 / 145,782 | 54,319 / 31,461 | 9,632 / 5,578 | 0.7519826423 | 0.0272524609 |
 | 당뇨병 | 235,670 / 133,947 | 50,477 / 28,974 | 8,858 / 5,082 | 0.7840186600 | 0.0451849993 |
 
-CPU 자동 테스트 37개가 torch `2.12.1+cu132`에서 통과했다.
-다른 환경의 torch 2.14.1 검증 결과로 표현하지 않는다.
+## 3. 다음 실행 순서와 중단 조건
 
-## 3. 아직 필요한 것과 실행 순서
+1. **기록 LoRA 소량 실행:** 현재 동일 dataset/model/precision의 .5 gate를 먼저 검증한다.
+   소량 실행에서 속도·메모리를 측정한 뒤 전체 epoch/seed 소요 시간을 계산한다.
+   본 실험 비교 arm과 seed 1, 2, 3을 고정한다. 이번 작업에서는 LoRA를 시작하지 않았다.
+2. **질병 학습 입력 export:** 원본 `task30_d3_final_analysis_20260901_v1/preopen/`
+   코호트·정답, `embeddings/fermat_embeddings_20180101_5y_last.parquet`,
+   `final_evaluation_v2_raw_dx/restricted_patient_level/selected_test_outcomes_raw_dx_once.parquet`
+   를 대조한다. 마지막 512 prefix, 임상변수 4개, eligibility, observed status, ipcw를
+   보존한다. `eligible = weight > 0`으로 만들지 않는다.
+3. **질병 전처리·확률 검증:** 저장 C10 임상변수 중앙값/평균/표준편차의 float64 완전 일치,
+   독립 원본 함수 대비 FP32 특징 완전 일치, 저장 모델 확률 replay 최대 절대 오차
+   ≤1e-6을 요구한다. 실패하면 원인을 설명하고 gate를 실행하지 않는다.
+4. **질병 C10 gate:** 전체 적격 학습 집단으로 전처리, 관측 집단으로 C10·200회
+   전체 배치 학습. AUROC와 Brier를 모두 검사한다. 실제 자료에서 아직 미검증이다.
+   반복 추출을 줄이는 질병 공용 cache는 미구현이다. 향후 모델·prefix 내용·정밀도·
+   추출 설정으로 키를 만들고 질환별 eligibility/정답과 분리해 검증한다.
+5. **100k 확대:** 기존 `weekend_head_scaling_20260912_v1/n100000` 명단부터 검증하고
+   새로운 prefix export가 필요하다. validation/test가 같아도 training content hash가
+   달라지므로 현재 기록 gate를 재사용할 수 없다. 역사적 reference와 확대 pool의
+   호환성을 검사하는 별도 프로토콜 개정·테스트 전까지 100k LoRA는 보류한다.
 
-1. **동일 CUDA BF16 임베딩 확인.** 기존 batch 32 구성과 입력 순서를 맞춰
-   저장 임베딩과 대조한다. 차이가 나면 release 모델, 마지막 hidden state,
-   attention mask, dtype부터 확인한다. 위 CPU 비교를 gate로 사용하지 않는다.
-2. **기록 v1 재학습 및 gate.** 아래 명령의 seed 20260909, batch 256,
-   v1 설정을 사용한다. `--batch-size 32`는 추출/점수 계산용이며, head 학습 batch는
-   v1 recipe에서 256으로 고정된다. 먼저 `--recipe diagnostic_v1 --embeddings-cache`
-   실행으로 저장 임베딩 위의 동일 레시피를 진단한다. 일반 experimental은 epoch
-   순서까지 달라지므로 이 진단에 사용하지 않는다. diagnostic_v1은 gate를 발급하지 못한다.
-   stable ranking tie 처리는 원본과 다른 점이므로
-   저장 예측과 환자별 차이를 별도로 정리한다. gate 실패 시 LoRA를 시작하지 않는다.
-3. **질병 입력 export.** `task30_d3_final_analysis_20260901_v1` 아래 원본
-   `preopen/d3_preindex_cohort_train_val_testselected.parquet`,
-   `preopen/d3_train_validation_outcomes.parquet`,
-   `embeddings/fermat_embeddings_20180101_5y_last.parquet`가 로컬에 있다.
-   시험 정답은 `final_evaluation_v2_raw_dx/restricted_patient_level/selected_test_outcomes_raw_dx_once.parquet`다.
-   원본 `observed_status`/`ipcw` 정의를 따라 eligible, outcome, weight를 만들고,
-   임상변수 4개와 원본 마지막 512행 prefix를 연결한다. 가중치/임상변수 float64를 보존한다.
-   `eligible = weight > 0`으로 만들면 안 된다. 위 표의 수와 저장 C10 전처리
-   통계·확률을 대조한다. **현재 `risk_baselines`는 학습 dataset이 아니다.**
-4. **질병별 전체 집단 C10 gate.** AUROC와 Brier를 모두 검사한다. 시험 결과에
-   맞추어 C, cohort, 허용오차를 조절하지 않는다.
-5. **비교할 학습 환자 목록 고정.** 현재 기록 입력은 18,474명이다.
-   기존 `weekend_head_scaling_20260912_v1/n100000`의 contract/선택 결과/예측 파일은
-   있으나, 10만 명 prefix export 및 기존 명단 대조는 아직 하지 않았다.
-   18,474명 입력에 `--train-subset 100000`을 주거나 새로 임의 추출하지 않는다.
-   **현재 .4 프로토콜은 확장된 학습 pool에 기존 gate 재사용을 허용하지 않는다.**
-   validation/test가 같아도 전체 content hash가 바뀐다. 이번 실행 범위는 18,474명이며,
-   100k 비교는 새 학습 pool과 역사적 reference cohort를 각각 검증하는 gate 설계 및
-   회귀 테스트를 별도 프로토콜 개정으로 확정할 때까지 보류한다. experimental head를
-   v1으로 이름만 바꾸거나 hash 검사를 우회하지 않는다.
-   질병의 10만 명 실험도 질환별 관측 환자 명단을 고정하고 두 arm이 공유해야 한다.
-6. **GPU 소량 실행 후 본 실험.** 일치하는 gate가 생긴 뒤 한 seed의 작은 실행으로
-   메모리와 step 시간을 측정한다. 이후 사전 고정한 arm/seed 1, 2, 3을 실행한다.
-   원래 head/rollout 결과는 덮어쓰지 않는다. 본 실험 전 WSL GPU probe,
-   다른 작업·Windows 재시작 예약·장시간 실행 guard와 모니터링을 확인한다.
+실행 중 입력 불일치, GPU 한계 초과, 새 WHEA/driver/System 오류 또는 재부팅 대기
+상태가 발견되면 중단한다. 기존 결과는 덮어쓰지 않는다. 테스트 결과에 맞춰
+허용오차, C, 코호트 또는 seed를 바꾸지 않는다.
 
-이번에는 GPU 학습을 시작하지 않았다. 최초 `nvidia-smi`에서 RTX 5090 32 GB,
-사용 약 2.2 GB, 실행 중 학습 Python 프로세스 없음이 관찰됐지만 이는 순간 상태다.
-장시간 실행 적합성이나 소요 시간의 실측을 뜻하지 않는다.
+## 4. 기록 재실행 명령 (WSL bash)
 
-## 4. 재실행 명령 (WSL bash)
-
-아래 경로는 현재 PC의 로컬 배치다. 다른 호스트에서는 위치를 바꾼다.
-export가 이미 있으면 스크립트가 실패한다. 재검사 때문에 기존 결과를 지우지 않는다.
+현재 PC의 경로이며 다른 호스트에서는 바꾼다. OUT은 항상 새로운 빈 경로를 쓴다.
+W&B에는 집계 지표와 선택한 비환자 설정만 보낸다. 원자료·예측·모델·코드·콘솔은
+업로드하지 않으며, 업로드 실패 시 로컬 JSONL을 보존한다.
 
 ```bash
+export OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 WANDB_ERROR_REPORTING=false
 PY=/home/fermat/venvs/fermat/bin/python
 CODE=/mnt/c/Users/HP/.codex/worktrees/lora-reproduction-refactor/FERMAT/experiments/lora_baseline
-BASE=/home/fermat/fermat-data/restricted/task30_local_v1
 PREP=/home/fermat/fermat-data/restricted/lora_baseline_20261022
+DATA=$PREP/record_v1_original_batches
 RELEASE=/mnt/c/Users/HP/Documents/FERMAT/exports/FERMAT_SNUH_20261021_compared/FERMAT_SNUH_20261021
+PROFILE=/mnt/c/Users/HP/Documents/FERMAT/reports/ethos_disease_comparison_20260914/crash_20260914/clock_setting.json
+OUT=$PREP/runs/record_v1_new_run
 
-# 이미 완료한 export. 새로 만들 때만 비어 있는 별도 --out을 사용한다.
-$PY "$CODE/prepare_record_v1.py" \
-  --pilot "$BASE/token_time_application_pilot_20260908_v1" \
-  --record "$BASE/next_record_bundle_20260908_v1" --out "$PREP/record_v1"
-$PY "$CODE/prepare_risk_baselines.py" \
-  --fixed-dir "$BASE/task30_d3_final_analysis_20260901_v1/fixed_c10_20260909" \
-  --publication-evidence /mnt/c/Users/HP/Documents/FERMAT/reports/genai4health_paper_20260908/build/fixed_c10_analysis.json \
-  --out "$PREP/risk_baselines"
+# 먼저 저장 임베딩으로 head 레시피만 진단: gate를 발급하지 않는다.
+$PY "$CODE/train_record.py" --release "$RELEASE" --data "$DATA" \
+  --out "${OUT}_diagnostic" --arm head_only --recipe diagnostic_v1 \
+  --embeddings-cache "$DATA" --seed 20260909 --batch-size 32 --device cuda --bf16 \
+  --gpu-profile "$PROFILE" --tracking online \
+  --wandb-entity jaegyunjung-seoul-national-university-hospital
 
-# 아래 학습 명령은 CUDA BF16 대조 및 GPU 실행 전 확인을 마친 뒤 실행한다.
-$PY "$CODE/train_record.py" --release "$RELEASE" --data "$PREP/record_v1" \
-  --out "$PREP/runs/record_v1_seed20260909" --arm head_only --recipe v1 \
-  --seed 20260909 --batch-size 32 --device cuda --bf16
-$PY "$CODE/check_gate.py" --summary "$PREP/runs/record_v1_seed20260909/summary.json" \
-  --out "$PREP/runs/record_v1_gate.json"
+# 신규 추출의 전체 임베딩 대조가 통과해야 head 학습을 시작한다.
+timeout --kill-after=15s 1200s $PY "$CODE/train_record.py" \
+  --release "$RELEASE" --data "$DATA" --out "$OUT" --arm head_only --recipe v1 \
+  --reference-embeddings "$DATA" --seed 20260909 --batch-size 32 --device cuda --bf16 \
+  --gpu-profile "$PROFILE" --tracking online \
+  --wandb-entity jaegyunjung-seoul-national-university-hospital
+$PY "$CODE/check_gate.py" --summary "$OUT/summary.json" --out "${OUT}_verified_gate.json"
 ```
 
-완료 기준은 새로운 학습의 `summary.json`과 같은 입력/모델/정밀도를 식별하는
-통과 `gate.json`이다. 기존 원고의 성능표나 이번 준비 보고서로 대체하지 않는다.
+`--batch-size 32`는 추출·점수 계산용이다. head 학습 batch 256은 v1 recipe가 고정한다.
+현재 부팅 후 검증한 GPU profile이 필요하며, 재부팅 뒤 예전 profile을 그대로 쓰지 않는다.

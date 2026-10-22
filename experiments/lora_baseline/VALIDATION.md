@@ -1,10 +1,10 @@
 # Refactor validation — 2026-10-22
 
 Base commit: `b1dd40c753c5aa9aea1d1a67e309dead531c8d9d`.
-Protocol: `2026-10-22.4`. The automated tests below use synthetic inputs and
-random weights only. Separate local preparation used saved private artifacts
-and released weights on CPU; see PREPARATION_KO.md. No actual head fitting or
-LoRA training has run. Actual v1 reproduction remains pending.
+Protocol: `2026-10-22.5`. The automated tests below use synthetic inputs and
+random weights only. Actual CUDA record reproduction is documented separately
+in RUN_RESULTS_KO.md; do not confuse it with the synthetic suite. Disease
+reproduction and LoRA training remain pending.
 
 ## Reproducible checks
 
@@ -17,7 +17,7 @@ python experiments/lora_baseline/audit_v1.py \
   --reference-dir /path/to/original/scripts --out /tmp/v1_audit.json
 ```
 
-The suite contains 37 tests, including both task pipelines, gate issuance and
+The suite contains 44 tests, including both task pipelines, gate issuance and
 rejection, checkpoint reload in separate processes, unchanged frozen weights,
 partial/unequal gradient accumulation, historical seed/order and preprocessing,
 eligibility validation, changed data, modified target files, output protection,
@@ -25,6 +25,11 @@ wrong-base checkpoint rejection, and import-safe command entry points.
 The added regressions cover fixed C=10, rejection of a matching-metric gate
 from grid selection/wrong C, saved prefix mapping and cutoff checks, and
 refusal to export patient data into Git or overwrite an existing export.
+Additional checks cover diagnostic-only gates, cache patient order, aggregate
+tracking restrictions, GPU limits, normalization over unlabeled training patients,
+original inference-pool mapping/content integrity, and Windows-worktree revision
+lookup from WSL. The suite passed in
+28.859 seconds.
 These results are from torch 2.12.1, not the other agent's torch 2.14.1 environment.
 
 The original review's weighted gradient (-0.4) and trailing accumulation (-2)
@@ -66,5 +71,6 @@ from this synthetic validation.
 
 Old gates/checkpoints must be regenerated. The linear record baseline does not
 repeat the original linear/MLP architecture search. Stable record ranking ties
-are an explicit difference whose effect on the actual cohort is still unknown.
+remain an explicit implementation difference. The saved-head audit on all 1,862
+test patients found no boundary ties, changed top-10 sets or Recall@10 change.
 Interrupted-training resume is not implemented; use a fresh output folder.

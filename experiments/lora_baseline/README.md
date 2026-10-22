@@ -50,7 +50,7 @@ R=/path/to/unpacked/FERMAT_SNUH_20261021_compared   # holds artifacts/model.pt
 D=/path/to/exported/record_dataset                   # data.py layout
 
 # Task R: reproduction arm, gate, then LoRA arm (seed 1)
-python train_record.py --release $R --data $D --out runs/record/head_only_v1 --arm head_only --recipe v1 --seed 20260909 \
+python train_record.py --release $R --data $D --out runs/record/head_only_v1 --arm head_only --recipe v1 --seed 20260909 --batch-size 32 \
     --train-patient-ids /path/to/v1_record_train_ids.npy --device cuda --bf16
 python check_gate.py --summary runs/record/head_only_v1/summary.json --out runs/record/gate.json
 python train_record.py --release $R --data $D --out runs/record/lora_s1 --arm lora --seed 1 --gate runs/record/gate.json \
@@ -62,16 +62,17 @@ python predict.py --release $R --data $D --state runs/record/lora_s1/trainable_s
 E=/path/to/exported/risk_dataset
 python train_risk.py --release $R --data $E --out runs/risk/ckd/head_only_full --arm head_only --disease ckd --device cuda --bf16
 python check_gate.py --summary runs/risk/ckd/head_only_full/summary.json --out runs/risk/ckd/gate.json
-python train_risk.py --release $R --data $E --out runs/risk/ckd/head_only_100k --arm head_only --disease ckd \
+python train_risk.py --release $R --data $E --out runs/risk/ckd/head_only_100k --arm head_only --recipe experimental --disease ckd \
     --train-patient-ids /path/to/risk_train_100k_ids.npy --device cuda --bf16
 python train_risk.py --release $R --data $E --out runs/risk/ckd/lora_s1 --arm lora --disease ckd --seed 1 --gate runs/risk/ckd/gate.json \
     --train-patient-ids /path/to/risk_train_100k_ids.npy --device cuda --bf16 \
     --baseline-probabilities runs/risk/ckd/head_only_100k/test_patient_probabilities.csv --baseline-label head_only
 ```
 
-Local source comparison is recorded in PROTOCOL.md Section 12. Actual cohort
-and embedding parity and the real reproduction gate remain pending. Synthetic
-tests and source parity do not establish actual v1 reproduction.
+Local source comparison is recorded in PROTOCOL.md Section 12. Actual record
+CUDA BF16 reproduction passed; see RUN_RESULTS_KO.md and results/record_v1_20261022/.
+Disease reproduction and all LoRA runs remain pending. Synthetic tests alone
+do not establish actual v1 reproduction.
 
 Risk exports require boolean `eligible_<disease>.npy` per split. Preprocessing
 uses all eligible training patients, including censored patients; optimization
@@ -92,7 +93,11 @@ python audit_v1.py --reference-dir /path/to/original/scripts --out /tmp/v1_audit
 Version .5 restores the original record scaler cohort: all 19,992 training
 patients, including patients without a next-record target. Real record exports
 must contain `preprocessing_train/`; only 18,474 observed-target patients enter
-head optimization. It invalidates .4 gates. Version .4 fixes risk v1 at C=10 with 200 updates and checks that policy in the
+head optimization. Also supply `embedding_pool/` containing all 23,991 original
+inference rows: it preserves the original batch-32 composition, including the
+final partial batch. This pool is only used for inference, not for fitting the
+scaler. Both pools are bound to the dataset identity. It invalidates .4 gates.
+Version .4 fixes risk v1 at C=10 with 200 updates and checks that policy in the
 gate. Grid selection requires `--recipe experimental`; it cannot issue a real
 gate. Version .3 introduced the corrected preprocessing. Regenerate old
 gates/checkpoints. Use an empty output directory per run. Prediction reads
@@ -101,8 +106,10 @@ Interrupted-run resume is not implemented. No actual patient-data training
 has been performed by these tests.
 
 Every run writes `summary.json`, a per-patient test CSV and `trainable_state.pt`
-(adapters, head and preprocessing constants; `predict.py` reproduces the run's
-test outputs from it). Commit only `summary.json` and `gate.json` files, under
+(adapters, head and preprocessing constants). Synthetic `predict.py` reload is
+tested; real BF16 replay across arbitrary batch contexts is not guaranteed.
+See RUN_RESULTS_KO.md for the original-pool requirement. Commit only
+`summary.json` and `gate.json` files, under
 `results/`.
 
 For a source-faithful head diagnostic, use `--recipe diagnostic_v1

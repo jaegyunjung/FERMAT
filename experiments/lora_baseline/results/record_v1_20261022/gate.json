@@ -1,0 +1,37 @@
+{
+  "passed": true,
+  "risk_regularization": null,
+  "custom_targets": false,
+  "targets_sha256": "a29e1b7f51ab8c5482c030d8d8dd48fd48e5fdcf6d9baddb16562b313fb1620e",
+  "recipe": "v1",
+  "missing_required_metrics": [],
+  "checks": [
+    {
+      "metric": "test.recall_at_10",
+      "value": 55.68168739085007,
+      "expected": 55.68,
+      "tolerance": 1.0,
+      "passed": true
+    }
+  ],
+  "identity": {
+    "dataset_content_sha256": "5eb20ab9b04a1619711733dca0db67332cd3d0ecfbcccce233f8f7343b2b983e",
+    "dataset_hash_seconds": 0.22178420199998072,
+    "precision": "bf16",
+    "protocol_version": "2026-10-22.5",
+    "task": "record",
+    "disease": null,
+    "smoke": false,
+    "model_sha256": "fccf4a76f2d44a86ac121c52e5c444be0e63904f64e47fb4f804e21458dbd865",
+    "dataset_metadata_sha256": "4cd2a0391dcaacd7c0d018aca487554a322c7f5d9b889f70ba0bc4abd31f45ce",
+    "validation_patient_ids_sha256": "605bb8560a436c110cd42f6180c2411c45b82549d5c3495b858d20a62f4ce6c4",
+    "test_patient_ids_sha256": "22baead3c3c08db7495753b5a8344a8d2534f77c05f973831812a9a8416ac9af",
+    "label_definition_sha256": "ad373c328ac438101af6d3cdfe0422b989942e73c046296e64b50ceac6aaa140",
+    "training_selection": "all",
+    "n_train": 18474,
+    "train_patient_ids_sha256": "c77be73d0c055c257bdcc92f164f3bfb466f11918740dea4581252f149ffb3e4"
+  },
+  "selected_epoch": 19,
+  "optimizer_steps": 2117,
+  "summary_git_commit": "3903e92f2f64b2511c1ce7220cd0f486cee0ce3b"
+}

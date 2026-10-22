@@ -1,12 +1,14 @@
-# LoRA fine-tuning baseline — protocol (drafted 2026-10-22, before any run)
+# LoRA fine-tuning baseline — protocol (drafted 2026-10-22; amended during reproduction)
 
 Protocol version `2026-10-22.5` (`common.PROTOCOL_VERSION`); gates record it and
 a run refuses a gate from another version.
 
-**Status: synthetic implementation checks passed; actual v1 reproduction pending.** No LoRA model has been trained on SNUH
-data as of this date. Everything below was fixed before the first GPU run; any
-later deviation must be recorded in the results document as a protocol change,
-and a result obtained after such a change is exploratory.
+No LoRA model has been trained on SNUH data as of this date. Version .5 restores
+the original record normalization cohort and inference batch context, based on
+source-code and saved-artifact comparisons during reproduction diagnostics.
+These amendments occurred after the initial diagnostics, not prospectively.
+See RUN_RESULTS_KO.md for execution evidence and amendment history. Changes to
+the experimental design after observing LoRA results must be labeled exploratory.
 
 ## 1. Why this experiment exists
 
@@ -59,9 +61,9 @@ not generators.
 | Loss definitions | record: BCE summed over the 17,460 output items, averaged over patients (v1). Risk: the full-cohort objective Σ w·BCE / Σ w; mini-batches use the fixed training-set mean weight as normaliser so that accumulation over patients recovers exactly that objective, never a per-batch weight sum |
 | Learning rates | adapters 2e-4; head 1e-3 (record), 1e-3 (risk, LoRA arm) |
 | Weight decay | 0.01 (record both arms, risk LoRA arm); 1e-5 (risk v1 head-only: fixed C=10 under 1e-4/C) |
-| Head input scale | fixed frozen-model statistics. Record: selected train cohort, sd lower bound 1e-4. Risk: all eligible training patients including censored patients, sd>1e-8 else1, finite-value median imputation. Both arms share the task-specific transform |
+| Head input scale | fixed frozen-model statistics. Record: all 19,992 original training patients, including those without targets, sd lower bound 1e-4. Risk: all eligible training patients including censored patients, sd>1e-8 else1, finite-value median imputation. Both arms share the task-specific transform |
 | Audit | after training every pre-injection tensor is checked bit-identical (`assert_base_unchanged`) |
-| Saved state | `trainable_state.pt` holds adapters, head, every standardisation constant (embedding mean/sd; clinical medians, mean/sd), the prediction vocabulary and the run configuration. `predict.py` rebuilds the predictor from this file alone in a separate process and must reproduce probabilities within absolute tolerance 1e-6 and record logits within rtol/atol 1e-5 across inference batch sizes; IDs, labels and weights match exactly |
+| Saved state | `trainable_state.pt` holds adapters, head, every standardisation constant, vocabulary and run configuration. Synthetic separate-process reload tests check probabilities at absolute tolerance 1e-6 and record logits at rtol/atol 1e-5, with exact IDs/labels/weights. Real CUDA BF16 replay must preserve the original inference batch context; arbitrary batch-size or split-only replay is not established by those tests |
 
 Sensitivity settings, run only after the primary analysis and reported as such:
 r = 32 with α = 64; targets `attention_mlp` (adds `mlp.c_fc`, `mlp.c_proj`).
@@ -248,8 +250,8 @@ implementation and recipe descriptions; it does not alter official gate targets.
 | Risk prediction | FP32 coefficients evaluated in float64, logits clipped[-40,40] | shared recipes.risk_probabilities |
 | Head-only clip/warm-up | absent in both originals | absent; incompatible real v1 overrides rejected |
 | Record architecture search | original included linear and mlp256, three seeds each | this protocol reproduces the linear baseline, not the full architecture search |
-| Record ties | original validation torch.topk, final metrics patient-seeded ties | intentional stable class-order ranking in new arms; actual effect unmeasured, no <=0.04pp guarantee |
-| Embedding extraction | original saved embeddings, token mapping, prefixes and precision | actual exported cohort/embedding parity still needs verification |
+| Record ties | original validation torch.topk, final metrics patient-seeded ties | stable class-order ranking; saved-head audit found 0 changed top-10 sets in 1,862 test patients; no general bound inferred |
+| Embedding extraction | original saved embeddings, token mapping, prefixes and precision | record: all 23,991 CUDA BF16 vectors exactly match saved values using original batch context; risk remains pending |
 | LoRA settings | no historical counterpart | new protocol |
 
 Source files in the original local checkout: `scripts/run_next_record_bundle.py`,
@@ -272,8 +274,8 @@ chosen after examining existing results; do not call it prospectively specified.
 Version .4 gates record fixed selection, candidate list [10], selected C=10,
 and 200 updates. Matching AUROC/Brier from another C or a grid is insufficient.
 
-Actual cohort export, frozen embedding parity and outcome/weight definitions
-remain to be checked. If a real gate fails, explain those differences; never
+Disease cohort export, frozen embedding parity and outcome/weight definitions
+remain to be checked. Record execution evidence is in RUN_RESULTS_KO.md. If a real gate fails, explain those differences; never
 tune the recipe or thresholds to the test result.
 
 ## 13. Migration and operational boundaries
@@ -301,6 +303,11 @@ gate. Fresh v1 runs can require `--reference-embeddings PATH`: all consumed
 embeddings must match at rtol=1e-5, atol=1e-6 before head fitting starts.
 Extraction/scoring uses `--batch-size 32`; historical head optimization remains
 batch 256. The preprocessing pool is hashed as part of the dataset identity.
+The separate `embedding_pool/` preserves all 23,991 original inference rows in
+their original order. Extract it once in batches of 32, then map embeddings to
+the labeled splits and the 19,992-patient training-only scaler pool. Its inputs
+must match all mapped task prefixes exactly and enter the dataset hash. Held-out
+rows in this inference pool never enter scaler fitting or optimization.
 
 The 18,474-patient gate does not authorize a new 100k export. Even unchanged
 validation/test IDs cannot compensate for a changed training-content hash.
