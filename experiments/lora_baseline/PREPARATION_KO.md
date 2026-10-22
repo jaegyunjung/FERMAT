@@ -350,3 +350,12 @@ Windows 업데이트 일시중지 기한은 조회 당시 이미 지났으며 OS
 
 순서와 검증 기준용 새 테스트 2개 통과. 학습 코드는 변경하지 않아 이전 59개 테스트와
 실제 CUDA 재개 감사 결과를 그대로 적용한다.
+
+
+## 8. 본 실험 완료 및 최종 분석 (2026-10-23)
+
+18회 모두 08:09:04 KST 완료, 전체 소요 10시간 37분 23초.
+W&B finished 18개, checkpoint/지표/원시 예측 정렬 및 bootstrap 독립 검증 통과.
+최종 결과와 논문/리뷰어 답변 제안은 `RISK_MAIN_RESULTS_KO.md`, 집계는
+`results/risk_main_20261022/summary.json`, 그림은 `figures/risk_lora_bootstrap_20261023.png`.
+위 7절의 실행 중 상태와 ETA는 과거 기록이다. 현재 실행 중인 본 실험은 없다.

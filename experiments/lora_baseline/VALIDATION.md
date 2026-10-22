@@ -11,8 +11,8 @@ Base commit: `b1dd40c753c5aa9aea1d1a67e309dead531c8d9d`.
 Protocol: `2026-10-22.5`. The automated tests below use synthetic inputs and
 random weights only. Actual CUDA record reproduction is documented separately
 in RUN_RESULTS_KO.md; do not confuse it with the synthetic suite. Disease
-C10 reproduction now passes for all three diseases; disease main LoRA training
-has not started. See PREPARATION_KO.md Section 6 for the actual CUDA evidence.
+C10 reproduction passes for all three diseases; all 18 disease main runs are
+complete. Final checkpoint/W&B/metric/bootstrap audits are in RISK_MAIN_RESULTS_KO.md. See PREPARATION_KO.md Section 6 for the actual CUDA evidence.
 The full record suite completed after review;
 final results and an independent bootstrap audit are recorded in RECORD_MAIN_PLAN_KO.md
 and results/record_main_20261022/summary.json.
@@ -103,3 +103,9 @@ test patients found no boundary ties, changed top-10 sets or Recall@10 change.
 Record epoch-boundary resume is implemented; use a fresh output folder. Real CUDA
 resume/reload evidence is recorded separately in CHECKPOINT_RESUME_KO.md. Risk
 resume and arbitrary BF16 batch-context replay remain outside this validation.
+
+Disease final-analysis verification (2026-10-23): two new summary tests pass
+(weighted ties/duplicate patient draws and independent bootstrap equivalence).
+All 18 real checkpoints and test metrics pass; all nine saved bootstrap results
+match independent recomputation within 1.23e-15. This is separate from the
+earlier synthetic training suite and the two queue tests.
