@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import subprocess
+import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tracking import Tracker
@@ -49,6 +51,46 @@ class DiagnosticsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'order'):
                 load_diagnostic_embeddings(tmp, {'train': SimpleNamespace(patient_id=np.array([1, 2]))},
                                            {'train': np.array([0, 1])}, 3)
+
+    def test_diagnostic_scaler_includes_training_patients_without_targets(self):
+        package = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data = root / 'data'
+            subprocess.run([sys.executable, str(package / 'make_synthetic_dataset.py'), '--out', str(data),
+                            '--patients', '8', '8', '8', '--max-length', '8'], check=True, capture_output=True)
+            config_path = package / 'tests/smoke_model_config.json'
+            config = json.loads(config_path.read_text())
+            width = config['n_embd']
+            for split in ('train', 'validation', 'test'):
+                np.save(data / split / 'frozen_embeddings.npy', np.zeros((8, width), dtype=np.float32))
+            pool = data / 'preprocessing_train'
+            pool.mkdir()
+            for name in ('idx', 'age', 'token_type', 'patient_id'):
+                array = np.load(data / 'train' / (name + '.npy'))
+                extra = array[:1].copy()
+                if name == 'patient_id':
+                    extra[:] = 999999
+                np.save(pool / (name + '.npy'), np.concatenate([array, extra]))
+            values = np.zeros((9, width), dtype=np.float32)
+            values[-1] = 90.
+            np.save(pool / 'frozen_embeddings.npy', values)
+            out = root / 'run'
+            result = subprocess.run([sys.executable, str(package / 'train_record.py'), '--data', str(data),
+                '--out', str(out), '--arm', 'head_only', '--recipe', 'diagnostic_v1', '--embeddings-cache', str(data),
+                '--device', 'cpu', '--epochs', '1', '--smoke-random-init', str(config_path)],
+                capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            state = torch.load(out / 'trainable_state.pt', weights_only=True)
+            np.testing.assert_array_equal(state['preprocessing']['embedding_mean'], np.full(width, 10., np.float32))
+            self.assertFalse((out / 'gate.json').exists())
+            from data import PrefixSplit, dataset_content_hash
+            splits = {s: PrefixSplit(data, s) for s in ('train', 'validation', 'test', 'preprocessing_train')}
+            before = dataset_content_hash(splits, 'record', None)
+            age = np.load(pool / 'age.npy')
+            age[-1, 0] += 1
+            np.save(pool / 'age.npy', age)
+            self.assertNotEqual(before, dataset_content_hash(splits, 'record', None))
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 # LoRA fine-tuning baseline — protocol (drafted 2026-10-22, before any run)
 
-Protocol version `2026-10-22.4` (`common.PROTOCOL_VERSION`); gates record it and
+Protocol version `2026-10-22.5` (`common.PROTOCOL_VERSION`); gates record it and
 a run refuses a gate from another version.
 
 **Status: synthetic implementation checks passed; actual v1 reproduction pending.** No LoRA model has been trained on SNUH
@@ -184,7 +184,7 @@ per split.
 
 ## 9. Gate identity and validation
 
-Version .4 binds task/disease, model hash, precision, protocol version, metadata,
+Version .5 binds task/disease, model hash, precision, protocol version, metadata,
 prediction vocabulary/labels, validation/test IDs and selected training IDs.
 It also streams a hash of every consumed array across all three splits,
 including the complete training pool and eligibility. No patient rows are
@@ -237,7 +237,7 @@ implementation and recipe descriptions; it does not alter official gate targets.
 |---|---|---|
 | Record initialization | reset seed before head; N(0,.01); FP32 torch.logit((positive+.5)/(n+1)) | restored |
 | Record objective/optimizer | item-summed BCE/patient count; AdamW.001, wd.01, default betas, batch256 | matched for recipe=v1 |
-| Record scale | selected train mean/std, sd lower bound 1e-4 | matched |
+| Record scale | all 19,992 original training patients, including those without a next-record target; sd floor 1e-4 | version .5 requires a separate preprocessing_train pool; optimization remains on 18,474 patients |
 | Record randomness | historical seeds20260908/+1/+2; zero-based epoch reseeds torch/CUDA and numpy with seed+epoch*101 | recipes.record_epoch_order |
 | Record selection | score>best+1e-10 or abs(delta)<=1e-10 and smaller BCE; patience10, max60 | recipes.record_improved |
 | Risk preprocessing cohort | every eligible train patient, including censored outcomes | explicit eligibility mask, independent of observed optimization subset |
@@ -280,7 +280,7 @@ tune the recipe or thresholds to the test result.
 
 - Export explicit `eligible_*.npy`; missing masks fail. Eligibility must not be
   reconstructed as weight>0.
-- Version .2/.3 gates/checkpoints are incompatible. Regenerate them; editing a
+- Version .2/.3/.4 gates/checkpoints are incompatible. Regenerate them; editing a
   version string is not migration.
 - `gates.py` owns evidence checks; `recipes.py` owns historical task recipes;
   `common.py` owns model, accumulation and artifact plumbing. CLI imports have
@@ -292,3 +292,20 @@ tune the recipe or thresholds to the test result.
   seed does not silently change the base model.
 - Deliberate head-only changes use `--recipe experimental`; they cannot issue
   real reproduction gates. New LoRA runs use `--recipe lora`.
+
+## 14. Diagnostic execution and expanded cohorts
+
+`--recipe diagnostic_v1 --embeddings-cache PATH` uses the historical record
+optimizer, seed and epoch order on saved embeddings, but cannot issue a real
+gate. Fresh v1 runs can require `--reference-embeddings PATH`: all consumed
+embeddings must match at rtol=1e-5, atol=1e-6 before head fitting starts.
+Extraction/scoring uses `--batch-size 32`; historical head optimization remains
+batch 256. The preprocessing pool is hashed as part of the dataset identity.
+
+The 18,474-patient gate does not authorize a new 100k export. Even unchanged
+validation/test IDs cannot compensate for a changed training-content hash.
+Expanded-cohort runs are deferred until a protocol amendment defines and tests
+historical-reference versus new-pool compatibility. Do not bypass the check or
+relabel an experimental 100k head as v1. Shared risk embedding caching is also
+deferred; its future key must bind model, prefix content, precision and extraction
+semantics, independently of disease-specific outcomes and eligibility.

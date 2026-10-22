@@ -106,6 +106,23 @@ def prepare(pilot, record, out):
         for name, values in arrays.items():
             np.save(folder / (name + '.npy'), values)
         counts[split] = len(chosen)
+    # The original record scaler used ALL training patients, including those
+    # without an observed next-record target; head optimization used only 18,474.
+    chosen = np.flatnonzero(targets.split == 'train')
+    folder = staging / 'preprocessing_train'
+    folder.mkdir()
+    idx, age, typ = pack_prefixes(rows, offsets, chosen, targets.patient_id_dense.to_numpy(),
+                                 targets.index_age_days.to_numpy())
+    for name, values in dict(idx=idx, age=age, token_type=typ,
+                             patient_id=targets.person_id.to_numpy(np.int64)[chosen],
+                             frozen_embeddings=embeddings[chosen]).items():
+        np.save(folder / (name + '.npy'), values)
+    source_scale = np.load(record / 'standardization.npz')
+    reference = embeddings[chosen]
+    if not (np.array_equal(reference.mean(0), source_scale['mean']) and
+            np.array_equal(np.maximum(reference.std(0), 1e-4), source_scale['sd'])):
+        raise ValueError('All-training scaler does not exactly match saved v1 statistics')
+    provenance['record/standardization.npz'] = sha256(record / 'standardization.npz')
     baseline = pd.read_parquet(record / 'paths50/predictions.parquet')
     ids = np.load(staging / 'test/patient_id.npy')
     if not baseline.person_id.is_unique or set(baseline.person_id) != set(ids):
@@ -120,6 +137,7 @@ def prepare(pilot, record, out):
         staging / 'baseline_rollout50.csv', index=False)
     selection = json.loads((record / 'model_selection.json').read_text())
     metadata = dict(task='record', source='saved next_record_bundle_20260908_v1',
+                    preprocessing_train_patients=len(chosen),
                     source_sha256=provenance, counts=counts, selected_v1_head=selection['chosen'],
                     prefix_rule='Saved observed prefix through index date, stored token ID + 1; right padding',
                     label_rule='Saved first future DX/RX/PX day bundle; nonempty target cohort',
@@ -127,9 +145,11 @@ def prepare(pilot, record, out):
                     preparation_only=True)
     (staging / 'dataset.json').write_text(json.dumps(metadata, indent=2) + '\n')
     splits = {s: PrefixSplit(staging, s) for s in counts}
+    splits['preprocessing_train'] = PrefixSplit(staging, 'preprocessing_train')
     hash_start = time.perf_counter()
     digest = dataset_content_hash(splits, 'record', None)
     report = dict(status='PREPARED_NOT_REPRODUCED', counts=counts, classes=len(classes),
+                  preprocessing_train_patients=len(chosen), scaler_matches_saved_v1_exactly=True,
                   dataset_content_sha256=digest, hash_seconds=time.perf_counter() - hash_start,
                   export_bytes=sum(p.stat().st_size for p in staging.rglob('*') if p.is_file()),
                   selected_v1_head=selection['chosen'], rollout50_recall_percent=float(100 * recall.mean()),

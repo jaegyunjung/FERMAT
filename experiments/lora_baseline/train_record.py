@@ -85,6 +85,15 @@ def main():
     for name, split in splits.items():
         if split.labels is None:
             raise ValueError(f'{name}: record-task labels are missing')
+    if (args.data / 'preprocessing_train').exists():
+        pool = PrefixSplit(args.data, 'preprocessing_train', model.config.block_size)
+        if not np.isin(splits['train'].patient_id, pool.patient_id).all():
+            raise ValueError('Training patients missing from preprocessing pool')
+        if any(np.intersect1d(pool.patient_id, splits[s].patient_id).size for s in ('validation', 'test')):
+            raise ValueError('Preprocessing pool overlaps held-out patients')
+        splits['preprocessing_train'] = pool
+    elif args.smoke_random_init is None:
+        raise ValueError('Real record runs require the original all-training preprocessing pool')
     classes_path = args.classes or (args.data / 'classes.npy' if (args.data / 'classes.npy').exists()
                                     else args.release / 'artifacts/head_classes.npy')
     classes = np.load(classes_path, allow_pickle=False).astype(np.int64)
@@ -109,12 +118,18 @@ def main():
     # Standardisation always comes from the frozen model on the training patients,
     # so both arms feed the head inputs on the same scale (MODEL_CARD.md).
     split_rows = dict(train=train_rows, validation=val_rows, test=test_rows)
+    if 'preprocessing_train' in splits:
+        split_rows = dict(preprocessing_train=np.arange(len(splits['preprocessing_train'])), **split_rows)
     frozen = {}
     if args.embeddings_cache is not None:
         frozen, hashes = load_diagnostic_embeddings(args.embeddings_cache, splits, split_rows, model.config.n_embd)
         log['fingerprint']['diagnostic_cache_sha256'] = hashes
     else:
         for name, rows in split_rows.items():
+            if name == 'train' and 'preprocessing_train' in frozen:
+                positions = {int(pid): i for i, pid in enumerate(splits['preprocessing_train'].patient_id)}
+                frozen['train'] = frozen['preprocessing_train'][[positions[int(pid)] for pid in splits['train'].patient_id[train_rows]]]
+                continue
             phase_started, last_log = time.perf_counter(), [0.]
             def progress(done, total):
                 guard.check()
@@ -138,7 +153,8 @@ def main():
         del reference
     log['fingerprint']['embedding_phase_seconds'] = time.perf_counter() - started
     tracker.log({'time/preparation_seconds': time.perf_counter() - started})
-    mean, sd = common.standardization(frozen['train'])
+    mean, sd = common.standardization(frozen.get('preprocessing_train', frozen['train']))
+    log['fingerprint']['n_preprocessing_train'] = len(frozen.get('preprocessing_train', frozen['train']))
     mean_t, sd_t = (torch.from_numpy(a).to(args.device) for a in (mean, sd))
     common.set_seed(args.seed)  # adapters follow the experiment seed, independently of base loading
     snapshot, wrapped = common.prepare_adapters(model, args)

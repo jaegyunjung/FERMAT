@@ -4,7 +4,7 @@ import json
 import math
 from pathlib import Path
 
-PROTOCOL_VERSION = '2026-10-22.4'
+PROTOCOL_VERSION = '2026-10-22.5'
 PROTOCOL_TARGETS = Path(__file__).with_name('protocol_targets.json')
 GATE_METRICS = dict(record=('test.recall_at_10',), risk=('test.weighted_auroc', 'test.weighted_brier'))
 

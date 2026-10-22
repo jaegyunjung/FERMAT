@@ -23,6 +23,11 @@ representation-based predictors; tensors follow INPUT_SPEC.md (model ID =
 stored ID + 1, padding ID 0 with age -10000). Building these files from the
 source cohorts is the responsibility of the internal pipeline; this module only
 validates and serves them.
+
+Real record exports additionally require ``preprocessing_train/`` with prefix
+arrays and patient IDs for every original training patient (including patients
+without a target). It has no labels. Its contents enter the gate identity and
+its frozen embeddings determine the record scaler, as in the original fit.
 """
 import json
 import hashlib
@@ -182,7 +187,8 @@ def dataset_content_hash(splits, task, disease):
     files += (['label_indptr.npy', 'label_tokens.npy'] if task == 'record' else
               ['clinical.npy', f'outcome_{disease}.npy', f'weight_{disease}.npy', f'eligible_{disease}.npy'])
     for name, split in sorted(splits.items()):
-        for file in sorted(files):
+        consumed = files[:4] if task == 'record' and name == 'preprocessing_train' else files
+        for file in sorted(consumed):
             path = split.root / split.split / file
             digest.update(f'{name}/{file}:{path.stat().st_size}:'.encode())
             with path.open('rb') as stream:
