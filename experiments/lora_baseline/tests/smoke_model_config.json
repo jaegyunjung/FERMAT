@@ -1,0 +1,19 @@
+{
+  "n_layer": 2,
+  "n_head": 2,
+  "n_embd": 32,
+  "block_size": 512,
+  "bias": false,
+  "vocab_size": 24435,
+  "n_token_types": 10,
+  "dropout": 0.1,
+  "token_dropout": 0.0,
+  "t_min": 0.0,
+  "use_global_log_rate": true,
+  "decoupled_time_head": true,
+  "two_stage_time_head": true,
+  "mask_ties": true,
+  "ignore_tokens": [0],
+  "output_ignore_tokens": [0, 1],
+  "ignore_types": [0, 7, 8, 4, 9]
+}
