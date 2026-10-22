@@ -85,7 +85,7 @@ A 128-step record LoRA timing pilot and all nine A/C/LoRA record experiments are
 complete. See RECORD_MAIN_PLAN_KO.md and results/record_main_20261022/ for final
 results and an independent bootstrap audit. All three disease C10 reproduction
 gates passed, and all 329,583 CUDA BF16 embeddings exactly match the originals.
-Disease main LoRA training and the 100k expansion remain pending. Risk runtime
+Disease main C/LoRA runs started on 2026-10-22 at 21:31 KST; the 100k expansion remains pending. Risk runtime
 additions pass 59 CPU tests; measured preparation results are documented in
 PREPARATION_KO.md Section 6. Synthetic tests
 alone do not establish v1 reproduction.
@@ -178,3 +178,8 @@ For the reviewed full record suite, see RECORD_MAIN_PLAN_KO.md. Experimental
 head-only supports `--optimizer-batch-size` independently of extraction/scoring
 batch size. Historical v1 batch 256 is unchanged. Freeze the execution checkout
 before starting; do not modify it during the run or resume from changed sources.
+
+Disease queue: `run_risk_suite.py` supervises a separate frozen training checkout,
+C nine runs then LoRA seeds 1/2/3 across three diseases. See PREPARATION_KO.md
+Section 7 and results/risk_main_20261022/launch.json. A launch record is not a
+completed result; live status stays in the private output directory.

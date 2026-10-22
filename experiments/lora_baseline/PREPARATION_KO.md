@@ -320,3 +320,33 @@ Windows 업데이트 일시중지 기한은 조회 당시 이미 지났으며 OS
 
 본 실험에서 기존 frozen embedding보다 좋아졌는지는 아직 알 수 없다.
 이번 pilot은 속도/메모리만 측정했으며 시험 성능과 bootstrap을 계산하지 않았다.
+
+
+## 7. 본 실험 시작 (2026-10-22 21:31 KST)
+
+사용자 승인 후 본 실험을 시작했다. 위 6절의 '본 실험 미시작'은 준비 완료 시점 기록이다.
+학습 소스는 검증한 커밋 `95713c6`과 고정 checkout을 그대로 사용한다.
+별도 순차 실행기는 `ad0a581`이며 제한 폴더에 복사한 불변 파일로 실행한다.
+
+- C 대조군: 세 질환 × seeds 1/2/3 = 9회. 고정 임베딩 위 head를 LoRA와 같은
+  batch 32, 최대 3 epochs, patience 1, warmup 100, clip 1.0, head LR .001, WD .01로 학습.
+- LoRA: seeds 1의 CKD/지방간/당뇨병을 먼저 완료하고 각 저장 모델을 독립 재로딩한 뒤
+  seeds 2/3의 여섯 작업으로 진행한다. rank 8, alpha 16, attention, LR 2e-4 설정 유지.
+- 각 LoRA에서 저장 C10 확률 대비 AUROC/Brier 차이의 paired bootstrap 2,000회 계산.
+  seed 1이 주 분석이고 seeds 2/3은 반복 실행 확인이다. 시험 지표로 후속 작업을 바꾸지 않는다.
+- 매 epoch 체크포인트 원자 저장, best/current/optimizer/RNG 유지. 각 run 종료 후
+  checksum, best 상태, 환자 순서, 지표 재계산, W&B 서버 finished를 확인한다.
+- 세 질환 C10 gate는 이번 준비에서 확인한 결과를 사용한다. C는 기존 A와 다른 최적화
+  일정의 대조군이며, transformer dropout까지 통제하는 arm은 아니다.
+- 실행 전 CUDA BF16 probe와 GPU 안정 표본 3회 통과, pending reboot 없음, 새 host incident 없음,
+  여유 공간 약 767 GiB. Windows 업데이트 일시중지 기한은 지났으며 설정은 바꾸지 않았다.
+- 소스/데이터/환경/유한성/W&B/GPU 점검 실패 시 큐를 중단하고 출력/체크포인트를 보존한다.
+  자동 재시작은 하지 않는다. 정상 진행하면 이 대화가 끝나도 순서대로 실행된다.
+
+상태: `$PREP/risk_main_01/status.json`, run 로그와 checkpoint는 같은 폴더의 각 run 아래.
+실행기 로그: `$PREP/risk_main_launch_01/supervisor.log`.
+집계 실행 명세는 `results/risk_main_20261022/launch.json`.
+예산 12~13시간, 시작 시점 기준 10월 23일 오전 09:30~10:30 KST 예상이며 조기 종료/실측 속도에 따라 달라진다.
+
+순서와 검증 기준용 새 테스트 2개 통과. 학습 코드는 변경하지 않아 이전 59개 테스트와
+실제 CUDA 재개 감사 결과를 그대로 적용한다.
