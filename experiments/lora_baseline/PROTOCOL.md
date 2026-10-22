@@ -64,7 +64,7 @@ not generators.
 | Weight decay | 0.01 (record both arms, risk LoRA arm); 1e-5 (risk v1 head-only: fixed C=10 under 1e-4/C) |
 | Head input scale | fixed frozen-model statistics. Record: all 19,992 original training patients, including those without targets, sd lower bound 1e-4. Risk: all eligible training patients including censored patients, sd>1e-8 else1, finite-value median imputation. Both arms share the task-specific transform |
 | Audit | after training every pre-injection tensor is checked bit-identical (`assert_base_unchanged`) |
-| Saved state | `trainable_state.pt` holds adapters, head, every standardisation constant, vocabulary and run configuration. Synthetic separate-process reload tests check probabilities at absolute tolerance 1e-6 and record logits at rtol/atol 1e-5, with exact IDs/labels/weights. Real CUDA BF16 replay must preserve the original inference batch context; arbitrary batch-size or split-only replay is not established by those tests |
+| Saved state | `trainable_state.pt` holds adapters, head, every standardisation constant, vocabulary and run configuration. Synthetic separate-process reload tests check probabilities at absolute tolerance 1e-6 and record logits at rtol/atol 1e-5, with exact IDs/labels/weights. A bounded real CUDA BF16 LoRA audit matched all 1,867 validation logits and top-10 sets exactly at batch 32 (CHECKPOINT_RESUME_KO.md). Replay must preserve the inference batch context; arbitrary batch-size or split-only replay is not established |
 
 Sensitivity settings, run only after the primary analysis and reported as such:
 r = 32 with α = 64; targets `attention_mlp` (adds `mlp.c_fc`, `mlp.c_proj`).
@@ -289,7 +289,11 @@ tune the recipe or thresholds to the test result.
   `common.py` owns model, accumulation and artifact plumbing. CLI imports have
   no training or argument-parsing side effects.
 - Training/prediction refuse nonempty output directories. Use one directory
-  per run. Interrupted-training resume is not implemented.
+  per run. Record training can resume from a committed epoch manifest into a new
+  directory; optimizer, best state, patience and all RNG streams are restored.
+  Data/settings/source/numerical-environment changes are rejected. Risk training
+  does not yet support resume. The resume format is versioned independently of
+  this statistical protocol; the model recipe and gate thresholds are unchanged.
 - Checkpoints identify the frozen model and precision; prediction verifies
   both. Smoke model initialization has a separate seed so changing an experiment
   seed does not silently change the base model.

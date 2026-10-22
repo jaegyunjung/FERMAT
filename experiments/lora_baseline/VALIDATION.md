@@ -18,7 +18,7 @@ python experiments/lora_baseline/audit_v1.py \
   --reference-dir /path/to/original/scripts --out /tmp/v1_audit.json
 ```
 
-The suite contains 46 tests, including both task pipelines, gate issuance and
+The suite contains 52 tests, including both task pipelines, gate issuance and
 rejection, checkpoint reload in separate processes, unchanged frozen weights,
 partial/unequal gradient accumulation, historical seed/order and preprocessing,
 eligibility validation, changed data, modified target files, output protection,
@@ -32,7 +32,15 @@ original inference-pool mapping/content integrity, and Windows-worktree revision
 lookup from WSL. The bounded benchmark integration test verifies actual adapter
 updates, unchanged frozen weights, and absence of test outputs/reproduction gates.
 Runtime projection tests include the final partial batch and evaluation costs.
-The suite passed in 32.277 seconds.
+The suite passed in 64.969 seconds. New checks include atomic-write/publish
+failures, checksum/contract rejection, RNG roundtrip, and uninterrupted versus
+resumed head/LoRA training including partial gradient accumulation. Parameters,
+optimizer, RNG, epoch metrics and validation predictions agree exactly; a
+separate prediction process checks the saved validation reference. Epoch-cap
+resume does not execute additional epochs. Tracking's final optimizer update
+count agrees with the committed state after both uninterrupted and resumed runs.
+The release model configuration is hashed separately from the weights; changing
+dropout with unchanged weights changes the resume contract.
 These results are from torch 2.12.1, not the other agent's torch 2.14.1 environment.
 
 The original review's weighted gradient (-0.4) and trailing accumulation (-2)
@@ -76,4 +84,6 @@ Old gates/checkpoints must be regenerated. The linear record baseline does not
 repeat the original linear/MLP architecture search. Stable record ranking ties
 remain an explicit implementation difference. The saved-head audit on all 1,862
 test patients found no boundary ties, changed top-10 sets or Recall@10 change.
-Interrupted-training resume is not implemented; use a fresh output folder.
+Record epoch-boundary resume is implemented; use a fresh output folder. Real CUDA
+resume/reload evidence is recorded separately in CHECKPOINT_RESUME_KO.md. Risk
+resume and arbitrary BF16 batch-context replay remain outside this validation.

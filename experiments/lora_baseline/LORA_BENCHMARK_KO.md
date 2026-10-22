@@ -97,7 +97,9 @@ $PY "$CODE/train_record.py" --release "$RELEASE" --data "$DATA" \
 지정한다. 20 epochs 상한과 patience 5를 유지한다. 이번 작업에서는 실행하지 않았다.
 장시간 실행 전에는 현재 Windows 업데이트/재부팅 일정과 GPU 상태를 다시 확인한다.
 현재 업데이트 pause 만료일은 이미 지났지만, 이번 짧은 측정에는 재부팅 대기가 없었다.
-자동 resume는 미구현이다.
+이 측정 당시에는 resume가 미구현이었다. 이후 추가한 epoch 재개와 별도 CUDA
+검증은 CHECKPOINT_RESUME_KO.md에 기록했다. 이 benchmark checkpoint에는 optimizer
+상태가 없으므로 이후 기능으로도 본 실험을 이어 시작할 수 없다.
 
 코드 검증은 CPU 46개 테스트 통과(32.277초). 새 테스트는 실제 adapter 갱신,
 base 불변, 시험 출력/gate 미생성, ETA의 마지막 부분 batch 및 평가 비용을 확인한다.

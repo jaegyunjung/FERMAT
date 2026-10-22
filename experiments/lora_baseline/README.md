@@ -20,6 +20,8 @@ predict.py                 rebuild a trained arm from trainable_state.pt and rep
 data.py                    dataset layout (documented in the module docstring) and validation
 metrics.py                 Recall@K / F1 / precision / hit, weighted AUROC and Brier, paired bootstrap
 common.py                  model, accumulation, checkpoint and provenance plumbing
+checkpointing.py           atomic epoch transactions, checksum/contract validation and RNG restoration
+audit_record_resume.py     bounded real CUDA resume/reload audit using validation only
 gates.py                   target-content and experiment-identity verification
 recipes.py                 audited v1 preprocessing, seed/order and selection
 tracking.py                aggregate-only W&B and durable local JSONL (optional)
@@ -104,12 +106,16 @@ gate. Grid selection requires `--recipe experimental`; it cannot issue a real
 gate. Version .3 introduced the corrected preprocessing. Regenerate old
 gates/checkpoints. Use an empty output directory per run. Prediction reads
 precision/smoke seed from its checkpoint and verifies the base model.
-Interrupted-run resume is not implemented. No actual patient-data training
-has been performed by these tests.
+Record training supports epoch-boundary resume into a new output directory;
+risk training does not yet support resume. See CHECKPOINT_RESUME_KO.md.
+Synthetic tests alone do not establish real-data training or replay correctness.
 
-Every run writes `summary.json`, a per-patient test CSV and `trainable_state.pt`
-(adapters, head and preprocessing constants). Synthetic `predict.py` reload is
-tested; real BF16 replay across arbitrary batch contexts is not guaranteed.
+Completed full runs write `summary.json`, a per-patient test CSV and `trainable_state.pt`
+(adapters, head and preprocessing constants). Paused, benchmark and validation-only
+runs have their own outputs and do not score test patients. Real CUDA BF16 LoRA
+resume and separate-process reload matched exactly on all 1,867 validation patients
+at batch 32; see CHECKPOINT_RESUME_KO.md. Replay across arbitrary batch contexts is
+not guaranteed.
 See RUN_RESULTS_KO.md for the original-pool requirement. Commit only
 `summary.json` and `gate.json` files, under
 `results/`.
@@ -139,3 +145,18 @@ start afresh. This mode currently requires gradient accumulation 1 and no more
 than one epoch of training steps. CUDA peak allocated/reserved bytes are reported
 separately from sampled whole-device memory. ETA includes per-epoch validation;
 checkpoint/network/bootstrap costs and early stopping are not predicted.
+
+Record resume uses `--resume /prior/run/last_training.json`, with unchanged data,
+recipe, seed, epoch cap, precision and training settings, and a new `--out`.
+`--stop-after-epoch N` commits an epoch and exits before test evaluation. Each
+epoch writes an immutable `checkpoints/epoch_NNNN.pt`; the atomic manifest with
+SHA-256 is authoritative, and `best_model.pt` is a convenience inference copy.
+An interrupted epoch is replayed from the last committed epoch. Old final
+checkpoints and benchmark-only checkpoints do not contain resumable optimizer
+state. Training source hashes and numerical environment must match; documentation
+changes alone do not invalidate resume.
+
+Use `--validation-only` with LoRA or experimental head-only for bounded diagnostics.
+It never evaluates test or issues a gate, and cannot be resumed as a full run.
+`predict.py --split validation --reference-scores RUN/validation_scores.pt`
+compares independent reload with the live-model scores at the same batch size.

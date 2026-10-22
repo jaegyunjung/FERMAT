@@ -4,6 +4,8 @@
 프로토콜은 `2026-10-22.5`이며 PR은 draft다. 상세 결과, 실패 진단과 수정 이력,
 v1 결과는 [RUN_RESULTS_KO.md](RUN_RESULTS_KO.md), LoRA 속도·메모리·ETA는
 [LORA_BENCHMARK_KO.md](LORA_BENCHMARK_KO.md)에 있다.
+체크포인트 저장·재개 및 CUDA 재로딩 검증은 [CHECKPOINT_RESUME_KO.md](CHECKPOINT_RESUME_KO.md)를 따른다.
+본 실험은 독립 검토가 끝날 때까지 시작하지 않는다.
 
 ## 1. 논문과 실행 경로 대조
 
