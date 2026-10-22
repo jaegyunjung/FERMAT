@@ -333,6 +333,22 @@ class PipelineSmokeTests(unittest.TestCase):
         torch.testing.assert_close(a['logits'], b['logits'], rtol=1e-5, atol=1e-5)
         self.assertEqual((lora / 'test_patient_metrics.csv').read_text(), (reload / 'test_patient_metrics.csv').read_text())
 
+    def test_benchmark_trains_adapters_without_test_scoring_or_gate(self):
+        head = self.root / 'benchmark_head'
+        self.invoke(['train_record.py'] + self.common_args(head, 'head_only'))
+        gate = self.gate_for(head / 'summary.json', ['test.recall_at_10'], self.root / 'benchmark_gate.json')
+        out = self.root / 'benchmark'
+        self.invoke(['train_record.py'] + self.common_args(out, 'lora') +
+                    ['--gate', str(gate), '--benchmark-steps', '4', '--benchmark-warmup', '1'])
+        result = json.loads((out / 'benchmark.json').read_text())['benchmark']
+        self.assertEqual(result['optimizer_steps'], 4)
+        self.assertEqual(result['patients_processed'], 32)
+        self.assertTrue(result['audit']['frozen_base_unchanged'])
+        self.assertGreater(result['adapter_tensors_changed'], 0)
+        self.assertFalse(result['test_evaluated'])
+        for name in ('summary.json', 'gate.json', 'test_scores.pt', 'test_patient_metrics.csv'):
+            self.assertFalse((out / name).exists())
+
     def test_training_selection_is_exact(self):
         out = self.root / 'record_toolarge'
         message = self.invoke(['train_record.py'] + self.common_args(out, 'head_only') + ['--train-subset', '41'],

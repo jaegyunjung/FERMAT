@@ -68,6 +68,8 @@ def main():
     parser.add_argument('--embeddings-cache', type=Path, help='Saved split caches, diagnostic_v1 only; never issues a real gate')
     parser.add_argument('--reference-embeddings', type=Path, help='Audit freshly extracted v1 embeddings against saved references before fitting')
     parser.add_argument('--gpu-profile', type=Path, help='Enable WSL host/GPU guard with current-boot profile JSON')
+    parser.add_argument('--benchmark-steps', type=int, help='LoRA timing only: bounded training, validation timing, no test evaluation')
+    parser.add_argument('--benchmark-warmup', type=int, default=10, help='Initial timing samples to exclude; separate from optimizer LR warmup')
     parser.add_argument('--classes', type=Path, default=None,
                         help='int64 .npy of predicted token IDs; defaults to <data>/classes.npy, then the release head classes')
     parser.add_argument('--baseline-recall', type=Path, default=None,
@@ -79,6 +81,9 @@ def main():
         lora=dict(epochs=20, patience=5, lr_head=1e-3, weight_decay=0.01, batch=args.batch_size)))
     resamples = args.bootstrap_resamples or 5000
     configure_recipe(args, cfg, 'record')
+    if args.benchmark_steps is not None and (args.arm != 'lora' or args.grad_accum != 1
+            or args.benchmark_warmup < 0 or args.benchmark_steps <= args.benchmark_warmup):
+        raise ValueError('Benchmark requires LoRA, grad-accum 1 and steps > nonnegative timing warmup')
     if args.arm == 'lora' and args.gate is None:
         raise ValueError('LoRA requires --gate from a matching head_only reproduction')
     if (args.embeddings_cache is not None) != (args.recipe == 'diagnostic_v1'):
@@ -93,6 +98,9 @@ def main():
                       args.run_name, dict(task='record', arm=args.arm, recipe=args.recipe, seed=args.seed,
                       protocol=common.PROTOCOL_VERSION, commit=common.git_commit(), extraction_batch=args.batch_size,
                       optimizer_batch=cfg['batch'], epochs=cfg['epochs'], patience=cfg['patience'],
+                      benchmark_steps=args.benchmark_steps, benchmark_warmup=args.benchmark_warmup,
+                      rank=args.rank, alpha=args.alpha, lora_dropout=args.lora_dropout, lr_lora=args.lr_lora,
+                      warmup_steps=args.warmup_steps, grad_clip=args.grad_clip, grad_accum=args.grad_accum,
                       lr_head=cfg['lr_head'], weight_decay=cfg['weight_decay'], bf16=args.bf16))
     guard = RuntimeGuard(args.gpu_profile, args.out, tracker)
     started = time.perf_counter()
@@ -125,6 +133,8 @@ def main():
     class_index = class_lookup(classes, model.config.vocab_size)
     n_classes = len(classes)
     train_rows, selection_mode = common.select_training_rows(splits['train'], args)
+    if args.benchmark_steps is not None and args.benchmark_steps > (len(train_rows) + cfg['batch'] - 1) // cfg['batch']:
+        raise ValueError('Benchmark is limited to one training epoch')
     val_rows, test_rows = np.arange(len(splits['validation'])), np.arange(len(splits['test']))
     label_hash = common.sha256_of_arrays(classes, splits['validation'].label_indptr, splits['validation'].label_tokens,
                                          splits['test'].label_indptr, splits['test'].label_tokens)
@@ -224,6 +234,40 @@ def main():
         recall = float((100. * hits / truth.sum(1)).mean())
         return recall, bce
 
+    def train_batch(batch_rows):
+        y = targets['train'][batch_rows].to(args.device)
+        if args.arm == 'head_only':
+            z = torch.from_numpy(frozen['train'][batch_rows]).to(args.device)
+        else:
+            idx, age, typ = splits['train'].batch(train_rows[batch_rows], args.device)
+            with common.autocast(args):
+                z = common.last_hidden(model, idx, age, typ).float()
+        loss = common.record_loss(head((z - mean_t) / sd_t), y)
+        accumulator.backward(loss, len(batch_rows))
+        return float(loss.detach())
+
+    if args.benchmark_steps is not None:
+        from benchmarking import measure_training
+        initial_adapters = common.lora_state_dict(model)
+        head.train()
+        model.train()
+        order = np.random.default_rng(args.seed).permutation(len(train_rows))
+        report = measure_training(order, cfg['batch'], args.benchmark_steps, args.benchmark_warmup,
+                                  train_batch, validate, guard, tracker, args.device,
+                                  len(val_rows), len(test_rows), time.perf_counter() - started)
+        state = common.trainable_state(model, head, preprocessing, dict(state_config, benchmark_only=True, selected_epoch=0))
+        report['adapter_tensors_changed'] = sum(not torch.equal(v, initial_adapters[k]) for k, v in state['lora'].items())
+        if report['adapter_tensors_changed'] == 0:
+            raise RuntimeError('Benchmark performed no adapter update')
+        report['audit'] = common.finish_audit(model, snapshot, head, state, args.out)
+        report['optimizer_steps'] = accumulator.steps
+        report['elapsed_seconds'] = time.perf_counter() - started
+        common.write_json(args.out / 'benchmark.json', dict(fingerprint=log['fingerprint'], benchmark=report))
+        tracker.log({'audit/frozen_base_unchanged': True, 'audit/adapter_tensors_changed': report['adapter_tensors_changed'],
+                     'progress/benchmark_completed': True, 'time/benchmark_elapsed_seconds': report['elapsed_seconds']})
+        tracker.finish()
+        print(json.dumps(report, indent=2))
+        return
 
     best, best_state, since_best = None, None, 0
     rng = np.random.default_rng(args.seed)
@@ -237,16 +281,7 @@ def main():
         losses = []
         for batch_rows in iterate_batches(order, cfg['batch']):
             guard.check()
-            y = targets['train'][batch_rows].to(args.device)
-            if args.arm == 'head_only':
-                z = torch.from_numpy(frozen['train'][batch_rows]).to(args.device)
-            else:
-                idx, age, typ = splits['train'].batch(train_rows[batch_rows], args.device)
-                with common.autocast(args):
-                    z = common.last_hidden(model, idx, age, typ).float()
-            loss = common.record_loss(head((z - mean_t) / sd_t), y)
-            accumulator.backward(loss, len(batch_rows))
-            losses.append((float(loss.detach()), len(batch_rows)))
+            losses.append((train_batch(batch_rows), len(batch_rows)))
         accumulator.end_epoch()
         recall, bce = validate()
         log['epochs'].append(dict(epoch=epoch, train_bce=float(np.average([v for v, n in losses], weights=[n for v, n in losses])), validation_recall_at_10=recall,

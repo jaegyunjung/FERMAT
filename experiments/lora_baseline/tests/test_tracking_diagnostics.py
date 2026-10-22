@@ -17,6 +17,16 @@ import test_reproduction
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_runtime_projection_includes_partial_batch_and_evaluation(self):
+        from benchmarking import estimate_runtime
+        result = estimate_runtime([1., 3.], 32, 65, 4., 10., 20, 10, epochs=(5,))
+        self.assertEqual(result['batches_per_epoch'], 3)
+        self.assertEqual(result['seconds_per_epoch'], 10.)
+        self.assertEqual(result['scenarios'][0]['one_seed_seconds'], 62.)
+        self.assertEqual(result['scenarios'][0]['three_seeds_seconds'], 186.)
+        with self.assertRaises(ValueError):
+            estimate_runtime([float('nan')], 32, 65, 4., 10., 20, 10)
+
     def test_windows_worktree_commit_fallback(self):
         from unittest.mock import patch
         from types import SimpleNamespace
